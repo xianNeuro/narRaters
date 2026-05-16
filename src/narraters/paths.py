@@ -33,11 +33,16 @@ def package_root() -> Path:
 def repo_root() -> Path:
     """The repository root, containing legacy scripts/, server/, templates/, etc.
 
+    - **Standalone macOS app:** ``NARRATERS_PROJECT_ROOT`` (runtime copy under
+      Application Support).
     - **Wheel / sdist layout:** bundled assets live next to this module
       (``…/site-packages/narraters/{scripts,server,...}``).
     - **Editable clone:** walk up from ``src/narraters/`` to the directory
       that contains ``pyproject.toml``.
     """
+    env_root = os.environ.get("NARRATERS_PROJECT_ROOT", "").strip()
+    if env_root:
+        return Path(env_root).resolve()
     here = package_root()
     if (here / "scripts").is_dir() and (here / "server").is_dir():
         return here

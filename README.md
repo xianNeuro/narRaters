@@ -40,9 +40,9 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ## Getting started
 
-1. **[Install](#installation)** once (`pip install -e .` from the project root, or the macOS / Windows installers in the repo).
+1. **[Install](#installation)** — macOS: open **`narRaters-macos-installer.dmg`**, drag **`narRater.app`** to **Applications**. Windows: double-click **`narRaters_installer.bat`** in the project folder. Developers can use `pip install -e .` instead.
 2. **[Add inputs](#where-to-put-your-data)** under `data/` — the repo includes **bundled examples** (`pieman_edited`, `the_siren`) you can inspect or run as-is; see that section for paths. Smaller **`demo/data/`** samples are also available.
-3. **[Start the web UI](#using-the-web-interface)** — on macOS, double-click **`narRater.app`** in the project folder (built by the installer; opens Terminal and your browser). Or run `.venv/bin/narraters serve`, or double-click `server/START_HERE.command`.
+3. **[Start the web UI](#using-the-web-interface)** — open **`narRater`** from Applications (macOS) or run **`narRaters_installer.bat`** again (Windows). Developers: `.venv/bin/narraters serve` or `server/START_HERE.command`.
 4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
 
@@ -75,14 +75,18 @@ This section goes beyond the minimal path in **[Getting started](#getting-starte
 
 ### Quick install (double-click)
 
-| Platform | File (repo root) | What it does |
-|----------|------------------|----------------|
-| **macOS** | `narRaters_installer.command` | One-time setup: **`.venv/`** + **`narRater.app`**. After that, **double-click `narRater.app`** to open the software (same as the DMG workflow). If nothing happens the first time, **Right-click → Open** (Gatekeeper). |
-| **Windows** | `narRaters_installer.bat` | One-time setup (**.venv\`**). Then double-click **`narRaters_launch.bat`** to open the web UI (same role as `narRater.app` on macOS). |
+| Platform | Installer | Everyday launch |
+|----------|-----------|-----------------|
+| **macOS** | **`narRaters-macos-installer.dmg`** (repo root) | Drag **`narRater.app`** to **Applications**, then open from Launchpad. First launch installs Python deps into `~/Library/Application Support/narRaters/`. |
+| **Windows** | **`narRaters_installer.bat`** (repo root) | Same file: sets up **`.venv\`** on first run, then starts the web UI and opens your browser. |
 
-**macOS disk image:** **`narRaters-macos-installer.dmg`** — copy the **`narRaters_source`** folder off the disk (required), then run **`narRaters_installer.app`** inside that folder once, then **`narRater.app`**. Do not run the installer while the folder is still on the read-only DMG. Rebuild: **`bash packaging/macos/build_installer_dmg.sh`**.
+**macOS (standard):** Open the disk image → drag **`narRater.app`** onto the **Applications** alias → open **narRater** from Applications. If Gatekeeper blocks the first open, **right-click → Open**.
 
-That completes a normal install. Everyday use on macOS is **`narRater.app`** (not the installer). The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
+**Windows:** Clone or unzip the repo → double-click **`narRaters_installer.bat`** (creates `.venv\` if needed, then launches).
+
+Rebuild the DMG: **`bash packaging/macos/build_installer_dmg.sh`**.
+
+The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
 
 | Step | Default method |
 |------|----------------|
@@ -97,11 +101,11 @@ That completes a normal install. Everyday use on macOS is **`narRater.app`** (no
 ```bash
 git clone https://github.com/xianNeuro/narRaters.git
 cd narRaters
-bash scripts/finish_macos_setup.sh .   # .venv + narRater.app on macOS
+bash scripts/setup_project_venv.sh .
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
 ```
 
-On macOS, `finish_macos_setup.sh` also builds **`narRater.app`**. On Homebrew Python, use the venv (PEP 668) instead of `pip install -e .` on system Python.
+On Homebrew macOS, use the venv (PEP 668) instead of `pip install -e .` on system Python. Optional: **`bash packaging/macos/build_app_bundle.sh`** builds **`narRater.app`** next to `server/` for local testing.
 
 ### Optional extras (heavier methods)
 
@@ -131,15 +135,11 @@ cp .env.example .env   # then edit for ANTHROPIC_API_KEY, OPENAI_API_KEY, HF_TOK
 
 Full provider list: [`SETUP_API.md`](SETUP_API.md).
 
-### Optional: macOS `narRater.app` (GUI launcher)
-
-`bash packaging/macos/build_app_bundle.sh` builds **`narRater.app`** next to `server/`. Double-click to start the Flask server and open the browser. The bundle picks a `python3` that can `import flask`; if none qualifies, it prompts you to run the click-installer or `pip install -e .` first. Rebuild after changing `static/app-icon.png`.
-
-### Maintainers: rebuild installer `.app` / DMG
+### Maintainers: rebuild macOS DMG
 
 ```bash
-bash packaging/macos/build_narRaters_installer_app.sh   # narRaters_installer.app at repo root (gitignored)
-bash packaging/macos/build_installer_dmg.sh             # narRaters-macos-installer.dmg at repo root
+bash packaging/macos/build_installer_dmg.sh   # narRaters-macos-installer.dmg at repo root
+bash packaging/macos/build_app_bundle.sh      # narRater.app at repo root (same bundle as inside the DMG)
 ```
 
 CI: `.github/workflows/build-installer-dmg.yml` (artifact on manual runs; attaches the DMG to GitHub Releases). Commit **`narRaters-macos-installer.dmg`** at the repo root when you want a direct in-tree download link.

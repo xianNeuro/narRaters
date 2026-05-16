@@ -36,7 +36,7 @@ echo "Python: $PY ($("$PY" --version 2>&1))"
 if ! "$PY" -c "import flask" 2>/dev/null; then
     echo "Flask not found — running setup (creates .venv if needed)..."
     if ! bash "$PROJECT_ROOT/scripts/setup_project_venv.sh" "$PROJECT_ROOT"; then
-        osascript -e 'display dialog "Failed to install dependencies. Double-click narRaters_installer.command in the project folder, or run: bash scripts/setup_project_venv.sh ." buttons {"OK"} default button "OK" with icon stop'
+        osascript -e 'display dialog "Failed to install dependencies. Run: bash scripts/setup_project_venv.sh ." buttons {"OK"} default button "OK" with icon stop'
         exit 1
     fi
     PY="$(bash "$PROJECT_ROOT/scripts/project_python.sh" "$PROJECT_ROOT")"

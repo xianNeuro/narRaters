@@ -35,7 +35,8 @@ pd = _LazyPandas()
 # Get project root directory (one level up from server/)
 # Use absolute path to avoid issues with working directory
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+_env_root = os.environ.get("NARRATERS_PROJECT_ROOT", "").strip()
+PROJECT_ROOT = Path(_env_root).resolve() if _env_root else SCRIPT_DIR.parent
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 
 # Scripts under scripts/ add the parent dir to sys.path so `import helpers` works.

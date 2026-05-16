@@ -1,34 +1,41 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
+set "ROOT=%cd%"
+set "VENV_PY=%ROOT%\.venv\Scripts\python.exe"
+set "SERVER=%ROOT%\server\web-interface.py"
+title narRaters
 
-title narRaters setup
-
-echo ==========================================
-echo narRaters setup (Windows)
-echo ==========================================
-echo Project folder:
-echo   %cd%
-echo.
-
-call "%~dp0scripts\finish_windows_setup.bat"
-if errorlevel 1 (
-  echo.
-  echo Install failed. See messages above.
+if not exist "%SERVER%" (
+  echo Missing server\web-interface.py in:
+  echo   %ROOT%
   pause
   exit /b 1
 )
 
-echo.
-echo To open narRaters, double-click:  narRaters_launch.bat
-echo Or run:  .venv\Scripts\narraters serve
-echo.
-set /p OPEN="Open narRaters now? [Y/n] "
-if /i "%OPEN%"=="n" goto :done
-if /i "%OPEN%"=="N" goto :done
-call "%~dp0narRaters_launch.bat"
-goto :eof
+if not exist "%VENV_PY%" (
+  echo First-time setup — creating .venv and installing narRaters...
+  echo.
+  call "%~dp0scripts\finish_windows_setup.bat"
+  if errorlevel 1 (
+    echo Setup failed.
+    pause
+    exit /b 1
+  )
+)
 
-:done
+"%VENV_PY%" -c "import flask" >nul 2>&1
+if errorlevel 1 (
+  echo Installing dependencies...
+  call "%~dp0scripts\finish_windows_setup.bat"
+  if errorlevel 1 (
+    pause
+    exit /b 1
+  )
+)
+
+echo Starting narRaters at http://127.0.0.1:5000/pipeline-config
+start "" "http://127.0.0.1:5000/pipeline-config"
+cd /d "%ROOT%\server"
+"%VENV_PY%" web-interface.py
 pause
-exit /b 0
