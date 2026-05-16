@@ -2,15 +2,19 @@
 
 **AI-assisted narrative processing with human-screening.**
 
-**narRaters** is for **human cognitive studies** and **LLM-oriented research** whenever the data are **long passages of natural language**—in other words, **narratives** (listened to or read as text). It **automates and visualizes** a single, repeatable pipeline for **audio- and text-based narratives**: **transcription**, **segmentation**, **light text cleanup**, **parsing**, **event alignment** (mapping recall to story events), and **causal scoring**. You can assign the heavy lifting to **rules or models**; **human-screening** at every step means raters can **review, edit, and sign off** on outputs before they enter analysis. The web UI and versioned files also make it practical to run **human vs. LLM** comparisons on the same inputs and prompts.
-
-There are no accounts or passwords. You run a small web server on your machine; a **rater name** on the setup page only labels exported hand-edited files (for example `subject_YourName-edit.xlsx`).
+**narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **transcription**, **segmentation**, **light text cleanup**, **parsing**, **event alignment** (mapping recall to story events), and **causal scoring**. You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more). The app **automates and visualizes** those runs; **human-screening** at every included step lets raters **review, edit, and sign off** on outputs. The same platform supports **human vs. LLM** comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
 
 ### Typical uses
 
-- **Structured recall and memory experiments** — encode a narrative, collect recalls (audio or text), then clean, segment, align with story events, and score causal relations with auditable intermediate files.
-- **LLM evaluation and NLP workflows** — benchmark models against rules or human edits on the same pipeline, with explicit **human-screening** rather than a single opaque pass over the text.
-- **Teaching or pilots** — defaults stay small; add `[audio]`, `[api]`, `[match]`, and similar extras **only when you need them** ([Installation](#installation)).
+- **Structured recall and memory experiments** — use any subset of steps (for example segment a story, correct and parse recalls, then match to events) with auditable files at each stage.
+- **LLM evaluation** — compare models, rules, or human edits **step by step** on the same narratives (summarization/segmentation, alignment, causality), with **human-screening** instead of a single opaque model pass.
+- **Teaching or pilots** — start with lightweight defaults on one or two steps; add `[audio]`, `[api]`, `[match]`, and other extras **only when you need them** ([Installation](#installation)).
+
+<p align="center">
+  <img src="static/app-icon.png" alt="narRater app icon" width="128" height="128">
+  <br>
+  <em>macOS: build <code>narRater.app</code> with <code>packaging/macos/build_app_bundle.sh</code> (uses this icon).</em>
+</p>
 
 ---
 
@@ -39,7 +43,7 @@ There are no accounts or passwords. You run a small web server on your machine; 
 1. **[Install](#installation)** once (`pip install -e .` from the project root, or the macOS / Windows installers in the repo).
 2. **[Add inputs](#where-to-put-your-data)** under `data/` (or try **`demo/data/`** to learn the layout without your own files).
 3. **[Start the web UI](#using-the-web-interface)** — from the project folder run `narraters serve`, or on macOS double-click `server/START_HERE.command`. Your browser should open **`http://localhost:5000`**.
-4. **Configure the pipeline** — on the first screen, enter a **rater name** (any label you like), **drag** the steps you need into the flow, adjust paths if needed, then **Continue**. You need a name and at least one step before **Continue** enables.
+4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
 
 **First-session tip:** build a short chain (for example **Correct → Parse → Match** if you already have recall `.txt` files), run **one subject**, open its detail view, and tab through outputs before batching the whole dataset. The same steps are available from the **[command line](#command-line-pipeline)** for scripts and HPC.
@@ -48,7 +52,7 @@ There are no accounts or passwords. You run a small web server on your machine; 
 
 ## Pipeline overview
 
-The table below is the **route map**: steps **1-2** are **story**-side; **3-5** run per **subject recall**; **6** scores the **story event list**. Text-only projects can **skip step 1**. Every step runs from the **GUI** or **`narraters` CLI**, ships with a **minimal default method**, and can be **hand-edited** afterward.
+**Six steps, your configuration.** narRaters does **not** require all six steps or a fixed order. On the configuration page you **select and chain** only what your study needs; when you run a step you choose its **method** (and model or prompt, if applicable). The table below describes each step’s role and default folders. In typical recall work, steps **1–2** target the **story**, **3–5** each **subject recall**, and **6** the **story event list**—but text-only projects may skip transcription, and you might run only **Segment** and **Rate**, or **Correct → Parse → Match**, and so on. Every included step is available from the **GUI** or **`narraters` CLI**, has a **lightweight default method**, and supports **hand-editing** afterward.
 
 | # | Step | What it does | Terminal command | Default in / out |
 |---|------|--------------|------------------|------------------|
@@ -59,7 +63,7 @@ The table below is the **route map**: steps **1-2** are **story**-side; **3-5** 
 | 5 | **Match** | Recall segments ↔ story events | `narraters match` | `output/recall_parsed/` + `data/3_story_events/` → `output/recall_rated/` |
 | 6 | **Rate** | Causal strength of every story-event pair | `narraters rate` | `data/3_story_events/` → `output/causal_rated/` |
 
-For each step, the GUI runs the same backends as the CLI. **Flags, methods, and examples** are documented under **[Command-line pipeline](#command-line-pipeline)** below.
+For each step, the GUI runs the same backends as the CLI. **Available methods, flags, and examples** are under **[Command-line pipeline](#command-line-pipeline)** below.
 
 ---
 
@@ -167,13 +171,7 @@ The app is a **local Flask site** (default **`http://127.0.0.1:5000`**). Start i
 |-----|-------------|
 | **Terminal** (macOS, Linux, Windows) | `narraters serve` — usually opens your browser automatically. |
 | **macOS — script** | Double-click **`server/START_HERE.command`** (can install missing deps on first run). |
-| **macOS — app bundle** | Build once: `bash packaging/macos/build_app_bundle.sh`, then double-click **`narRater.app`**. Not committed to Git; the icon below is used when you build locally. |
-
-<p align="center">
-  <img src="static/app-icon.png" alt="narRater macOS app icon" width="128" height="128">
-  <br>
-  <em><code>narRater.app</code> uses this icon after <code>packaging/macos/build_app_bundle.sh</code>.</em>
-</p>
+| **macOS — app bundle** | Build once: `bash packaging/macos/build_app_bundle.sh`, then double-click **`narRater.app`**. Not committed to Git; see the icon at the top of this README. |
 
 On first visit you see **pipeline configuration** unless a pipeline was already saved, in which case you land on the **dashboard**.
 
@@ -210,7 +208,7 @@ Before a step that would load **Whisper**, **Gemma via Ollama**, **rMatch** embe
 
 ## Command-line pipeline
 
-Everything the dashboard runs is available as a **`narraters`** subcommand—use this for **scripts**, **clusters**, or **reproducible** one-off commands. General shape:
+Each of the six steps is a separate **`narraters`** subcommand with its own **`--method`** (and related options). Use the CLI for **scripts**, **clusters**, or **reproducible** runs—**with or without** the web UI, and **with any subset** of steps your study uses. General shape:
 
 ```
 narraters <step> [--method METHOD] [--model MODEL] [-i INPUT] [-o OUTPUT] [--prompt-version VERSION] ...
