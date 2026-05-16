@@ -52,4 +52,6 @@ Thumbs.db
 # narRater.app (rebuild: bash packaging/macos/build_app_bundle.sh)
 # narRater_Tutorial.pdf (rebuild: python generate_tutorial_pdf.py)
 narRater.app/
+narRaters_installer.app/
+narRaters_installer.dmg
 narRater_Tutorial.pdf

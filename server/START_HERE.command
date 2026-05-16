@@ -29,10 +29,10 @@ echo "Python version: $(python3 --version)"
 # Check Flask
 if ! python3 -c "import flask" 2>/dev/null; then
     echo "ERROR: Flask is not installed!"
-    echo "Installing dependencies..."
-    python3 -m pip install -r "$PROJECT_ROOT/requirements.txt"
+    echo "Installing package (editable) from project root..."
+    python3 -m pip install -e "$PROJECT_ROOT"
     if [ $? -ne 0 ]; then
-        osascript -e 'display dialog "Failed to install dependencies. Please run: pip install -r requirements.txt" buttons {"OK"} default button "OK" with icon stop'
+        osascript -e 'display dialog "Failed to install dependencies. Double-click narRaters_installer.command (or narRaters_installer.app) in the project folder, or run: pip install -e ." buttons {"OK"} default button "OK" with icon stop'
         exit 1
     fi
 fi

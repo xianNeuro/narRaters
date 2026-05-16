@@ -275,8 +275,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="narraters",
         description=(
-            "narRaters — AI-assisted human-in-the-loop platform for narrative "
-            "recall analysis. Run `narraters serve` for the web UI, or use the "
+            "narRaters — AI-assisted narrative processing with human-screening. "
+            "Run `narraters serve` for the web UI, or use the "
             "per-step subcommands for scripted pipelines."
         ),
     )

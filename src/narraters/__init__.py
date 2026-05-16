@@ -1,4 +1,4 @@
-"""narRaters — AI-assisted human-in-the-loop platform for narrative recall analysis.
+"""narRaters — AI-assisted narrative processing with human-screening.
 
 A 6-step pipeline (transcription → segmentation → spell/grammar correction →
 parsing → event matching → causal rating) with a Flask web UI for interactive

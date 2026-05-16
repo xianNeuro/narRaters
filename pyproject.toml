@@ -1,7 +1,7 @@
 [project]
 name = "narRaters"
 version = "0.1.0"
-description = "AI-assisted human-in-the-loop platform for processing and rating narrative recall data."
+description = "AI-assisted narrative processing with human-screening — pipeline + web UI for audio/text narratives."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

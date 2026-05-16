@@ -1,12 +1,44 @@
 # narRaters
 
-**AI-assisted human-in-the-loop platform for narrative recall analysis.**
+**AI-assisted narrative processing with human-screening.**
 
-`narRaters` is a Python package and desktop app for processing narrative recall data in cognitive and linguistic research. Raw audio or text recalls are run through a six-step pipeline — transcription → segmentation → spell/grammar correction → parsing → event matching → causal rating — with a Flask web UI that lets human raters review, edit, and accept results at every step.
+`narRaters` helps **automate and visualize** a sequence of processing steps for **audio- and text-based narratives** — transcription, segmentation, light text cleanup, parsing, event alignment, and causal scoring. The heavy lifting can be delegated to models or rules, while **human-screening** at every stage lets raters review, correct, and sign off on outputs for quality control.
 
-Once installed, you can drive the entire pipeline from the terminal (one step at a time, with full control over methods, models, and prompts) or open the GUI with a single command.
+The same workflow supports **human cognitive studies** (for example, structured recall experiments) and **AI / NLP research** (for example, comparing or auditing model-generated narratives) whenever you need inspectable artifacts and explicit **human-screening** rather than a single opaque end-to-end run.
+
+Raw audio or text recalls are run through a six-step pipeline — transcription → segmentation → spell/grammar correction → parsing → event matching → causal rating — with a Flask web UI for editing and version control at each step.
+
+Once installed, you can drive the entire pipeline from the terminal (one step at a time, with full control over methods, models, and prompts) or open the GUI as described below.
 
 > **No accounts, no passwords.** `narRaters` runs locally as a single-user research tool. Instead of logging in, you type a **rater name** on the configuration page; that name is only used to label the files you export (e.g. `subject_BraveOtter-edit.xlsx`). A dummy name is perfectly fine.
+
+---
+
+## How to open narRaters
+
+**First-time setup without the terminal (macOS):** double-click **`narRaters_installer.app`** if you already built it (`bash packaging/macos/build_narRaters_installer_app.sh`), or double-click **`narRaters_installer.command`** in the project root. Both run a one-time `pip install -e .`. If the icon “does nothing” the first time, **right-click → Open** once (Gatekeeper), then click **Open** — after that, double-click works normally.
+
+**Windows:** double-click **`narRaters_installer.bat`**.
+
+You need **Python 3.10+** installed first ([python.org](https://www.python.org/downloads/) or your platform store). These installers do not bundle Python.
+
+**Distributing a disk image (macOS):** from the project root run `bash packaging/macos/build_installer_dmg.sh`. That writes **`narRaters_installer.dmg`** next to `server/`. Recipients open the DMG, double-click **`narRaters_installer.app`**, then work inside the mounted **`narRaters_source`** folder (or copy that folder anywhere and keep the app next to `server/` as in a normal clone).
+
+**Prerequisite:** the package must be installed once (click-installer above, or `pip install -e .` from the project root — see [Installation](#installation)). After that, use any of the following.
+
+| How | What to do |
+|-----|----------------|
+| **Terminal (macOS, Linux, Windows)** | In the project folder, run `narraters serve`. Your browser should open to `http://localhost:5000` (use `--no-browser` if you prefer to open the URL yourself). |
+| **macOS — shell script** | In Finder, double-click `server/START_HERE.command`. Same server and URL as above (it can install dependencies automatically if needed). |
+| **macOS — app icon** | Build the double-clickable launcher with `bash packaging/macos/build_app_bundle.sh`. That creates `narRater.app` next to `server/` and `static/`. Double-click the app to start the server and open the UI. The `.app` bundle is **not** committed to Git (you build it locally); the icon below is the artwork used for that bundle. |
+
+<p align="center">
+  <img src="static/app-icon.png" alt="narRater macOS app icon" width="128" height="128">
+  <br>
+  <em>narRater.app uses this icon (after you run <code>packaging/macos/build_app_bundle.sh</code>).</em>
+</p>
+
+From the web UI you configure the pipeline, run steps from the dashboard, and open per-subject or per-story tabs to inspect or hand-edit outputs. Command-line equivalents for every step are listed under [Command-line pipeline](#command-line-pipeline).
 
 ---
 
@@ -34,12 +66,14 @@ Steps 1 and 2 operate on the *story*; steps 3–5 on each *subject's recall*; st
 ### From source (recommended while in development)
 
 ```bash
-git clone https://github.com/xianl-cogneuro/narrative-processor.git
-cd narrative-processor
+git clone https://github.com/xianNeuro/narRaters.git
+cd narRaters
 pip install -e .
 ```
 
 The `-e` flag installs the package in **editable** mode, so your changes to the source take effect immediately without reinstalling.
+
+If you prefer not to use Terminal for that step, use **`narRaters_installer.command`** (macOS), **`narRaters_installer.app`** (build first; see [How to open narRaters](#how-to-open-narRaters)), or **`narRaters_installer.bat`** (Windows).
 
 `pip install -e .` (or `pip install -r requirements.txt`) installs a **deliberately minimal** set of dependencies — just enough to run the lightweight default method of every pipeline step plus the web UI. It pulls **no** multi-GB machine-learning frameworks, so a fresh install is fast and will not fill up your disk.
 
@@ -90,20 +124,27 @@ See [`developer/SETUP_API.md`](developer/SETUP_API.md) for the full list of supp
 
 ### Local installable app (macOS)
 
-The repository ships `narRater.app` next to `server/`, `static/`, `templates/`. It's a small portable launcher — both the project path and the Python interpreter are resolved at launch time, so you can drag the whole folder anywhere on disk (Documents, `/Applications`, …) and the bundle keeps working as long as it stays a sibling of `server/`. Double-click it like any other Mac app; it opens Terminal, starts the Flask server, and points your default browser at `http://localhost:5000`.
+After you run `bash packaging/macos/build_app_bundle.sh`, `narRater.app` appears next to `server/`, `static/`, and `templates/`. It is a small portable launcher: the project path and Python interpreter are resolved at launch time, so you can move the whole project folder (Documents, `/Applications`, …) and the bundle keeps working as long as it stays a sibling of `server/`. Double-click the app; it opens Terminal, starts the Flask server, and points your default browser at `http://localhost:5000`.
 
 What happens on the first launch:
 
-- The bundle looks for `python3` in `/opt/homebrew/bin`, `/usr/local/bin`, `$(which python3)`, and `/usr/bin`. The first one that can `import flask` wins. If none qualifies, the bundle pops up a dialog asking you to run `pip install -e .` (or `pip install -r requirements.txt`) inside the project folder.
+- The bundle looks for `python3` in `/opt/homebrew/bin`, `/usr/local/bin`, `$(which python3)`, and `/usr/bin`. The first one that can `import flask` wins. If none qualifies, the bundle pops up a dialog asking you to run `pip install -e .` (or use `narRaters_installer.app` / `narRaters_installer.command`) inside the project folder.
 - The bundle resolves the project root from its own location, so there's no rebuild needed if you move the folder.
 
-To regenerate the bundle (for example, after editing the icon at `static/app-icon.png`):
+To build or refresh the bundle (for example, after editing the icon at `static/app-icon.png`):
 
 ```bash
 bash packaging/macos/build_app_bundle.sh
 ```
 
-If you don't want a `.app` bundle, the alternatives are `narraters serve` from the terminal, or double-clicking `server/START_HERE.command`.
+**Installer app and DMG** (optional — for `pip install -e .` without typing Terminal commands, or to ship a disk image):
+
+```bash
+bash packaging/macos/build_narRaters_installer_app.sh   # narRaters_installer.app next to server/
+bash packaging/macos/build_installer_dmg.sh             # narRaters_installer.dmg (app + narRaters_source/)
+```
+
+If you prefer not to use a `.app` bundle, use `narraters serve` or double-click `server/START_HERE.command` — see [How to open narRaters](#how-to-open-narRaters).
 
 ---
 
@@ -126,6 +167,8 @@ Outputs are written under `output/` — one subdirectory per step (`output/recal
 ---
 
 ## Launching the GUI
+
+Same entry point as in [How to open narRaters](#how-to-open-narRaters); from a terminal in the project root:
 
 ```bash
 narraters serve
