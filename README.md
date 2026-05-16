@@ -78,9 +78,9 @@ This section goes beyond the minimal path in **[Getting started](#getting-starte
 | Platform | File (repo root) | What it does |
 |----------|------------------|----------------|
 | **macOS** | `narRaters_installer.command` | One-time setup: **`.venv/`** + **`narRater.app`**. After that, **double-click `narRater.app`** to open the software (same as the DMG workflow). If nothing happens the first time, **Right-click → Open** (Gatekeeper). |
-| **Windows** | `narRaters_installer.bat` | Creates **`.venv\`** and installs narRaters; then run `.venv\Scripts\narraters serve`. |
+| **Windows** | `narRaters_installer.bat` | One-time setup (**.venv\`**). Then double-click **`narRaters_launch.bat`** to open the web UI (same role as `narRater.app` on macOS). |
 
-**macOS disk image (standard layout):** **`narRaters-macos-installer.dmg`** at the **repository root** — volume contains **`narRaters_installer.app`** (run once), **`narRaters_source/`** (includes **`narRater.app`**), **`INSTALL-macOS.txt`**, and an **Applications** shortcut. Flow: copy `narRaters_source` → run installer once → **double-click `narRaters_source/narRater.app`**. Build locally: **`bash packaging/macos/build_installer_dmg.sh`**.
+**macOS disk image:** **`narRaters-macos-installer.dmg`** — copy the **`narRaters_source`** folder off the disk (required), then run **`narRaters_installer.app`** inside that folder once, then **`narRater.app`**. Do not run the installer while the folder is still on the read-only DMG. Rebuild: **`bash packaging/macos/build_installer_dmg.sh`**.
 
 That completes a normal install. Everyday use on macOS is **`narRater.app`** (not the installer). The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
 

@@ -45,13 +45,17 @@ rsync -a \
   --exclude='.env' \
   --exclude='.env.*' \
   --exclude='.DS_Store' \
+  --exclude='data/1_story_audio/pieman_edited.wav' \
+  --exclude='data/4_recall_audio/*.mp4' \
+  --exclude='narRater_Tutorial.pdf' \
   "$PROJECT_ROOT/" "$STAGE/narRaters_source/"
 
 echo "Building narRater.app inside staged narRaters_source …"
 bash "$STAGE/narRaters_source/packaging/macos/build_app_bundle.sh"
 
 bash "$SCRIPT_DIR/build_narRaters_installer_app.sh"
-ditto "$PROJECT_ROOT/narRaters_installer.app" "$STAGE/narRaters_installer.app"
+# Installer lives inside narRaters_source so copying one folder is enough.
+ditto "$PROJECT_ROOT/narRaters_installer.app" "$STAGE/narRaters_source/narRaters_installer.app"
 
 # Conventional DMG affordances (same layout many macOS apps use).
 ln -sf /Applications "$STAGE/Applications"
@@ -62,19 +66,18 @@ narRaters — macOS installer disk  (package version ${VERSION})
 Python 3.10+ must be installed separately from https://www.python.org/downloads/
 
 Steps:
-  1. Copy the folder "narRaters_source" to your Mac (Documents or Desktop is fine).
-     It already contains narRater.app — your everyday launcher after setup.
-  2. Copy "narRaters_installer.app" to the same parent folder as "narRaters_source"
-     (so the installer .app sits next to that folder, not inside it).
-  3. Double-click narRaters_installer.app once (creates .venv/ and refreshes narRater.app).
-  4. Double-click narRaters_source/narRater.app to open narRaters (Terminal + browser).
+  1. Drag the folder "narRaters_source" to Documents or Desktop (required — do not
+     run the installer while the folder is still on this read-only disk image).
+  2. Open the copied folder. Double-click "narRaters_installer.app" once
+     (creates .venv/ and refreshes narRater.app).
+  3. Double-click "narRater.app" to open narRaters (Terminal + browser).
 
-Optional: drag narRaters_installer.app onto the Applications alias if you want
-the installer in /Applications — still keep narRaters_source somewhere permanent
-beside it (same parent directory as the installer .app).
+narRaters_installer.app and narRater.app are inside narRaters_source — copy that
+whole folder so both apps stay together.
 
 This disk image was built from the narRaters repository.
 EOF
+cp "$STAGE/INSTALL-macOS.txt" "$STAGE/narRaters_source/INSTALL-macOS.txt"
 
 rm -f "$OUT_DMG"
 

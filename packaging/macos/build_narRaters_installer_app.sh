@@ -25,23 +25,40 @@ cat > "$RUN_SH" <<'EOF'
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
 
 MACOS_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONTENTS="$(cd "$MACOS_DIR/.." && pwd)"
-APP_BUNDLE="$(cd "$CONTENTS/.." && pwd)"
-PARENT="$(cd "$APP_BUNDLE/.." && pwd)"
+APP_BUNDLE="$(cd "$MACOS_DIR/../.." && pwd)"
 
-if [[ -f "$PARENT/server/web-interface.py" ]]; then
-  PROJECT_ROOT="$PARENT"
-elif [[ -f "$PARENT/narRaters_source/server/web-interface.py" ]]; then
-  PROJECT_ROOT="$PARENT/narRaters_source"
+PROJECT_ROOT=""
+if [[ -f "$APP_BUNDLE/../pyproject.toml" && -f "$APP_BUNDLE/../server/web-interface.py" ]]; then
+  PROJECT_ROOT="$(cd "$APP_BUNDLE/.." && pwd)"
 else
-  osascript -e 'display dialog "Could not find narRaters files.
+  RESOLVE="$(cd "$APP_BUNDLE/.." && pwd)/scripts/resolve_project_root.sh"
+  if [[ -f "$RESOLVE" ]]; then
+    PROJECT_ROOT="$(bash "$RESOLVE" "$APP_BUNDLE" 2>/dev/null || true)"
+  fi
+  if [[ -z "$PROJECT_ROOT" ]]; then
+    PARENT="$(cd "$APP_BUNDLE/.." && pwd)"
+    GRANDPARENT="$(cd "$PARENT/.." && pwd)"
+    if [[ -f "$GRANDPARENT/narRaters_source/pyproject.toml" ]]; then
+      PROJECT_ROOT="$GRANDPARENT/narRaters_source"
+    fi
+  fi
+fi
 
-Keep narRaters_installer.app in the project folder next to server/, or open the DMG and run this app from there (with narRaters_source/ alongside it)." buttons {"OK"} default button "OK" with icon stop' 2>/dev/null || true
+if [[ -z "$PROJECT_ROOT" || ! -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+  osascript <<'OSA' 2>/dev/null || true
+display dialog "Could not find narRaters files.
+
+Copy the narRaters_source folder off the disk image, then run narRaters_installer.app inside the copied folder." buttons {"OK"} default button "OK" with icon stop
+OSA
   exit 1
 fi
 
 if ! command -v python3 &>/dev/null; then
   osascript -e 'display dialog "Python 3 was not found. Install from https://www.python.org/downloads/ or Homebrew, then try again." buttons {"OK"} default button "OK" with icon stop' 2>/dev/null || true
+  exit 1
+fi
+
+if ! bash "$PROJECT_ROOT/scripts/require_writable_project.sh" "$PROJECT_ROOT"; then
   exit 1
 fi
 

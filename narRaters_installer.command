@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double-click in Finder: installs narRaters (pip install -e .) for this folder.
+# Double-click in Finder: creates .venv/ + narRater.app for this folder.
 # If nothing happens: right-click → Open (Gatekeeper), or use narRaters_installer.app from:
 #   bash packaging/macos/build_narRaters_installer_app.sh
 

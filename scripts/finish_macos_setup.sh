@@ -13,6 +13,8 @@ if [[ -z "$PROJECT_ROOT" ]]; then
 fi
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 
+bash "$PROJECT_ROOT/scripts/require_writable_project.sh" "$PROJECT_ROOT"
+
 bash "$PROJECT_ROOT/scripts/setup_project_venv.sh" "$PROJECT_ROOT"
 
 BUILD="$PROJECT_ROOT/packaging/macos/build_app_bundle.sh"
