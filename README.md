@@ -4,7 +4,7 @@
 
 **narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **transcription**, **segmentation**, **light text cleanup**, **parsing**, **event alignment** (mapping recall to story events), and **causal scoring**. You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more). The app **automates and visualizes** those runs; **human-screening** at every included step lets raters **review, edit, and sign off** on outputs. The same platform supports **human vs. LLM** comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
 
-### Typical uses
+### Example use cases
 
 - **Structured recall and memory experiments** — use any subset of steps (for example segment a story, correct and parse recalls, then match to events) with auditable files at each stage.
 - **LLM evaluation** — compare models, rules, or human edits **step by step** on the same narratives (summarization/segmentation, alignment, causality), with **human-screening** instead of a single opaque model pass.
