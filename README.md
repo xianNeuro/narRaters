@@ -42,7 +42,7 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 1. **[Install](#installation)** once (`pip install -e .` from the project root, or the macOS / Windows installers in the repo).
 2. **[Add inputs](#where-to-put-your-data)** under `data/` — the repo includes **bundled examples** (`pieman_edited`, `the_siren`) you can inspect or run as-is; see that section for paths. Smaller **`demo/data/`** samples are also available.
-3. **[Start the web UI](#using-the-web-interface)** — from the project folder run `narraters serve`, or on macOS double-click `server/START_HERE.command`. Your browser should open **`http://localhost:5000`**.
+3. **[Start the web UI](#using-the-web-interface)** — on macOS, double-click **`narRater.app`** in the project folder (built by the installer; opens Terminal and your browser). Or run `.venv/bin/narraters serve`, or double-click `server/START_HERE.command`.
 4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
 
@@ -77,12 +77,12 @@ This section goes beyond the minimal path in **[Getting started](#getting-starte
 
 | Platform | File (repo root) | What it does |
 |----------|------------------|----------------|
-| **macOS** | `narRaters_installer.command` | Creates a **`.venv/`** in this folder and installs narRaters there (avoids Homebrew PEP 668 errors). If nothing happens the first time, **Right-click → Open**, then **Open** (Gatekeeper). |
-| **Windows** | `narRaters_installer.bat` | Same (`.venv\`), using `py -3` or `python` (install Python with “Add to PATH” enabled). |
+| **macOS** | `narRaters_installer.command` | One-time setup: **`.venv/`** + **`narRater.app`**. After that, **double-click `narRater.app`** to open the software (same as the DMG workflow). If nothing happens the first time, **Right-click → Open** (Gatekeeper). |
+| **Windows** | `narRaters_installer.bat` | Creates **`.venv\`** and installs narRaters; then run `.venv\Scripts\narraters serve`. |
 
-**macOS disk image (standard layout):** **`narRaters-macos-installer.dmg`** at the **repository root** (top level of the clone, next to `README.md`) — Finder volume contains **`narRaters_installer.app`**, **`narRaters_source/`** (full tree), an **`Applications`** shortcut, and **`INSTALL-macOS.txt`**. Download from the repo ([raw on `main`](https://github.com/xianNeuro/narRaters/raw/main/narRaters-macos-installer.dmg) once the file is committed), from [**GitHub Releases**](https://github.com/xianNeuro/narRaters/releases), or build locally: **`bash packaging/macos/build_installer_dmg.sh`**. Follow **`INSTALL-macOS.txt`** on the disk.
+**macOS disk image (standard layout):** **`narRaters-macos-installer.dmg`** at the **repository root** — volume contains **`narRaters_installer.app`** (run once), **`narRaters_source/`** (includes **`narRater.app`**), **`INSTALL-macOS.txt`**, and an **Applications** shortcut. Flow: copy `narRaters_source` → run installer once → **double-click `narRaters_source/narRater.app`**. Build locally: **`bash packaging/macos/build_installer_dmg.sh`**.
 
-That completes a normal install. The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
+That completes a normal install. Everyday use on macOS is **`narRater.app`** (not the installer). The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
 
 | Step | Default method |
 |------|----------------|
@@ -97,11 +97,11 @@ That completes a normal install. The default dependency set is **minimal** (no m
 ```bash
 git clone https://github.com/xianNeuro/narRaters.git
 cd narRaters
-bash scripts/setup_project_venv.sh .
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+bash scripts/finish_macos_setup.sh .   # .venv + narRater.app on macOS
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
 ```
 
-This creates `.venv/` and installs in editable mode (`-e`). On Homebrew macOS, use the venv instead of `pip install -e .` on system Python (PEP 668).
+On macOS, `finish_macos_setup.sh` also builds **`narRater.app`**. On Homebrew Python, use the venv (PEP 668) instead of `pip install -e .` on system Python.
 
 ### Optional extras (heavier methods)
 

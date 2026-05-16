@@ -96,7 +96,17 @@ if [[ -z "$PY" ]]; then
   done
 fi
 if [[ -z "$PY" ]]; then
-  osascript -e 'display dialog "Flask was not found.\n\nDouble-click narRaters_installer.command (or .app) once to create .venv/, or run:\n\n  bash scripts/setup_project_venv.sh .\n\nThen relaunch narRater.app." buttons {"OK"} default button "OK" with icon stop'
+  if [[ -f "$PROJECT_ROOT/scripts/setup_project_venv.sh" ]]; then
+    echo "First launch: creating .venv and installing dependencies…"
+    if ! bash "$PROJECT_ROOT/scripts/setup_project_venv.sh" "$PROJECT_ROOT"; then
+      osascript -e 'display dialog "Could not install dependencies.\n\nDouble-click narRaters_installer.command once, or run:\n\n  bash scripts/setup_project_venv.sh ." buttons {"OK"} default button "OK" with icon stop'
+      exit 1
+    fi
+    PY="$PROJECT_ROOT/.venv/bin/python3"
+  fi
+fi
+if [[ -z "$PY" ]] || ! "$PY" -c "import flask" 2>/dev/null; then
+  osascript -e 'display dialog "Flask was not found.\n\nDouble-click narRaters_installer.command (or narRaters_installer.app) once to set up, then relaunch narRater.app." buttons {"OK"} default button "OK" with icon stop'
   exit 1
 fi
 
@@ -129,20 +139,20 @@ OSA
 
 # Wait for Flask (imports can take several seconds)
 for _ in $(seq 1 90); do
-  if curl -sf --connect-timeout 1 "http://127.0.0.1:5000/login" >/dev/null 2>&1 \
+  if curl -sf --connect-timeout 1 "http://127.0.0.1:5000/pipeline-config" >/dev/null 2>&1 \
      || curl -sf --connect-timeout 1 "http://127.0.0.1:5000/" >/dev/null 2>&1; then
-    open "http://127.0.0.1:5000/login" 2>/dev/null || true
+    open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null || true
     exit 0
   fi
   sleep 0.5
 done
 
-osascript -e 'display dialog "Safari opened before the server was ready, or the server failed to start.
+osascript -e 'display dialog "The browser opened before the server was ready, or the server failed to start.
 
-Check the Terminal window for errors (often: pip3 install -r requirements.txt from the project folder).
+Check the Terminal window for errors. If this is the first run, double-click narRaters_installer.command once.
 
-Then refresh the browser or visit http://127.0.0.1:5000/login" buttons {"OK"} default button "OK" with icon caution'
-open "http://127.0.0.1:5000/login" 2>/dev/null || true
+Then refresh or visit http://127.0.0.1:5000/pipeline-config" buttons {"OK"} default button "OK" with icon caution'
+open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null || true
 LAUNCHER_EOF
 chmod +x "$LAUNCHER"
 

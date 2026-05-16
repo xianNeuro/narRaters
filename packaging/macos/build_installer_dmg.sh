@@ -47,6 +47,9 @@ rsync -a \
   --exclude='.DS_Store' \
   "$PROJECT_ROOT/" "$STAGE/narRaters_source/"
 
+echo "Building narRater.app inside staged narRaters_source …"
+bash "$STAGE/narRaters_source/packaging/macos/build_app_bundle.sh"
+
 bash "$SCRIPT_DIR/build_narRaters_installer_app.sh"
 ditto "$PROJECT_ROOT/narRaters_installer.app" "$STAGE/narRaters_installer.app"
 
@@ -60,16 +63,15 @@ Python 3.10+ must be installed separately from https://www.python.org/downloads/
 
 Steps:
   1. Copy the folder "narRaters_source" to your Mac (Documents or Desktop is fine).
+     It already contains narRater.app — your everyday launcher after setup.
   2. Copy "narRaters_installer.app" to the same parent folder as "narRaters_source"
-     (so the .app sits next to that folder, not inside it).
-  3. Double-click narRaters_installer.app once (creates .venv/ and installs deps).
-  4. Open narRaters_source/server/START_HERE.command, or run:
-       .venv/bin/narraters serve
-     (from inside narRaters_source/)
+     (so the installer .app sits next to that folder, not inside it).
+  3. Double-click narRaters_installer.app once (creates .venv/ and refreshes narRater.app).
+  4. Double-click narRaters_source/narRater.app to open narRaters (Terminal + browser).
 
 Optional: drag narRaters_installer.app onto the Applications alias if you want
 the installer in /Applications — still keep narRaters_source somewhere permanent
-beside it (same parent directory as the .app).
+beside it (same parent directory as the installer .app).
 
 This disk image was built from the narRaters repository.
 EOF

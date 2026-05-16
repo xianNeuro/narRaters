@@ -45,22 +45,18 @@ if ! command -v python3 &>/dev/null; then
   exit 1
 fi
 
-SETUP_SH="$PROJECT_ROOT/scripts/setup_project_venv.sh"
-if [[ ! -f "$SETUP_SH" ]]; then
-  osascript -e 'display dialog "Missing scripts/setup_project_venv.sh in the project folder." buttons {"OK"} default button "OK" with icon stop' 2>/dev/null || true
+FINISH_SH="$PROJECT_ROOT/scripts/finish_macos_setup.sh"
+if [[ ! -f "$FINISH_SH" ]]; then
+  osascript -e 'display dialog "Missing scripts/finish_macos_setup.sh in the project folder." buttons {"OK"} default button "OK" with icon stop' 2>/dev/null || true
   exit 1
 fi
 
 echo "Project root: $PROJECT_ROOT"
-echo "Running: bash scripts/setup_project_venv.sh (creates .venv/)"
+echo "Running: bash scripts/finish_macos_setup.sh (.venv + narRater.app)"
 echo ""
 
-if bash "$SETUP_SH" "$PROJECT_ROOT"; then
-  osascript -e 'display dialog "Setup finished.
-
-A virtual environment was created at .venv/
-
-Next: double-click server/START_HERE.command, or run: .venv/bin/narraters serve" buttons {"OK"} default button "OK" with title "narRaters"' 2>/dev/null || true
+if bash "$FINISH_SH" "$PROJECT_ROOT"; then
+  bash "$PROJECT_ROOT/scripts/macos_setup_success_dialog.sh" "$PROJECT_ROOT"
 else
   osascript -e 'display dialog "Install failed. See the Terminal window above for errors." buttons {"OK"} default button "OK" with icon stop' 2>/dev/null || true
   exit 1
