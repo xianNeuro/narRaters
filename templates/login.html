@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - narRater</title>
+    <link rel="icon" type="image/png" href="/static/app-icon.png">
+    <script src="/static/theme-manager.js"></script>
+    <style>
+        :root {
+            --bg0: #0b0d14;
+            --bg1: #111527;
+            --bg2: #1a1f36;
+            --bg3: #242b4a;
+            --t0: #f0f2f5;
+            --t1: #c4c9db;
+            --t2: #8890a8;
+            --t3: #5c6380;
+            --bdr: #2a3050;
+            --bdr2: #353c60;
+            --acc: #6c63ff;
+            --acc2: #8b84ff;
+            --accbg: rgba(108, 99, 255, 0.12);
+            --red: #ef4444;
+            --grn: #22c55e;
+            --ylw: #f59e0b;
+            --rad: 10px;
+            --tr: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+            --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
+            --overlay: rgba(0, 0, 0, 0.5);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg0);
+            color: var(--t0);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            width: 420px;
+            max-width: 92vw;
+            text-align: center;
+        }
+        
+        .login-box {
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 40px;
+            box-shadow: var(--shadow);
+        }
+        
+        .login-box h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: var(--t0);
+        }
+        
+        .login-box p {
+            color: var(--t2);
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--t2);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--bg3);
+            border: 1.5px solid var(--bdr);
+            border-radius: 8px;
+            color: var(--t0);
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: all var(--tr);
+        }
+        
+        .form-input:focus {
+            border-color: var(--acc);
+            box-shadow: 0 0 0 3px var(--accbg);
+        }
+        
+        .form-input::placeholder {
+            color: var(--t3);
+        }
+        
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--red);
+            color: var(--red);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .success-message {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid var(--grn);
+            color: var(--grn);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .form-help {
+            font-size: 11px;
+            color: var(--t3);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+        
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: var(--acc);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+            margin-top: 10px;
+        }
+        
+        .btn-login:hover {
+            background: var(--acc2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+        }
+        
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Settings Icon */
+        .settings-icon {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--tr);
+            z-index: 1000;
+            color: var(--t1);
+            font-size: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .settings-icon:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+            color: var(--acc);
+            transform: rotate(90deg);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.3);
+        }
+        
+        /* Settings Modal */
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--overlay);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .settings-modal.show {
+            display: flex;
+        }
+        
+        .settings-modal-content {
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-modal);
+            position: relative;
+        }
+        
+        .settings-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--bdr);
+        }
+        
+        .settings-modal-header h2 {
+            color: var(--t0);
+            font-size: 24px;
+            margin: 0;
+        }
+        
+        .settings-modal-close {
+            background: none;
+            border: none;
+            color: var(--t2);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all var(--tr);
+        }
+        
+        .settings-modal-close:hover {
+            background: var(--bg2);
+            color: var(--t0);
+        }
+        
+        .settings-section {
+            margin-bottom: 25px;
+        }
+        
+        .settings-section-title {
+            color: var(--t0);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .theme-option {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg2);
+            border: 1.5px solid var(--bdr);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+        
+        .theme-option:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+        }
+        
+        .theme-option input[type="radio"] {
+            margin-right: 12px;
+            cursor: pointer;
+        }
+        
+        .theme-option-label {
+            flex: 1;
+            color: var(--t1);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .theme-option input[type="radio"]:checked + .theme-option-label {
+            color: var(--acc);
+            font-weight: 600;
+        }
+        
+        .theme-option input[type="radio"]:checked ~ .theme-option {
+            border-color: var(--acc);
+        }
+        
+        .settings-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid var(--bdr);
+        }
+        
+        .settings-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+        
+        .settings-btn-confirm {
+            background: var(--acc);
+            color: white;
+        }
+        
+        .settings-btn-confirm:hover {
+            background: var(--acc2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+        }
+        
+        .settings-btn-cancel {
+            background: var(--bg2);
+            color: var(--t1);
+            border: 1px solid var(--bdr);
+        }
+        
+        .settings-btn-cancel:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+            color: var(--t0);
+        }
+    </style>
+    <script>
+    (function(){
+        var KEY='narrative-processor-theme';
+        var dark={'--bg0':'#0b0d14','--bg1':'#111527','--bg2':'#1a1f36','--bg3':'#242b4a','--t0':'#f0f2f5','--t1':'#c4c9db','--t2':'#8890a8','--t3':'#5c6380','--bdr':'#2a3050','--bdr2':'#353c60','--acc':'#6c63ff','--acc2':'#8b84ff','--accbg':'rgba(108, 99, 255, 0.12)','--red':'#ef4444','--grn':'#22c55e','--ylw':'#f59e0b','--shadow':'0 20px 60px rgba(0, 0, 0, 0.4)','--shadow-sm':'0 2px 8px rgba(0, 0, 0, 0.2)','--shadow-modal':'0 20px 60px rgba(0, 0, 0, 0.5)','--overlay':'rgba(0, 0, 0, 0.5)'};
+        var day={'--bg0':'#ffffff','--bg1':'rgba(0, 0, 0, 0.04)','--bg2':'rgba(0, 0, 0, 0.08)','--bg3':'rgba(0, 0, 0, 0.12)','--t0':'#0d0d0d','--t1':'#1a1a1a','--t2':'#333333','--t3':'#525252','--bdr':'rgba(0, 0, 0, 0.12)','--bdr2':'rgba(0, 0, 0, 0.18)','--acc':'#6c63ff','--acc2':'#8b84ff','--accbg':'rgba(108, 99, 255, 0.12)','--red':'#ef4444','--grn':'#22c55e','--ylw':'#f59e0b','--shadow':'0 4px 20px rgba(0, 0, 0, 0.08)','--shadow-sm':'0 2px 8px rgba(0, 0, 0, 0.08)','--shadow-modal':'0 20px 50px rgba(0, 0, 0, 0.12)','--overlay':'rgba(0, 0, 0, 0.25)'};
+        function apply(theme){
+            var colors=theme==='day'?day:dark;
+            var root=document.documentElement;
+            root.setAttribute('data-theme',theme);
+            var old=document.getElementById('theme-override');
+            if(old)old.remove();
+            var s=document.createElement('style');s.id='theme-override';
+            var css='html[data-theme="'+theme+'"]{';
+            for(var k in colors)css+=k+':'+colors[k]+' !important; ';
+            css+='}';s.textContent=css;document.head.appendChild(s);
+            for(var k in colors)root.style.setProperty(k,colors[k]);
+            localStorage.setItem(KEY,theme);
+            var dr=document.getElementById('theme-dark'),dy=document.getElementById('theme-day');
+            if(dr)dr.checked=(theme==='dark');if(dy)dy.checked=(theme==='day');
+        }
+        var theme=localStorage.getItem(KEY)==='day'?'day':'dark';
+        apply(theme);
+        window.ThemeManager={switchTheme:apply,getCurrentTheme:function(){return localStorage.getItem(KEY)==='day'?'day':'dark';},THEMES:{DARK:'dark',DAY:'day'}};
+    })();
+    </script>
+</head>
+<body>
+    <!-- Settings Icon -->
+    <div class="settings-icon" onclick="openSettings()" title="Settings">
+        ⚙️
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="settings-modal" onclick="closeSettingsOnBackdrop(event)">
+        <div class="settings-modal-content" onclick="event.stopPropagation()">
+            <div class="settings-modal-header">
+                <h2>Settings</h2>
+                <button class="settings-modal-close" onclick="closeSettings()" title="Close">×</button>
+            </div>
+            <div class="settings-section">
+                <div class="settings-section-title">Color Scheme</div>
+                <div class="theme-option" onclick="selectThemeOption('dark')">
+                    <input type="radio" id="theme-dark" name="theme" value="dark" checked>
+                    <label for="theme-dark" class="theme-option-label">Dark Mode</label>
+                </div>
+                <div class="theme-option" onclick="selectThemeOption('day')">
+                    <input type="radio" id="theme-day" name="theme" value="day">
+                    <label for="theme-day" class="theme-option-label">Day Mode (Light)</label>
+                </div>
+            </div>
+            <div class="settings-modal-actions">
+                <button class="settings-btn settings-btn-cancel" onclick="closeSettings()">Cancel</button>
+                <button class="settings-btn settings-btn-confirm" onclick="confirmSettings()">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="login-container">
+        <div class="login-box">
+            <h1>narRater</h1>
+            <p>Please log in or create an account to access the pipeline</p>
+            
+            <div class="error-message" id="error-message"></div>
+            <div class="success-message" id="success-message"></div>
+            
+            <!-- Mode toggle -->
+            <div style="display: flex; gap: 0; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--bdr);">
+                <button type="button" id="mode-signin" class="mode-toggle-btn active" onclick="setMode('signin')" style="flex: 1; padding: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all var(--tr); background: var(--acc); color: white;">Sign In</button>
+                <button type="button" id="mode-create" class="mode-toggle-btn" onclick="setMode('create')" style="flex: 1; padding: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all var(--tr); background: var(--bg3); color: var(--t2);">Create Account</button>
+            </div>
+            
+            <!-- Instructions panel -->
+            <div id="instructions-panel" style="background: var(--bg2); border: 1px solid var(--bdr); border-radius: 8px; padding: 14px; margin-bottom: 20px; text-align: left;">
+                <div id="signin-instructions" style="font-size: 12.5px; color: var(--t2); line-height: 1.6;">
+                    <strong style="color: var(--t1);">Returning user:</strong> Enter your existing username and password to sign in.
+                </div>
+                <div id="create-instructions" style="font-size: 12.5px; color: var(--t2); line-height: 1.6; display: none;">
+                    <strong style="color: var(--t1);">New user:</strong> Choose a unique username (letters, numbers, underscores only) and set a password. If the username is already taken, you will need to pick a different one. Remember your credentials — there is no password recovery.
+                </div>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label" for="username">Username</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        class="form-input" 
+                        placeholder="Enter your username"
+                        required
+                        autocomplete="username"
+                        pattern="[a-zA-Z0-9_]+"
+                        title="Only letters, numbers, and underscores allowed"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        class="form-input" 
+                        placeholder="Enter your password"
+                        required
+                        autocomplete="current-password"
+                    >
+                </div>
+                
+                <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let currentMode = 'signin';
+        
+        function setMode(mode) {
+            currentMode = mode;
+            const signinBtn = document.getElementById('mode-signin');
+            const createBtn = document.getElementById('mode-create');
+            const signinInst = document.getElementById('signin-instructions');
+            const createInst = document.getElementById('create-instructions');
+            const loginBtn = document.getElementById('login-btn');
+            
+            if (mode === 'signin') {
+                signinBtn.style.background = 'var(--acc)';
+                signinBtn.style.color = 'white';
+                createBtn.style.background = 'var(--bg3)';
+                createBtn.style.color = 'var(--t2)';
+                signinInst.style.display = 'block';
+                createInst.style.display = 'none';
+                loginBtn.textContent = 'Sign In';
+            } else {
+                createBtn.style.background = 'var(--acc)';
+                createBtn.style.color = 'white';
+                signinBtn.style.background = 'var(--bg3)';
+                signinBtn.style.color = 'var(--t2)';
+                signinInst.style.display = 'none';
+                createInst.style.display = 'block';
+                loginBtn.textContent = 'Create Account';
+            }
+        }
+        
+        function showError(message) {
+            const errorEl = document.getElementById('error-message');
+            const successEl = document.getElementById('success-message');
+            successEl.classList.remove('show');
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+            setTimeout(() => {
+                errorEl.classList.remove('show');
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const successEl = document.getElementById('success-message');
+            const errorEl = document.getElementById('error-message');
+            errorEl.classList.remove('show');
+            successEl.textContent = message;
+            successEl.classList.add('show');
+            setTimeout(() => {
+                successEl.classList.remove('show');
+            }, 3000);
+        }
+        
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('login-btn');
+            
+            if (!username || !password) {
+                showError('Please enter both username and password');
+                return;
+            }
+            
+            if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                showError('Username can only contain letters, numbers, and underscores');
+                return;
+            }
+            
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Processing...';
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password, is_new_user: currentMode === 'create' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    if (data.token) {
+                        sessionStorage.setItem('auth_token', data.token);
+                    }
+                    
+                    if (data.is_new_user) {
+                        showSuccess(data.message || 'Account created successfully!');
+                        loginBtn.textContent = 'Redirecting...';
+                        setTimeout(() => {
+                            window.location.href = '/pipeline-config';
+                        }, 1500);
+                    } else {
+                        window.location.href = '/pipeline-config';
+                    }
+                } else {
+                    showError(data.error || 'Invalid username or password');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = currentMode === 'create' ? 'Create Account' : 'Sign In';
+                }
+            } catch (error) {
+                showError('Connection error. Please try again.');
+                loginBtn.disabled = false;
+                loginBtn.textContent = currentMode === 'create' ? 'Create Account' : 'Sign In';
+            }
+        }
+        
+        // Settings Modal Functions
+        function openSettings() {
+            document.getElementById('settings-modal').classList.add('show');
+            // Update radio buttons to reflect current theme
+            const currentTheme = window.ThemeManager ? window.ThemeManager.getCurrentTheme() : 'dark';
+            document.getElementById('theme-dark').checked = (currentTheme === 'dark');
+            document.getElementById('theme-day').checked = (currentTheme === 'day');
+            selectedTheme = currentTheme; // Initialize selectedTheme to current theme
+        }
+        
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.remove('show');
+        }
+        
+        function closeSettingsOnBackdrop(event) {
+            if (event.target.id === 'settings-modal') {
+                closeSettings();
+            }
+        }
+        
+        let selectedTheme = null;
+        
+        function selectThemeOption(theme) {
+            document.getElementById('theme-dark').checked = (theme === 'dark');
+            document.getElementById('theme-day').checked = (theme === 'day');
+            selectedTheme = theme;
+            if (window.ThemeManager) window.ThemeManager.switchTheme(theme);
+        }
+        
+        function confirmSettings() {
+            if (selectedTheme && window.ThemeManager) {
+                window.ThemeManager.switchTheme(selectedTheme);
+            }
+            closeSettings();
+        }
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeSettings();
+            }
+        });
+        
+        // Check if already logged in
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = sessionStorage.getItem('auth_token');
+            if (token) {
+                // Verify token is still valid
+                fetch('/api/verify-auth', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.href = '/pipeline-config';
+                    }
+                })
+                .catch(() => {
+                    // Token invalid, stay on login page
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+

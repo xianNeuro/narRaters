@@ -1,0 +1,2184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrative Processing Pipeline Configuration</title>
+    <script src="/static/theme-manager.js"></script>
+    <style>
+        :root {
+            --bg0: #0b0d14;
+            --bg1: #111527;
+            --bg2: #1a1f36;
+            --bg3: #242b4a;
+            --t0: #f0f2f5;
+            --t1: #c4c9db;
+            --t2: #8890a8;
+            --t3: #5c6380;
+            --bdr: #2a3050;
+            --bdr2: #353c60;
+            --acc: #6c63ff;
+            --acc2: #8b84ff;
+            --accbg: rgba(108, 99, 255, 0.12);
+            --red: #ef4444;
+            --grn: #22c55e;
+            --ylw: #f59e0b;
+            --rad: 10px;
+            --tr: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+            --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
+            --overlay: rgba(0, 0, 0, 0.5);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg0);
+            color: var(--t0);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--bdr);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: var(--t0);
+            text-align: center;
+        }
+        
+        .header .subtitle {
+            color: var(--t1);
+            font-size: 14px;
+            text-align: left;
+            line-height: 1.5;
+            margin-top: 12px;
+        }
+        
+        .header .subtitle ul {
+            margin-left: 20px;
+            margin-top: 8px;
+            padding-left: 0;
+            list-style-type: disc;
+        }
+        
+        .header .subtitle li {
+            margin-bottom: 4px;
+        }
+        
+        .overview-expandable {
+            margin-top: 16px;
+            text-align: center;
+        }
+        
+        .overview-toggle {
+            background: none;
+            border: none;
+            color: var(--acc);
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: underline;
+            padding: 0;
+            transition: all var(--tr);
+            font-weight: 500;
+        }
+        
+        .overview-toggle:hover {
+            color: var(--acc2);
+        }
+        
+        .overview-details {
+            display: none;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--bdr);
+            text-align: left;
+            line-height: 1.7;
+        }
+        
+        .overview-details.show {
+            display: block;
+        }
+        
+        .overview-details p {
+            color: var(--t1);
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        
+        .overview-details p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .overview-details ul {
+            color: var(--t1);
+            font-size: 14px;
+            margin-left: 24px;
+            margin-top: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .overview-details li {
+            margin-bottom: 8px;
+        }
+        
+        .overview-details strong {
+            color: var(--t0);
+        }
+        
+        .pipeline-builder {
+            display: grid;
+            grid-template-columns: 320px 1fr 420px;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .pipeline-builder-right {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .steps-palette {
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 16px;
+            height: fit-content;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        
+        .empty-pipeline-notification {
+            background: var(--bg2);
+            border: 1.5px solid var(--acc);
+            border-radius: var(--rad);
+            padding: 16px;
+            margin-top: 16px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.2);
+        }
+        
+        .empty-pipeline-notification.show {
+            display: block;
+        }
+        
+        .empty-pipeline-title {
+            font-weight: 700;
+            color: var(--acc);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .empty-pipeline-content {
+            color: var(--t1);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .empty-pipeline-content p {
+            margin-bottom: 8px;
+        }
+        
+        .empty-pipeline-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .empty-pipeline-content strong {
+            color: var(--t0);
+        }
+        
+        .palette-title {
+            font-weight: 700;
+            color: var(--t0);
+            margin-bottom: 16px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--bdr);
+        }
+        
+        .palette-step {
+            background: var(--bg3);
+            border: 1.5px solid var(--bdr);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all var(--tr);
+            font-weight: 500;
+            color: var(--t1);
+            position: relative;
+        }
+        
+        .palette-step-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: grab;
+        }
+        
+        .palette-step-header:active {
+            cursor: grabbing;
+        }
+        
+        .palette-step-title {
+            flex: 1;
+            font-weight: 500;
+            color: var(--t1);
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+        
+        .palette-step-expand {
+            background: none;
+            border: none;
+            color: var(--t2);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all var(--tr);
+            margin-left: 8px;
+        }
+        
+        .palette-step-expand:hover {
+            background: var(--bg2);
+            color: var(--acc);
+        }
+        
+        .palette-step.expanded .palette-step-expand {
+            transform: rotate(180deg);
+        }
+        
+        .palette-step:hover {
+            border-color: var(--acc);
+        }
+        
+        .palette-step.expanded {
+            border-color: var(--acc);
+            background: var(--accbg);
+        }
+        
+        .palette-step-details {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--bdr);
+            display: none;
+            font-size: 12px;
+            line-height: 1.6;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+        
+        .palette-step.expanded .palette-step-details {
+            display: block;
+        }
+        
+        .palette-detail-section {
+            margin-bottom: 12px;
+        }
+        
+        .palette-detail-label {
+            font-weight: 700;
+            color: var(--acc);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .palette-detail-content {
+            color: var(--t1);
+            font-size: 12px;
+        }
+        
+        .palette-step-info {
+            font-size: 11px;
+            color: var(--t3);
+            margin-top: 6px;
+            font-weight: 400;
+        }
+        
+        .pipeline-canvas {
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 24px;
+            min-height: 500px;
+            position: relative;
+        }
+        
+        .canvas-title {
+            font-weight: 600;
+            color: var(--t1);
+            margin-bottom: 20px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-align: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--bdr);
+        }
+        
+        .pipeline-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+        }
+        
+        .pipeline-step {
+            background: var(--bg3);
+            border: 2px dashed var(--bdr);
+            border-radius: 8px;
+            padding: 24px;
+            position: relative;
+            transition: all var(--tr);
+            width: 100%;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .pipeline-step.drag-over {
+            border-color: var(--acc);
+            background: var(--accbg);
+            border-style: solid;
+        }
+        
+        .pipeline-step.empty {
+            color: var(--t3);
+            font-style: italic;
+        }
+        
+        .pipeline-step.empty.empty-pipeline-glow {
+            border-color: var(--ylw) !important;
+            animation: yellowGlow 2s ease-in-out infinite;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        }
+        
+        @keyframes yellowGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(245, 158, 11, 0.4),
+                            0 0 40px rgba(245, 158, 11, 0.2),
+                            inset 0 0 20px rgba(245, 158, 11, 0.1);
+                border-color: var(--ylw);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(245, 158, 11, 0.6),
+                            0 0 60px rgba(245, 158, 11, 0.3),
+                            inset 0 0 30px rgba(245, 158, 11, 0.15);
+                border-color: #fbbf24;
+            }
+        }
+        
+        .step-card {
+            background: var(--bg3);
+            border: 1.5px solid var(--bdr);
+            border-radius: 8px;
+            padding: 20px;
+            position: relative;
+            transition: all var(--tr);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            width: 100%;
+        }
+        
+        .step-card:hover {
+            border-color: var(--acc);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.2);
+        }
+        
+        .step-card.dragging {
+            opacity: 0.5;
+        }
+        
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--acc);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 700;
+            margin-right: 12px;
+        }
+        
+        .step-name {
+            font-weight: 600;
+            color: var(--t0);
+            font-size: 15px;
+            flex: 1;
+        }
+        
+        .step-remove {
+            background: var(--red);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all var(--tr);
+        }
+        
+        .step-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+        
+        .step-info-toggle {
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            color: var(--t2);
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 12px;
+            transition: all var(--tr);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .step-info-toggle:hover {
+            background: var(--bg1);
+            color: var(--t1);
+            border-color: var(--acc);
+        }
+        
+        .step-details {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--bdr);
+            display: none;
+            font-size: 13px;
+        }
+        
+        .step-details.show {
+            display: block;
+        }
+        
+        .detail-section {
+            margin-bottom: 16px;
+        }
+        
+        .detail-label {
+            font-weight: 700;
+            color: var(--acc);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        
+        .detail-content {
+            color: var(--t1);
+            line-height: 1.6;
+        }
+        
+        .detail-content ul {
+            margin-left: 20px;
+            margin-top: 6px;
+        }
+        
+        .detail-content li {
+            margin-bottom: 4px;
+        }
+        
+        .step-config {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .config-field {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .config-field label {
+            font-size: 11px;
+            color: var(--t2);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .config-field input {
+            padding: 10px 14px;
+            background: var(--bg2);
+            border: 1.5px solid var(--bdr);
+            border-radius: 6px;
+            color: var(--t0);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: all var(--tr);
+        }
+        
+        .config-field input:focus {
+            border-color: var(--acc);
+            box-shadow: 0 0 0 3px var(--accbg);
+        }
+        
+        .step-actions {
+            display: flex;
+            gap: 6px;
+            margin-right: 8px;
+        }
+        
+        .step-action-btn {
+            background: var(--bg2);
+            color: var(--t2);
+            border: 1px solid var(--bdr);
+            border-radius: 4px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all var(--tr);
+            font-weight: 600;
+        }
+        
+        .step-action-btn:hover {
+            background: var(--bg1);
+            color: var(--t1);
+            border-color: var(--acc);
+        }
+        
+        .step-action-btn.move-up,
+        .step-action-btn.move-down {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: var(--grn);
+            color: var(--grn);
+        }
+        
+        .step-action-btn.move-up:hover,
+        .step-action-btn.move-down:hover {
+            background: rgba(34, 197, 94, 0.2);
+        }
+        
+        .step-action-btn.duplicate {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: var(--ylw);
+            color: var(--ylw);
+        }
+        
+        .step-action-btn.duplicate:hover {
+            background: rgba(245, 158, 11, 0.2);
+        }
+        
+        .flow-arrow {
+            text-align: center;
+            color: var(--acc);
+            font-size: 20px;
+            margin: -8px 0;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .preview-panel {
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 16px;
+            height: fit-content;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: sticky;
+            top: 20px;
+        }
+        
+        .tutorial-notification {
+            background: var(--bg2);
+            border: 1.5px solid var(--acc);
+            border-radius: var(--rad);
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+            position: sticky;
+            top: 20px;
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.2);
+        }
+        
+        .tutorial-notification.show {
+            display: block;
+        }
+        
+        .tutorial-title {
+            font-weight: 700;
+            color: var(--acc);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        
+        .tutorial-close {
+            background: none;
+            border: none;
+            color: var(--t2);
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all var(--tr);
+            margin-left: auto;
+        }
+        
+        .tutorial-close:hover {
+            background: var(--bg3);
+            color: var(--t0);
+        }
+        
+        .tutorial-content {
+            color: var(--t1);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .tutorial-content p {
+            margin-bottom: 12px;
+        }
+        
+        .tutorial-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .tutorial-content strong {
+            color: var(--t0);
+        }
+        
+        .tutorial-example {
+            background: var(--bg3);
+            border-left: 3px solid var(--acc);
+            padding: 10px 12px;
+            margin: 12px 0;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--t1);
+        }
+        
+        .preview-title {
+            font-weight: 700;
+            color: var(--t0);
+            margin-bottom: 16px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--bdr);
+        }
+        
+        .preview-content {
+            background: var(--bg3);
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 12px;
+        }
+        
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        .preview-table th {
+            background: var(--acc);
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .preview-table td {
+            padding: 8px;
+            border-bottom: 1px solid var(--bdr);
+            color: var(--t1);
+        }
+        
+        .preview-table tr:hover {
+            background: var(--bg2);
+        }
+        
+        .actions {
+            margin-top: 30px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding-top: 20px;
+            border-top: 1px solid var(--bdr);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+        
+        .btn-primary {
+            background: var(--acc);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--acc2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--bg2);
+            color: var(--t1);
+            border: 1px solid var(--bdr);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+        }
+
+        .btn:disabled,
+        .btn-primary:disabled {
+            background: var(--bg3);
+            color: var(--t2);
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+        .btn-primary:disabled:hover {
+            background: var(--bg3);
+            transform: none;
+            box-shadow: none;
+        }
+
+        .rater-card {
+            margin: 0 0 16px;
+            padding: 14px 16px;
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: 10px;
+        }
+        .rater-card label {
+            display: block;
+            font-weight: 700;
+            color: var(--t1);
+            margin-bottom: 4px;
+        }
+        .rater-card .rater-hint {
+            font-size: 12px;
+            color: var(--t2);
+            margin-bottom: 12px;
+        }
+        .rater-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #rater-name-input {
+            flex: 1;
+            padding: 11px 14px;
+            background: var(--bg);
+            border: 1px solid var(--bdr);
+            border-radius: 8px;
+            color: var(--t1);
+            font-size: 14px;
+        }
+        #rater-name-input:focus {
+            outline: none;
+            border-color: var(--acc);
+        }
+        .dice-btn {
+            padding: 11px 16px;
+            background: var(--bg3);
+            border: 1px solid var(--bdr);
+            border-radius: 8px;
+            color: var(--t1);
+            font-size: 18px;
+            cursor: pointer;
+            transition: all var(--tr);
+            line-height: 1;
+        }
+        .dice-btn:hover {
+            border-color: var(--acc);
+            transform: translateY(-1px);
+        }
+        .dice-btn.rolling {
+            animation: dice-spin 0.5s ease;
+        }
+        @keyframes dice-spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+
+        .logout-btn {
+            position: fixed;
+            top: 20px;
+            right: 70px;
+            padding: 8px 16px;
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            color: var(--t2);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+            z-index: 1000;
+        }
+        
+        .logout-btn:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+            color: var(--t1);
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--bdr);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--bdr2);
+        }
+        
+        /* Settings Icon */
+        .settings-icon {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--tr);
+            z-index: 1000;
+            color: var(--t1);
+            font-size: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .settings-icon:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+            color: var(--acc);
+            transform: rotate(90deg);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.3);
+        }
+        
+        /* Settings Modal */
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--overlay);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .settings-modal.show {
+            display: flex;
+        }
+        
+        .settings-modal-content {
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-modal);
+            position: relative;
+        }
+        
+        .settings-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--bdr);
+        }
+        
+        .settings-modal-header h2 {
+            color: var(--t0);
+            font-size: 24px;
+            margin: 0;
+        }
+        
+        .settings-modal-close {
+            background: none;
+            border: none;
+            color: var(--t2);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all var(--tr);
+        }
+        
+        .settings-modal-close:hover {
+            background: var(--bg2);
+            color: var(--t0);
+        }
+        
+        .settings-section {
+            margin-bottom: 25px;
+        }
+        
+        .settings-section-title {
+            color: var(--t0);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .theme-option {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg2);
+            border: 1.5px solid var(--bdr);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+        
+        .theme-option:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+        }
+        
+        .theme-option input[type="radio"] {
+            margin-right: 12px;
+            cursor: pointer;
+        }
+        
+        .theme-option-label {
+            flex: 1;
+            color: var(--t1);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .theme-option input[type="radio"]:checked + .theme-option-label {
+            color: var(--acc);
+            font-weight: 600;
+        }
+        
+        .settings-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid var(--bdr);
+        }
+        
+        .settings-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+        
+        .settings-btn-confirm {
+            background: var(--acc);
+            color: white;
+        }
+        
+        .settings-btn-confirm:hover {
+            background: var(--acc2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+        }
+        
+        .settings-btn-cancel {
+            background: var(--bg2);
+            color: var(--t1);
+            border: 1px solid var(--bdr);
+        }
+        
+        .settings-btn-cancel:hover {
+            background: var(--bg3);
+            border-color: var(--acc);
+            color: var(--t0);
+        }
+    </style>
+    <script>
+    (function(){
+        var KEY='narrative-processor-theme';
+        var dark={'--bg0':'#0b0d14','--bg1':'#111527','--bg2':'#1a1f36','--bg3':'#242b4a','--t0':'#f0f2f5','--t1':'#c4c9db','--t2':'#8890a8','--t3':'#5c6380','--bdr':'#2a3050','--bdr2':'#353c60','--acc':'#6c63ff','--acc2':'#8b84ff','--accbg':'rgba(108, 99, 255, 0.12)','--red':'#ef4444','--grn':'#22c55e','--ylw':'#f59e0b','--shadow':'0 20px 60px rgba(0, 0, 0, 0.4)','--shadow-sm':'0 2px 8px rgba(0, 0, 0, 0.2)','--shadow-modal':'0 20px 60px rgba(0, 0, 0, 0.5)','--overlay':'rgba(0, 0, 0, 0.5)'};
+        var day={'--bg0':'#ffffff','--bg1':'rgba(0, 0, 0, 0.04)','--bg2':'rgba(0, 0, 0, 0.08)','--bg3':'rgba(0, 0, 0, 0.12)','--t0':'#0d0d0d','--t1':'#1a1a1a','--t2':'#333333','--t3':'#525252','--bdr':'rgba(0, 0, 0, 0.12)','--bdr2':'rgba(0, 0, 0, 0.18)','--acc':'#6c63ff','--acc2':'#8b84ff','--accbg':'rgba(108, 99, 255, 0.12)','--red':'#ef4444','--grn':'#22c55e','--ylw':'#f59e0b','--shadow':'0 4px 20px rgba(0, 0, 0, 0.08)','--shadow-sm':'0 2px 8px rgba(0, 0, 0, 0.08)','--shadow-modal':'0 20px 50px rgba(0, 0, 0, 0.12)','--overlay':'rgba(0, 0, 0, 0.25)'};
+        function apply(theme){
+            var colors=theme==='day'?day:dark;
+            var root=document.documentElement;
+            root.setAttribute('data-theme',theme);
+            var old=document.getElementById('theme-override');
+            if(old)old.remove();
+            var s=document.createElement('style');s.id='theme-override';
+            var css='html[data-theme="'+theme+'"]{';
+            for(var k in colors)css+=k+':'+colors[k]+' !important; ';
+            css+='}';s.textContent=css;document.head.appendChild(s);
+            for(var k in colors)root.style.setProperty(k,colors[k]);
+            localStorage.setItem(KEY,theme);
+            var dr=document.getElementById('theme-dark'),dy=document.getElementById('theme-day');
+            if(dr)dr.checked=(theme==='dark');if(dy)dy.checked=(theme==='day');
+        }
+        var theme=localStorage.getItem(KEY)==='day'?'day':'dark';
+        apply(theme);
+        window.ThemeManager={switchTheme:apply,getCurrentTheme:function(){return localStorage.getItem(KEY)==='day'?'day':'dark';},THEMES:{DARK:'dark',DAY:'day'}};
+    })();
+    </script>
+</head>
+<body>
+    <!-- Settings Icon -->
+    <div class="settings-icon" onclick="openSettings()" title="Settings">
+        ⚙️
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="settings-modal" onclick="closeSettingsOnBackdrop(event)">
+        <div class="settings-modal-content" onclick="event.stopPropagation()">
+            <div class="settings-modal-header">
+                <h2>Settings</h2>
+                <button class="settings-modal-close" onclick="closeSettings()" title="Close">×</button>
+            </div>
+            <div class="settings-section">
+                <div class="settings-section-title">Color Scheme</div>
+                <div class="theme-option" onclick="selectThemeOption('dark')">
+                    <input type="radio" id="theme-dark" name="theme" value="dark" checked>
+                    <label for="theme-dark" class="theme-option-label">Dark Mode</label>
+                </div>
+                <div class="theme-option" onclick="selectThemeOption('day')">
+                    <input type="radio" id="theme-day" name="theme" value="day">
+                    <label for="theme-day" class="theme-option-label">Day Mode (Light)</label>
+                </div>
+            </div>
+            <div class="settings-modal-actions">
+                <button class="settings-btn settings-btn-cancel" onclick="closeSettings()">Cancel</button>
+                <button class="settings-btn settings-btn-confirm" onclick="confirmSettings()">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>Narrative Processing Pipeline Configuration</h1>
+            <div class="subtitle">
+                <ul>
+                    <li>This pipeline configuration tool is designed to facilitate researchers working with naturalistic stimuli such as movies, video clips, audio recordings, and text-based narratives.</li>
+                    <li>The system provides a flexible platform to process complex narrative stimuli and data with the support of visualization, open source packages, and AI-tools.</li>
+                    <li>Human raters are optional but encouraged to check the outputs. Human edits made to each processing step's outputs can be separately saved, automatically labeled by user name.</li>
+                </ul>
+            </div>
+            <div class="overview-expandable">
+                <button class="overview-toggle" onclick="toggleOverviewDetails()">Click to see more details</button>
+                <div class="overview-details" id="overview-details">
+                    <p>
+                        <strong>Main Functions Available:</strong>
+                    </p>
+                    <ul>
+                        <li><strong>Audio Transcription:</strong> Convert audio files (story and recall audio) to text using speech recognition models</li>
+                        <li><strong>Event Segmentation:</strong> Segment story transcripts into discrete events based on semantic boundaries</li>
+                        <li><strong>Text Correction:</strong> Apply spelling and grammar corrections to recall texts while preserving original structure</li>
+                        <li><strong>Text Parsing:</strong> Parse corrected recall texts into fine-grained segments at clause boundaries</li>
+                        <li><strong>Event Matching:</strong> Match recall segments to corresponding story events using semantic similarity</li>
+                    </ul>
+                    <p>
+                        <strong>How to Configure the Processing Pipeline:</strong>
+                    </p>
+                    <p>
+                        Click on any step in the "Available Steps" palette on the left to view detailed information about its function, inputs, parameters, and outputs. Drag steps from the palette to the "Pipeline Flow" canvas in the center to build your processing pipeline. You can reorder steps, configure input/output paths for each step, and preview how your pipeline will appear on the main dashboard. Once configured, click "Confirm Pipeline" to save your configuration.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="pipeline-builder">
+            <div class="steps-palette">
+                <div class="palette-title">Available Steps</div>
+                <div class="palette-step" data-step="story-audio-transcribe" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Story Audio Transcribe</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-story-audio-transcribe"></div>
+                </div>
+                <div class="palette-step" data-step="recall-audio-transcribe" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Recall Audio Transcribe</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-recall-audio-transcribe"></div>
+                </div>
+                <div class="palette-step" data-step="story-event-segment" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Story Event Segment</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-story-event-segment"></div>
+                </div>
+                <div class="palette-step" data-step="spell-grammar-correct" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Spell & Grammar Correction</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-spell-grammar-correct"></div>
+                </div>
+                <div class="palette-step" data-step="recall-parse" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Recall Parse to Segments</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-recall-parse"></div>
+                </div>
+                <div class="palette-step" data-step="recall-match-events" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Recall Match to Story Events</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-recall-match-events"></div>
+                </div>
+                <div class="palette-step" data-step="causal-rate-events" onclick="togglePaletteStep(this)">
+                    <div class="palette-step-header" draggable="true">
+                        <div class="palette-step-title">Causal Rate Event Pairs</div>
+                        <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
+                    </div>
+                    <div class="palette-step-details" id="details-causal-rate-events"></div>
+                </div>
+                
+                <div class="empty-pipeline-notification" id="empty-pipeline-notification">
+                    <div class="empty-pipeline-title">
+                        <span>📋</span>
+                        <span>Getting Started</span>
+                    </div>
+                    <div class="empty-pipeline-content">
+                        <p>
+                            <strong>Drag and Drop Steps:</strong> Click on any step above to see details, then drag it from the step header to the "Pipeline Flow" area on the right to add it to your pipeline.
+                        </p>
+                        <p>
+                            <strong>Reorder Steps:</strong> Once steps are in the pipeline, you can drag and drop them to swap positions and change the processing sequence.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="pipeline-canvas">
+                <div class="canvas-title">Pipeline Flow</div>
+                <div class="rater-card">
+                    <label for="rater-name-input">Rater name</label>
+                    <div class="rater-hint">
+                        Used so any output files are saved under your name. Roll the dice for a random name.
+                    </div>
+                    <div class="rater-input-row">
+                        <input type="text" id="rater-name-input" placeholder="e.g. BraveOtter or your initials"
+                               autocomplete="off" maxlength="32"
+                               oninput="onRaterNameInput()" />
+                        <button type="button" class="dice-btn" id="dice-btn"
+                                title="Roll a random adjective + noun name"
+                                onclick="rollRaterName()">🎲</button>
+                    </div>
+                </div>
+                <div class="pipeline-steps" id="pipeline-steps">
+                    <div class="pipeline-step empty" data-drop-zone="true" data-position="0">
+                        <div style="text-align: center; color: var(--t3);">
+                            <div style="font-size: 2em; margin-bottom: 10px;">↓</div>
+                            <div style="font-size: 14px; font-weight: 500;">Drop step here</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="pipeline-builder-right">
+                <div class="preview-panel">
+                    <div class="preview-title">Processing Panel Preview</div>
+                    <div class="preview-content" id="pipeline-preview">
+                        <p style="color: var(--t3); text-align: center; padding: 20px; font-style: italic;">
+                            Add steps to see preview
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="tutorial-notification" id="tutorial-notification">
+                    <div class="tutorial-title">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span>💡</span>
+                            <span>Step Sequence Matters</span>
+                        </div>
+                        <button class="tutorial-close" onclick="dismissTutorial()" title="Dismiss and don't show again">×</button>
+                    </div>
+                    <div class="tutorial-content">
+                        <p>
+                            <strong>Independent Steps:</strong> Some steps can be run in any order because they don't depend on each other. For example, transcribing story audio files and recall audio files can be done in any sequence.
+                        </p>
+                        <p>
+                            <strong>Dependent Steps:</strong> Other steps must follow a specific sequence because one step's input depends on another step's output.
+                        </p>
+                        <div class="tutorial-example">
+                            <strong>Example:</strong> "Recall Match to Story Events" requires the output from "Recall Parse to Segments" as its input. Make sure "Recall Parse to Segments" comes before "Recall Match to Story Events" in your pipeline.
+                        </div>
+                        <p style="font-size: 11px; color: var(--t2); margin-top: 12px;">
+                            This notification will disappear when you interact with the pipeline.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="resetPipeline()">Reset</button>
+            <button class="btn btn-primary" id="confirm-btn" onclick="confirmPipeline()" disabled
+                    title="Enter a rater name and add at least one pipeline step to continue">Continue</button>
+        </div>
+    </div>
+    
+    <script>
+        const stepDefinitions = {
+            'story-audio-transcribe': {
+                name: 'Story Audio Transcribe',
+                defaultInput: 'data/1_story_audio',
+                defaultOutput: 'output/story_audio-transcribed',
+                function: 'Transcribes story audio files verbatim using Whisper speech recognition model',
+                inputs: 'Audio files (.wav, .mp3, .mp4, .m4a, .flac, .ogg, .webm, .aac) from the input directory. Files should be named with story identifiers.',
+                parameters: 'Uses OpenAI Whisper model (default: whisper-1) for transcription. Processes audio files in the input directory.',
+                outputs: 'Plain text files (.txt) saved to output directory. Each audio file produces one transcript file with the same base name. Output format: {audio_filename}.txt containing verbatim transcription.',
+                implementation: 'Script: scripts/1_audio-transcribe.py. Uses Whisper API to transcribe audio files. Preserves original audio content verbatim without modifications.'
+            },
+            'recall-audio-transcribe': {
+                name: 'Recall Audio Transcribe',
+                defaultInput: 'data/4_recall_audio',
+                defaultOutput: 'output/recall_audio-transcribed',
+                function: 'Transcribes recall audio files verbatim using Whisper speech recognition model',
+                inputs: 'Audio files (.wav, .mp3, .mp4, .m4a, .flac, .ogg, .webm, .aac) from the input directory. Files should be named with subject identifiers (e.g., {subj_id}_recall*.mp4).',
+                parameters: 'Uses OpenAI Whisper model (default: whisper-1) for transcription. Processes all audio files in the input directory.',
+                outputs: 'Plain text files (.txt) saved to output directory. Each audio file produces one transcript file. Output format: {audio_filename}.txt containing verbatim transcription of the recall audio.',
+                implementation: 'Script: scripts/1_audio-transcribe.py. Uses Whisper API to transcribe recall audio files. Preserves original audio content verbatim.'
+            },
+            'story-event-segment': {
+                name: 'Story Event Segment',
+                defaultInput: 'data/2_story_transcript',
+                defaultOutput: 'data/3_story_events',
+                function: 'Segments story transcript into discrete events based on semantic boundaries and narrative structure',
+                inputs: 'Story transcript files (.txt) from the input directory. Each file should contain the full story transcript text.',
+                parameters: 'Rule-based methods (clause / fine / coarse): local segmentation compositional hierarchy. API path: Claude Sonnet/Haiku, GPT-4o/Mini, Gemma 4 E4B via Ollama, or Llama Ollama presets — prompts from scripts/prompt/event_segment*.txt; keys required only for Anthropic/OpenAI.',
+                outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_events.xlsx. Contains columns: event (event number), story_texts (story text for this event), and optionally old_seg, scenes. Each row represents one discrete story event.',
+                implementation: 'Script: scripts/2_story-event-segment.py. Rule-based methods use pattern matching and linguistic rules. API method supports Anthropic, OpenAI, and Ollama-backed models (Gemma 4 E4B, Llama presets) with prompts under scripts/prompt/. Preserves original text verbatim where required.'
+            },
+            'spell-grammar-correct': {
+                name: 'Spell & Grammar Correction',
+                defaultInput: 'data/5_recall_texts',
+                defaultOutput: 'output/recall_corrected',
+                function: 'Applies conservative spelling and grammar corrections to recall texts without changing sentence structure',
+                inputs: 'Plain text files (.txt) from input directory, one file per subject (e.g. data/5_recall_texts/). Each file should contain one subject\'s raw recall text. Also supports Excel summary files (.xlsx) with columns: sub, ID, recall.',
+                parameters: 'Methods: rule-based (default) with pyspellchecker and optional LanguageTool; Gemma 4 via Ollama using scripts/prompt/spell_gram.txt; or Manual. Ollama default tag gemma4:e4b (SPELL_GRAM_OLLAMA_MODEL / OLLAMA_HOST).',
+                outputs: 'Plain text (.txt). Rule-based: {subj_id}.txt. Ollama Gemma: {subj_id}_spell-ollama_*.txt. User edits: {subj_id}_{username}-edit.txt.',
+                implementation: 'Script: scripts/3_spell-grammar-correct.py. Rule-based path is fully local. Gemma (Ollama) uses scripts/prompt/spell_gram.txt and a running ollama serve.'
+            },
+            'recall-parse': {
+                name: 'Recall Parse to Segments',
+                defaultInput: 'output/recall_corrected',
+                defaultOutput: 'output/recall_parsed',
+                function: 'Parses corrected recall texts into fine-grained event-sized segments at clause boundaries',
+                inputs: 'Plain text files (.txt) from input directory. Each file should contain corrected recall text from the previous step.',
+                parameters: 'Clause-based rules (default) or Gemma 4 E4B via Ollama using scripts/prompt/recall_parse_clause.txt (RECALL_PARSE_METHOD=ollama), or Manual.',
+                outputs: 'Excel (.xlsx): {subj_id}_parsed.xlsx (rules) or {subj_id}_parsed-ollama_*.xlsx (Ollama). Column recall_in_temporal_order; recalled_events filled later.',
+                implementation: 'Script: scripts/4_parse-texts.py. Rules mirror clause-level story segmentation heuristics; Ollama path calls helpers/ollama_gemma_e4b.py with the same prompt file.'
+            },
+            'recall-match-events': {
+                name: 'Recall Match to Story Events',
+                defaultInput: 'output/recall_parsed',
+                defaultOutput: 'output/recall_rated',
+                function: 'Matches each recall segment to corresponding story event(s) using semantic similarity',
+                inputs: 'Excel files (.xlsx) from input directory containing parsed recall segments. Also requires story events from data/3_story_events/. Input format: {subj_id}_parsed.xlsx with column recall_in_temporal_order.',
+                parameters: 'Methods: 1) Test Mode (default): keyword matching. 2) API (Claude Sonnet): Claude Sonnet 4.5 via scripts/5_recall-rater.py (ANTHROPIC_API_KEY). 3) Manual: empty matches for hand-labeling. 4) Gemma E4B (Ollama): same batch JSON prompt as the API path, answered locally (RECALL_RATING_BACKEND=ollama; default model gemma4:e4b).',
+                outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_rate-recall.xlsx. Contains columns: recall_in_temporal_order (recall segment text), recalled_events (matched story event number(s), comma-separated if multiple). Also generates comparison matrices and performance metrics.',
+                implementation: 'Script: scripts/5_recall-rater.py. API uses Claude Sonnet with one batch prompt + JSON. Gemma E4B (Ollama) uses the same batch prompt via local HTTP. Outputs method-tagged rated files (e.g. _rate-recall-api_*.xlsx, _rate-recall-ollama_*.xlsx).'
+            },
+            'causal-rate-events': {
+                name: 'Causal Rate Event Pairs',
+                defaultInput: 'data/3_story_events',
+                defaultOutput: 'output/causal_rated',
+                function: 'Rates causal relationships between all pairs of story events',
+                inputs: 'Event-segmented story files (.xlsx) from the input directory. Each file must contain columns: event (event number) and story_texts (event text).',
+                parameters: 'Three methods available: 1) Linguistic (default): Rule-based scoring using causal connectives, entity continuity, action-consequence verb patterns, and content overlap. No API key required. Uses spaCy if installed. 2) API (LLM Call): Uses Claude Sonnet 4.5, Haiku 3.5, GPT-4o, or GPT-4o Mini with prompt from scripts/prompt/causal_rating*.txt. Requires API key. 3) Manual: Enter causal ratings via the N×N event matrix in the inspection page. Ratings: 0=none, 1=slightly causal, 2=causally related, 3=extremely causal.',
+                outputs: 'Excel files (.xlsx) saved to output directory. Naming: {story_name}_causal-{method}.xlsx. Contains columns: event_A_number, event_B_number, rating, reasoning.',
+                implementation: 'Script: scripts/6_causal-rater.py. Linguistic method uses causal connective lexicon (from CREST/BECauSE literature), entity overlap, action-consequence verb patterns, and optional spaCy dependency parsing. API method sends events to LLM for full narrative causal reasoning. Manual method provides an interactive N×N matrix for direct human annotation.'
+            }
+        };
+        
+        let pipelineSteps = [];
+        let stepCounter = 0;
+        
+        // Initialize page when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializePage);
+        } else {
+            initializePage();
+        }
+        
+        // Clear subject inspection tab notification dismissals so they reappear when user returns from pipeline config to inspection
+        function clearInspectionNotificationDismissed() {
+            ['story-events-notification-dismissed', 'raw-processed-notification-dismissed', 'segmented-notification-dismissed', 'matched-notification-dismissed'].forEach(function(key) {
+                localStorage.removeItem(key);
+            });
+        }
+
+        async function initializePage() {
+            console.log('Initializing pipeline configuration page...');
+            clearInspectionNotificationDismissed();
+            
+            // Load current pipeline from server when reconfiguring from dashboard (reserve flow for edit)
+            try {
+                const response = await fetch('/api/pipeline/load');
+                const data = await response.json();
+                if (data.success && data.pipeline && data.pipeline.steps && data.pipeline.steps.length > 0) {
+                    pipelineSteps = data.pipeline.steps;
+                    stepCounter = Math.max(0, ...pipelineSteps.map(s => s.id)) + 1;
+                    savePipeline();
+                    console.log('Loaded existing pipeline with', pipelineSteps.length, 'steps for editing');
+                }
+            } catch (e) {
+                console.warn('Could not load pipeline (will start empty):', e);
+            }
+            
+            // Populate palette step details
+            populatePaletteStepDetails();
+            
+            // Set up drag handlers for palette steps
+            const paletteStepHeaders = document.querySelectorAll('.palette-step-header');
+            paletteStepHeaders.forEach(header => {
+                header.addEventListener('dragstart', handleDragStart);
+                header.addEventListener('dragend', (e) => {
+                    e.target.style.opacity = '1';
+                });
+            });
+            
+            initRaterName();
+            renderPipeline();
+            updatePreview();
+            console.log('Page initialization complete');
+        }
+
+        // --- Rater name (replaces login) ---------------------------------
+        const RATER_LS_KEY = 'narrative-rater-name';
+
+        function getRaterName() {
+            const el = document.getElementById('rater-name-input');
+            return el ? el.value.trim() : '';
+        }
+
+        function initRaterName() {
+            const el = document.getElementById('rater-name-input');
+            if (!el) return;
+            try {
+                const saved = localStorage.getItem(RATER_LS_KEY);
+                if (saved && !el.value) el.value = saved;
+            } catch (e) { /* localStorage may be unavailable */ }
+            updateConfirmState();
+        }
+
+        function onRaterNameInput() {
+            try { localStorage.setItem(RATER_LS_KEY, getRaterName()); } catch (e) {}
+            updateConfirmState();
+        }
+
+        async function rollRaterName() {
+            const btn = document.getElementById('dice-btn');
+            const el = document.getElementById('rater-name-input');
+            if (btn) { btn.classList.remove('rolling'); void btn.offsetWidth; btn.classList.add('rolling'); }
+            try {
+                const resp = await fetch('/api/random-name');
+                const data = await resp.json();
+                if (data && data.success && data.name && el) {
+                    el.value = data.name;
+                    onRaterNameInput();
+                }
+            } catch (e) {
+                console.warn('Could not fetch random name:', e);
+                // Offline fallback so the dice still works without the server.
+                if (el) {
+                    const adj = ['Brave','Calm','Clever','Eager','Lucky','Nimble','Sunny','Witty'];
+                    const noun = ['Otter','Falcon','Comet','Badger','Heron','Lynx','Robin','Crane'];
+                    el.value = adj[Math.floor(Math.random()*adj.length)] + noun[Math.floor(Math.random()*noun.length)];
+                    onRaterNameInput();
+                }
+            }
+        }
+
+        function updateConfirmState() {
+            const btn = document.getElementById('confirm-btn');
+            if (!btn) return;
+            const hasName = getRaterName().length > 0;
+            const hasSteps = Array.isArray(pipelineSteps) && pipelineSteps.length > 0;
+            const ready = hasName && hasSteps;
+            btn.disabled = !ready;
+            btn.title = ready
+                ? 'Save the pipeline and continue to the dashboard'
+                : (!hasName
+                    ? 'Enter a rater name to continue'
+                    : 'Add at least one pipeline step to continue');
+        }
+        
+        function populatePaletteStepDetails() {
+            // Populate details for each step type
+            Object.keys(stepDefinitions).forEach(stepType => {
+                const stepDef = stepDefinitions[stepType];
+                const detailsEl = document.getElementById(`details-${stepType}`);
+                if (detailsEl) {
+                    detailsEl.innerHTML = `
+                        <div class="palette-detail-section">
+                            <div class="palette-detail-label">Function</div>
+                            <div class="palette-detail-content">${escapeHtml(stepDef.function)}</div>
+                        </div>
+                        <div class="palette-detail-section">
+                            <div class="palette-detail-label">Input Files & Format</div>
+                            <div class="palette-detail-content">${escapeHtml(stepDef.inputs)}</div>
+                        </div>
+                        <div class="palette-detail-section">
+                            <div class="palette-detail-label">Implementation & Parameters</div>
+                            <div class="palette-detail-content">${escapeHtml(stepDef.parameters)}</div>
+                        </div>
+                        <div class="palette-detail-section">
+                            <div class="palette-detail-label">Output Location & Format</div>
+                            <div class="palette-detail-content">${escapeHtml(stepDef.outputs)}</div>
+                        </div>
+                        <div class="palette-detail-section">
+                            <div class="palette-detail-label">Implementation Details</div>
+                            <div class="palette-detail-content">${escapeHtml(stepDef.implementation)}</div>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        function togglePaletteStep(stepElement) {
+            stepElement.classList.toggle('expanded');
+        }
+        
+        function handleDragStart(e) {
+            // Get step type from the parent palette-step element
+            const paletteStep = e.target.closest('.palette-step');
+            const stepType = paletteStep ? paletteStep.getAttribute('data-step') : null;
+            if (!stepType) return;
+            
+            e.dataTransfer.setData('text/plain', stepType);
+            e.dataTransfer.effectAllowed = 'copy';
+            e.target.style.opacity = '0.5';
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const stepType = e.dataTransfer.getData('text/plain');
+            if (!stepType) return;
+            
+            document.querySelectorAll('.pipeline-step').forEach(step => {
+                step.classList.remove('drag-over');
+            });
+            
+            document.querySelectorAll('.palette-step').forEach(step => {
+                step.style.opacity = '1';
+            });
+            
+            if (pipelineSteps.some(s => s.type === stepType)) {
+                alert('This step is already in the pipeline. Remove it first to add it again.');
+                return;
+            }
+            
+            const dropZone = e.target.closest('.pipeline-step.empty[data-drop-zone="true"]');
+            let insertPosition = pipelineSteps.length;
+            
+            if (dropZone) {
+                const position = parseInt(dropZone.getAttribute('data-position'));
+                if (!isNaN(position)) {
+                    insertPosition = position;
+                }
+            }
+            
+            addStepToPipeline(stepType, insertPosition);
+        }
+        
+        function addStepToPipeline(stepType, position = null) {
+            const stepDef = stepDefinitions[stepType];
+            if (!stepDef) return;
+            
+            const step = {
+                id: stepCounter++,
+                type: stepType,
+                name: stepDef.name,
+                inputPath: stepDef.defaultInput,
+                outputPath: stepDef.defaultOutput
+            };
+            
+            if (position !== null && position < pipelineSteps.length) {
+                pipelineSteps.splice(position, 0, step);
+            } else {
+                pipelineSteps.push(step);
+            }
+            
+            savePipeline();
+            renderPipeline();
+            updatePreview();
+            
+            // Show tutorial when second step is added
+            if (pipelineSteps.length === 2) {
+                showTutorial();
+            }
+        }
+        
+        function showTutorial() {
+            // Check if tutorial was previously dismissed
+            const wasDismissed = localStorage.getItem('tutorial-dismissed');
+            if (wasDismissed === 'true') {
+                return; // Don't show if user dismissed it
+            }
+            
+            const tutorial = document.getElementById('tutorial-notification');
+            if (tutorial) {
+                tutorial.classList.add('show');
+                setupTutorialDismiss();
+            }
+        }
+        
+        function hideTutorial() {
+            const tutorial = document.getElementById('tutorial-notification');
+            if (tutorial) {
+                tutorial.classList.remove('show');
+            }
+        }
+        
+        function dismissTutorial() {
+            // Hide the tutorial
+            hideTutorial();
+            // Store in localStorage that it was dismissed
+            localStorage.setItem('tutorial-dismissed', 'true');
+        }
+        
+        function setupTutorialDismiss() {
+            // Hide tutorial on any click
+            const clickHandler = () => {
+                hideTutorial();
+                document.removeEventListener('click', clickHandler);
+                document.removeEventListener('dragstart', dragHandler);
+            };
+            
+            // Hide tutorial on any drag
+            const dragHandler = () => {
+                hideTutorial();
+                document.removeEventListener('click', clickHandler);
+                document.removeEventListener('dragstart', dragHandler);
+            };
+            
+            // Add listeners with a small delay to avoid immediate dismissal
+            setTimeout(() => {
+                document.addEventListener('click', clickHandler, { once: true });
+                document.addEventListener('dragstart', dragHandler, { once: true });
+            }, 100);
+        }
+        
+        function removeStep(stepId) {
+            pipelineSteps = pipelineSteps.filter(s => s.id !== stepId);
+            savePipeline();
+            renderPipeline();
+            // Hide tutorial if less than 2 steps remain
+            if (pipelineSteps.length < 2) {
+                hideTutorial();
+            }
+        }
+        
+        function updateStepConfig(stepId, field, value) {
+            const step = pipelineSteps.find(s => s.id === stepId);
+            if (step) {
+                step[field] = value;
+                savePipeline();
+                updatePreview();
+            }
+        }
+        
+        function toggleStepDetails(stepId) {
+            const details = document.getElementById(`step-details-${stepId}`);
+            const toggle = document.getElementById(`step-toggle-${stepId}`);
+            if (details && toggle) {
+                details.classList.toggle('show');
+                toggle.textContent = details.classList.contains('show') ? 'Hide Details' : 'Show Details';
+            }
+        }
+        
+        function renderPipeline() {
+            const container = document.getElementById('pipeline-steps');
+            updateConfirmState();
+
+            // Show/hide empty pipeline notification
+            const emptyNotification = document.getElementById('empty-pipeline-notification');
+            if (emptyNotification) {
+                if (pipelineSteps.length === 0) {
+                    emptyNotification.classList.add('show');
+                } else {
+                    emptyNotification.classList.remove('show');
+                }
+            }
+            
+            if (pipelineSteps.length === 0) {
+                container.innerHTML = `
+                    <div class="pipeline-step empty empty-pipeline-glow" data-drop-zone="true" data-position="0">
+                        <div style="text-align: center; color: var(--t3);">
+                            <div style="font-size: 2em; margin-bottom: 10px;">↓</div>
+                            <div style="font-size: 14px; font-weight: 500;">Drop step here</div>
+                        </div>
+                    </div>
+                `;
+                setupDropZones();
+                return;
+            }
+            
+            let html = '';
+            
+            pipelineSteps.forEach((step, index) => {
+                const stepDef = stepDefinitions[step.type];
+                
+                html += `
+                    <div class="step-card" data-step-id="${step.id}" draggable="true">
+                        <div class="step-header">
+                            <div style="display: flex; align-items: center; flex: 1;">
+                                <span class="step-number">${index + 1}</span>
+                                <span class="step-name">${step.name}</span>
+                            </div>
+                            <div class="step-actions">
+                                ${index > 0 ? `<button class="step-action-btn move-up" onclick="moveStep(${step.id}, -1)" title="Move up">↑</button>` : ''}
+                                ${index < pipelineSteps.length - 1 ? `<button class="step-action-btn move-down" onclick="moveStep(${step.id}, 1)" title="Move down">↓</button>` : ''}
+                            </div>
+                            <button class="step-remove" onclick="removeStep(${step.id})" title="Remove step">×</button>
+                        </div>
+                        <div class="step-config">
+                            <div class="config-field">
+                                <label>Input Path/Directory:</label>
+                                <input type="text" 
+                                       value="${escapeHtml(step.inputPath)}" 
+                                       onchange="updateStepConfig(${step.id}, 'inputPath', this.value); updatePreview();"
+                                       placeholder="e.g., data/input">
+                            </div>
+                            <div class="config-field">
+                                <label>Output Path/Directory:</label>
+                                <input type="text" 
+                                       value="${escapeHtml(step.outputPath)}" 
+                                       onchange="updateStepConfig(${step.id}, 'outputPath', this.value); updatePreview();"
+                                       placeholder="e.g., output/">
+                            </div>
+                        </div>
+                        <button class="step-info-toggle" id="step-toggle-${step.id}" onclick="toggleStepDetails(${step.id})">
+                            Show Details
+                        </button>
+                        <div class="step-details" id="step-details-${step.id}">
+                            <div class="detail-section">
+                                <div class="detail-label">Function</div>
+                                <div class="detail-content">${escapeHtml(stepDef.function)}</div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="detail-label">Input Files & Format</div>
+                                <div class="detail-content">${escapeHtml(stepDef.inputs)}</div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="detail-label">Implementation & Parameters</div>
+                                <div class="detail-content">${escapeHtml(stepDef.parameters)}</div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="detail-label">Output Location & Format</div>
+                                <div class="detail-content">${escapeHtml(stepDef.outputs)}</div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="detail-label">Implementation Details</div>
+                                <div class="detail-content">${escapeHtml(stepDef.implementation)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (index < pipelineSteps.length - 1) {
+                    html += `<div class="flow-arrow">↓</div>`;
+                }
+            });
+            
+            // Add single drop zone at the end
+            html += `
+                <div class="pipeline-step empty" data-drop-zone="true" data-position="${pipelineSteps.length}">
+                    <div style="text-align: center; color: var(--t3);">
+                        <div style="font-size: 2em; margin-bottom: 10px;">↓</div>
+                        <div style="font-size: 14px; font-weight: 500;">Drop step here</div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            setupDropZones();
+            makeSortable();
+            updatePreview();
+        }
+        
+        function updatePreview() {
+            const previewContainer = document.getElementById('pipeline-preview');
+            
+            if (pipelineSteps.length === 0) {
+                previewContainer.innerHTML = `
+                    <p style="color: var(--t3); text-align: center; padding: 20px; font-style: italic;">
+                        Add steps to see preview
+                    </p>
+                `;
+                return;
+            }
+            
+            let previewHtml = `
+                <div style="margin-bottom: 12px; padding: 10px; background: rgba(108, 99, 255, 0.1); border-radius: 6px; font-size: 11px; color: var(--t1);">
+                    <strong>Dashboard Preview:</strong> This is how your pipeline will appear on the main dashboard.
+                </div>
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            <th>Subject/Story</th>
+            `;
+            
+            pipelineSteps.forEach((step, index) => {
+                const stepName = step.name.length > 15 ? step.name.substring(0, 15) + '...' : step.name;
+                previewHtml += `<th title="${step.name}">${stepName}</th>`;
+            });
+            
+            previewHtml += `
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Example Item</strong></td>
+            `;
+            
+            pipelineSteps.forEach((step, index) => {
+                previewHtml += `
+                    <td style="text-align: center;">
+                        <span style="display: inline-block; padding: 4px 8px; background: rgba(34, 197, 94, 0.2); color: var(--grn); border-radius: 4px; font-size: 10px;">
+                            Go to Step
+                        </span>
+                    </td>
+                `;
+            });
+            
+            previewHtml += `
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin-top: 12px; padding: 10px; background: rgba(245, 158, 11, 0.1); border-radius: 6px; font-size: 11px; color: var(--t1);">
+                    <strong>Note:</strong> Each step will show as a column in the main dashboard table. Steps are processed in order from top to bottom.
+                </div>
+            `;
+            
+            previewContainer.innerHTML = previewHtml;
+        }
+        
+        function moveStep(stepId, direction) {
+            const index = pipelineSteps.findIndex(s => s.id === stepId);
+            if (index === -1) return;
+            
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= pipelineSteps.length) return;
+            
+            [pipelineSteps[index], pipelineSteps[newIndex]] = [pipelineSteps[newIndex], pipelineSteps[index]];
+            
+            savePipeline();
+            renderPipeline();
+        }
+        
+        function duplicateStep(stepId) {
+            const step = pipelineSteps.find(s => s.id === stepId);
+            if (!step) return;
+            
+            const newStep = {
+                id: stepCounter++,
+                type: step.type,
+                name: step.name,
+                inputPath: step.inputPath,
+                outputPath: step.outputPath
+            };
+            
+            const index = pipelineSteps.findIndex(s => s.id === stepId);
+            pipelineSteps.splice(index + 1, 0, newStep);
+            
+            savePipeline();
+            renderPipeline();
+        }
+        
+        function setupDropZones() {
+            const container = document.getElementById('pipeline-steps');
+            const dropZones = container.querySelectorAll('.pipeline-step.empty[data-drop-zone="true"]');
+            dropZones.forEach(zone => {
+                const newZone = zone.cloneNode(true);
+                zone.parentNode.replaceChild(newZone, zone);
+                
+                newZone.addEventListener('dragover', handleDragOver);
+                newZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Check if dropping a step card (reordering) or a new step from palette
+                    const stepId = e.dataTransfer.getData('text/plain');
+                    const stepCard = document.querySelector(`.step-card[data-step-id="${stepId}"]`);
+                    
+                    if (stepCard) {
+                        // Reordering existing step
+                        const position = parseInt(newZone.getAttribute('data-position'));
+                        const currentIndex = pipelineSteps.findIndex(s => s.id === parseInt(stepId));
+                        
+                        if (currentIndex !== -1 && !isNaN(position)) {
+                            // Remove from current position
+                            const step = pipelineSteps.splice(currentIndex, 1)[0];
+                            // Insert at new position
+                            const insertPos = currentIndex < position ? position - 1 : position;
+                            pipelineSteps.splice(insertPos, 0, step);
+                            savePipeline();
+                            renderPipeline();
+                        }
+                    } else {
+                        // Dropping new step from palette
+                        handleDrop(e);
+                    }
+                    
+                    newZone.classList.remove('drag-over');
+                });
+                newZone.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    newZone.classList.add('drag-over');
+                });
+                newZone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    newZone.classList.remove('drag-over');
+                });
+            });
+        }
+        
+        function makeSortable() {
+            const steps = document.querySelectorAll('.step-card');
+            steps.forEach(step => {
+                step.addEventListener('dragstart', (e) => {
+                    step.classList.add('dragging');
+                    e.dataTransfer.setData('text/plain', step.getAttribute('data-step-id'));
+                    e.dataTransfer.effectAllowed = 'move';
+                    step.style.opacity = '0.5';
+                });
+                
+                step.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const dragging = document.querySelector('.step-card.dragging');
+                    if (dragging && dragging !== step) {
+                        step.style.borderColor = 'var(--acc)';
+                        step.style.backgroundColor = 'var(--accbg)';
+                    }
+                });
+                
+                step.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const dragging = document.querySelector('.step-card.dragging');
+                    if (dragging && dragging !== step) {
+                        step.style.borderColor = '';
+                        step.style.backgroundColor = '';
+                    }
+                });
+                
+                step.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    step.style.borderColor = '';
+                    step.style.backgroundColor = '';
+                    
+                    const draggedStepId = e.dataTransfer.getData('text/plain');
+                    const draggedStep = document.querySelector(`.step-card[data-step-id="${draggedStepId}"]`);
+                    
+                    if (draggedStep && draggedStep !== step) {
+                        const draggedId = parseInt(draggedStepId);
+                        const targetId = parseInt(step.getAttribute('data-step-id'));
+                        
+                        const draggedIndex = pipelineSteps.findIndex(s => s.id === draggedId);
+                        const targetIndex = pipelineSteps.findIndex(s => s.id === targetId);
+                        
+                        if (draggedIndex !== -1 && targetIndex !== -1) {
+                            // Remove from current position
+                            const stepToMove = pipelineSteps.splice(draggedIndex, 1)[0];
+                            // Insert at target position
+                            const insertIndex = draggedIndex < targetIndex ? targetIndex : targetIndex;
+                            pipelineSteps.splice(insertIndex, 0, stepToMove);
+                            savePipeline();
+                            renderPipeline();
+                        }
+                    }
+                });
+                
+                step.addEventListener('dragend', () => {
+                    step.classList.remove('dragging');
+                    step.style.opacity = '1';
+                    // Reset all step styles
+                    document.querySelectorAll('.step-card').forEach(s => {
+                        s.style.borderColor = '';
+                        s.style.backgroundColor = '';
+                    });
+                });
+            });
+        }
+        
+        function updateStepOrder() {
+            const steps = document.querySelectorAll('.step-card');
+            const newOrder = Array.from(steps).map(step => 
+                parseInt(step.getAttribute('data-step-id'))
+            );
+            
+            const reordered = [];
+            newOrder.forEach(id => {
+                const step = pipelineSteps.find(s => s.id === id);
+                if (step) reordered.push(step);
+            });
+            pipelineSteps = reordered;
+            
+            savePipeline();
+            renderPipeline();
+        }
+        
+        function savePipeline() {
+            localStorage.setItem('narrative-pipeline', JSON.stringify(pipelineSteps));
+        }
+        
+        function resetPipeline() {
+            if (confirm('Are you sure you want to reset the pipeline? This will remove all configured steps.')) {
+                pipelineSteps = [];
+                savePipeline();
+                renderPipeline();
+                updatePreview();
+                hideTutorial();
+            }
+        }
+        
+        async function confirmPipeline() {
+            const raterName = getRaterName();
+            if (!raterName) {
+                alert('Please enter a rater name (you may use a dummy name).');
+                return;
+            }
+            if (pipelineSteps.length === 0) {
+                alert('Please add at least one step to the pipeline.');
+                return;
+            }
+
+            const btn = document.getElementById('confirm-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+            try {
+                // 1) Register the rater name for this session (labels edit files).
+                const raterResp = await fetch('/api/set-rater', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rater_name: raterName })
+                });
+                const raterData = await raterResp.json();
+                if (!raterData.success) {
+                    alert('Error setting rater name: ' + (raterData.error || 'Unknown error'));
+                    if (btn) { btn.textContent = 'Continue'; }
+                    updateConfirmState();
+                    return;
+                }
+
+                // 2) Save the pipeline configuration.
+                const resp = await fetch('/api/pipeline/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ steps: pipelineSteps })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    alert('Error saving pipeline: ' + (data.error || 'Unknown error'));
+                    if (btn) { btn.textContent = 'Continue'; }
+                    updateConfirmState();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error saving pipeline configuration.');
+                if (btn) { btn.textContent = 'Continue'; }
+                updateConfirmState();
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function toggleOverviewDetails() {
+            const details = document.getElementById('overview-details');
+            const toggle = document.querySelector('.overview-toggle');
+            if (details && toggle) {
+                details.classList.toggle('show');
+                toggle.textContent = details.classList.contains('show') ? 'Click to hide details' : 'Click to see more details';
+            }
+        }
+        
+        async function handleLogout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    sessionStorage.removeItem('auth_token');
+                    window.location.href = '/login';
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = '/login';
+            }
+        }
+        
+        let selectedTheme = null;
+        
+        // Settings Modal Functions
+        function openSettings() {
+            document.getElementById('settings-modal').classList.add('show');
+            // Update radio buttons to reflect current theme
+            const currentTheme = window.ThemeManager ? window.ThemeManager.getCurrentTheme() : 'dark';
+            document.getElementById('theme-dark').checked = (currentTheme === 'dark');
+            document.getElementById('theme-day').checked = (currentTheme === 'day');
+            selectedTheme = currentTheme; // Initialize selectedTheme to current theme
+        }
+        
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.remove('show');
+        }
+        
+        function closeSettingsOnBackdrop(event) {
+            if (event.target.id === 'settings-modal') {
+                closeSettings();
+            }
+        }
+        
+        function selectThemeOption(theme) {
+            document.getElementById('theme-dark').checked = (theme === 'dark');
+            document.getElementById('theme-day').checked = (theme === 'day');
+            selectedTheme = theme;
+            if (window.ThemeManager) window.ThemeManager.switchTheme(theme);
+        }
+        
+        function confirmSettings() {
+            if (selectedTheme && window.ThemeManager) {
+                window.ThemeManager.switchTheme(selectedTheme);
+            }
+            closeSettings();
+        }
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeSettings();
+            }
+        });
+    </script>
+</body>
+</html>

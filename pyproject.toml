@@ -1,0 +1,84 @@
+[project]
+name = "narRaters"
+version = "0.1.0"
+description = "AI-assisted human-in-the-loop platform for processing and rating narrative recall data."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Xian Li", email = "xianl.cogneuro@gmail.com" },
+]
+keywords = ["narrative", "recall", "cognitive-science", "nlp", "transcription"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "flask>=2.3.0",
+    "pandas>=1.5.0",
+    "openpyxl>=3.0.0",
+    "pyspellchecker>=0.7.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+    "scipy>=1.10.0",
+]
+
+[project.optional-dependencies]
+api = [
+    "anthropic>=0.34.0",
+    "openai>=1.0.0",
+]
+audio = [
+    "openai-whisper>=20231117",
+    "whisperx>=3.3.0",
+]
+nlp = [
+    "spacy>=3.5.0",
+    "benepar>=0.2.0",
+]
+grammar = [
+    "language-tool-python>=2.7.0",
+]
+local-llm = [
+    "transformers>=4.44",
+    "torch>=2.0",
+    "accelerate>=0.26",
+]
+match = [
+    "rmatch>=0.3.2",
+]
+pdf = [
+    "fpdf2>=2.7.0",
+]
+all = [
+    "anthropic>=0.34.0",
+    "openai>=1.0.0",
+    "rmatch>=0.3.2",
+]
+
+[project.scripts]
+narraters = "narraters.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/xianl-cogneuro/narrative-processor"
+Documentation = "https://github.com/xianl-cogneuro/narrative-processor/blob/main/developer/README.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narraters"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/narraters",
+    "README.md",
+    "pyproject.toml",
+]

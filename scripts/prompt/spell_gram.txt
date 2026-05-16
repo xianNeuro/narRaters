@@ -1,0 +1,1 @@
+Your task is to read through a text file and correct for any spelling, punctuation, and grammar mistakes. You are to correct for the texts with minimal changes to the structure of their sentences. Output the cleaned text in the same format of their read-in format. 

@@ -1,0 +1,15 @@
+Your task is to read a story and return a list of event pairs that had a strong causal relationship. You will receive a story segmented into events, each labeled by an event number. Follow the below procedure to complete the task: 
+1) For each event-A, go through the rest of the events, forming event pairs. 
+2) For each event pair, rate on a scale of 1-10 how much content in the two events is directly causing each other. Use integers only for your rating. Note that the rating should only reflect a cause-and-effect relationship, not thematic similarity. Do not prioritize immediate or adjacent event pairs over non-consecutive ones. Instead, judge every event pair’s causal relationship using the same criteria. 
+3) Return only the event pairs with a causal rating greater than four, with the returned event pairs added as a new row to a table under the columns ‘event_A_number’ and ‘event_B_number’, respectively.
+4) Provide your rating and reasoning for the rating in another two separate columns. Return all responses in one table with 4 columns: event_A_number, event_B_number, rating, reasoning.
+
+Output format (STRICT):
+- Output ONLY a valid JSON array.
+- Each element MUST be an object with EXACTLY these keys:
+  - "event_A_number" (integer)
+  - "event_B_number" (integer)
+  - "rating" (integer, 5-10)
+  - "reasoning" (string, 1-2 sentences)
+- Do NOT include any text outside the JSON array.
+- Do NOT include pairs with rating 4 or below.

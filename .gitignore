@@ -1,0 +1,55 @@
+# Local secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# User authentication data (contains encrypted passwords)
+server/users.json
+manage/user_records.json
+
+# User-specific runtime state
+pipeline_config.json
+~/.narraters/
+
+# Subject data — keep directory structure (.gitkeep) but never commit recall files
+data/**
+!data/**/
+!data/**/.gitkeep
+output/**
+!output/**/
+!output/**/.gitkeep
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Built artifacts — regenerate on demand
+# narRater.app (rebuild: bash packaging/macos/build_app_bundle.sh)
+# narRater_Tutorial.pdf (rebuild: python generate_tutorial_pdf.py)
+narRater.app/
+narRater_Tutorial.pdf

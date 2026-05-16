@@ -1,0 +1,16 @@
+You are given two Excel files: 
+story_events.xlsx (each row is a story event; columns: `event`, `story_texts`) and 
+story_recall.xlsx (each row is one recall segment). Go through the recall file row by row. 
+For each recall segment, identify which story event(s) in `story_events.xlsx` it refers to.
+* Write the matching event number(s) into column 1 of the recall row.
+* If multiple events are referenced, separate numbers with commas.
+* If no event matches, use NONE. Do not modify recall text, row order, or file structure.
+
+Output format (STRICT):
+- Output ONLY valid JSON array.
+- Each element MUST be an object with EXACTLY these keys:
+  - "row_index" (0-based, in the same order and length as recall_rows)
+  - "matched_events"
+- Do NOT include recall_text, explanations, comments, or extra text in the output.
+- You MUST output one object for EVERY recall row. If no event matches, matched_events MUST be "NONE". Missing or skipped row_index is NOT allowed.
+

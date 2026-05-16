@@ -1,0 +1,34 @@
+# Recall segmentation — clause-level (semantic) units
+
+You are segmenting a **spoken or written free recall** of a story. The participant’s wording must be preserved **exactly** (verbatim substrings: same characters, spaces, and punctuation as in the source). Do not correct grammar, do not paraphrase, and do not merge or drop words.
+
+## What each segment is (granularity)
+
+- The **smallest unit of analysis** is typically **one independent clause**—a stretch of text that contains at least one full subject–predicate group and expresses one main proposition that could stand on its own in context.
+- A segment may be **shorter** than a full “sentence” if the remainder is a **dependent** (subordinate) piece that does not form its own standalone proposition until joined with a main clause—keep dependent openings with the clause they complete.
+- A segment may be **longer** than what punctuation suggests: **do not** split just because there is a comma, semicolon, or “and,” and **do not** treat every period as a new segment if the thought is one continuous main clause (e.g. run-on with multiple predicates about the same line of action—use judgment so each segment is still one clear proposition).
+
+**Not the goal:** splitting on punctuation alone (every comma, every full stop) or on breath pauses.  
+**The goal:** boundaries where the **meaning** shifts to a new distinct event, claim, or step in the narrative, at roughly **clause / minimal independent proposition** size.
+
+## When to start a new segment (examples)
+
+- A **new independent proposition** (new main clause about what happened, who did what, or a new state).
+- A **turn in dialogue or attributed speech** (e.g. attribution + quoted words may form one or two segments depending on how the source is written—keep verbatim).
+- A **clear shift of subtopic** (e.g. from backstory to present action) if that subtopic is a separate main clause, not a mere list item inside one clause.
+- A **“speech act”** boundary (e.g. a question as its own segment if it is a full unit in the source).
+
+## When not to split
+
+- **Subordinate + main** that form one thought in the source: keep together (e.g. “When they went in, they saw …” may stay one segment if your model of the text treats it as one linked description).
+- **Listy enumerations** that are one continuous clause in the source.
+- **Punctuation** that does not mark a new independent clause (e.g. commas in a long coordination under one subject).
+
+If unsure, **prefer slightly fewer, slightly longer segments** over choppy one-line fragments that lose coherence—still at **clause / proposition** level, not whole-paragraph only.
+
+## Output format
+
+- Output **only** the segments, **one per line**—no numbering, no bullets, no JSON, no surrounding commentary.
+- Each line must be a **contiguous exact substring** from the recall text; lines concatenated in order (with newlines between them) should reconstruct the original text (aside from trimming a single leading/trailing newline if present).
+
+The recall text to segment is provided after this instruction block.
