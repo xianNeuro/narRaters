@@ -6343,6 +6343,17 @@ def execute_step(item_id, step_index):
                     env[env_key] = str(opt_val)
                 print(f"  Option: {env_key}={env[env_key]}")
 
+        from narraters.runtime_install import prepare_web_step
+
+        prep_err = prepare_web_step(
+            step_type=step_type,
+            method=method,
+            request_data=request_data,
+            step_options=step_options,
+        )
+        if prep_err:
+            return jsonify({"success": False, "error": prep_err}), 400
+
         gemma_report = _gemma4_preflight_report(step_type, method, step_options)
         if gemma_report is not None:
             if not gemma_report.get("ok"):
@@ -6722,6 +6733,17 @@ def batch_process(step_type):
                 else:
                     env[env_key] = str(opt_val)
                 print(f"  Option: {env_key}={env[env_key]}")
+
+        from narraters.runtime_install import prepare_web_step
+
+        prep_err = prepare_web_step(
+            step_type=step_type,
+            method=method,
+            request_data=request_data,
+            step_options=step_options,
+        )
+        if prep_err:
+            return jsonify({"success": False, "error": prep_err}), 400
 
         gemma_report = _gemma4_preflight_report(step_type, method, step_options)
         if gemma_report is not None:

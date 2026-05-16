@@ -7,14 +7,16 @@ existing entry points without moving every file at once.
 
 Two operating modes are supported:
 
-1. **Editable install from source clone**  (the Phase 1 common case)
+1. **Editable install from source clone** (typical development)
    `pip install -e .` from the project root. `src/narraters/__file__` resolves
-   to `<repo>/src/narraters/paths.py`, so `repo_root()` walks up two levels.
+   to `<repo>/src/narraters/paths.py`, so `repo_root()` walks up to the
+   directory that contains `pyproject.toml`.
 
-2. **Installed wheel** (future, once Phase 3 bundles everything)
-   The legacy directories will move *into* the package, so `repo_root()` will
-   equal `package_root()`. Until then, a wheel-only install will not have a
-   working `narraters serve` — Phase 3 fixes that.
+2. **Installed wheel from PyPI or ``pip install *.whl``**
+   The wheel bundles ``scripts/``, ``server/``, ``templates/``, ``static/``,
+   and ``helpers/`` under the ``narraters`` package directory. In that layout
+   ``repo_root()`` equals ``package_root()`` (the installed ``narraters/``
+   folder next to ``paths.py``).
 """
 
 from __future__ import annotations
@@ -31,16 +33,17 @@ def package_root() -> Path:
 def repo_root() -> Path:
     """The repository root, containing legacy scripts/, server/, templates/, etc.
 
-    Walks up from src/narraters/ to the dir containing pyproject.toml. If not
-    found (e.g. installed wheel without bundled legacy dirs), falls back to
-    package_root() and lets the caller surface a clearer error.
+    - **Wheel / sdist layout:** bundled assets live next to this module
+      (``…/site-packages/narraters/{scripts,server,...}``).
+    - **Editable clone:** walk up from ``src/narraters/`` to the directory
+      that contains ``pyproject.toml``.
     """
     here = package_root()
-    # Editable install: src/narraters/ → src/ → <repo>
-    for candidate in [here.parent.parent, here.parent, here]:
+    if (here / "scripts").is_dir() and (here / "server").is_dir():
+        return here
+    for candidate in (here.parent.parent, here.parent, here):
         if (candidate / "pyproject.toml").exists():
             return candidate
-    # Last resort
     return here.parent.parent
 
 

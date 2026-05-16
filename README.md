@@ -10,8 +10,6 @@ Raw audio or text recalls are run through a six-step pipeline — transcription 
 
 Once installed, you can drive the entire pipeline from the terminal (one step at a time, with full control over methods, models, and prompts) or open the GUI as described below.
 
-> **No accounts, no passwords.** `narRaters` runs locally as a single-user research tool. Instead of logging in, you type a **rater name** on the configuration page; that name is only used to label the files you export (e.g. `subject_BraveOtter-edit.xlsx`). A dummy name is perfectly fine.
-
 ---
 
 ## How to open narRaters
@@ -417,6 +415,32 @@ narrative-processor/
 
 ---
 
+## Author
+
+**Xian Li** — [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com)
+
+---
+
+## Acknowledgements
+
+- **Janice Chen** for brainstorming the causal-rating step interface and for help testing and improving package functionality.
+- **Gabi Kressin Palacios** and **Dhruva Arekar** for an additional method for the recall-matching step (matching human recall text to story events). See [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch) for human-data–validated AI-assisted recall rating.
+- **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (Claude Sonnet 4.5 and Opus 4.6 were close to human raters).
+
+---
+
 ## License
 
-MIT
+The Software is licensed under the **NarRaters Research and Non-Commercial
+License** (see [`LICENSE`](LICENSE)): free use for research, education, and
+other non-commercial purposes; **commercial or for-profit use requires prior
+written permission** from the copyright holder. Contact
+[xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com) for commercial
+licensing.
+
+This model is in the same family as widely used **non-commercial / academic
+first** terms (for example the [PolyForm Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+pattern for permitted non-commercial purposes, and **dual-license** or
+**commercial-license-required** approaches similar in spirit to the
+[Prosperity Public License](https://prosperitylicense.com/) model, where
+commercial rights are negotiated separately with the author).

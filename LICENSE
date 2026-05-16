@@ -1,21 +1,104 @@
-MIT License
+NarRaters Research and Non-Commercial License
 
-Copyright (c) 2026 Xian Li
+Copyright (c) 2026 Xian Li ("Licensor"). All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This license governs the narRaters software and accompanying documentation
+(collectively, the "Software"). The Software was developed to support research
+and scientific work, not for commercial or for-profit exploitation.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+----------------------------------------------------------------------
+1. PERMITTED FREE USE (NO SEPARATE AGREEMENT REQUIRED)
+
+Subject to section 4, Licensor grants you a non-exclusive, worldwide,
+royalty-free license to use, copy, modify, merge, and distribute the Software,
+including to prepare derivative works based on the Software, solely for:
+
+  (a) Non-commercial academic, scientific, or scholarly research;
+
+  (b) Teaching, learning, or evaluation in a non-profit educational
+      institution or public research organization;
+
+  (c) Personal, non-profit, or hobby use that is not intended to generate
+      revenue or commercial advantage for you or any third party; and
+
+  (d) Use by registered charities, non-profit organizations, or government
+      entities acting in a non-commercial capacity,
+
+provided that you retain the copyright notice in section 4 and do not remove
+or alter any required notices in the Software.
+
+Uses under this section are referred to as "Permitted Non-Commercial Use."
+
+----------------------------------------------------------------------
+2. COMMERCIAL AND FOR-PROFIT USE REQUIRES WRITTEN PERMISSION
+
+Any use of the Software that is not Permitted Non-Commercial Use is not
+licensed here. Without limitation, the following require prior written
+permission from Licensor (a "Commercial License") before you may use, copy,
+modify, distribute, or offer services based on the Software:
+
+  (a) Use in connection with a business, consultancy, or other for-profit
+      activity;
+
+  (b) Use on behalf of a for-profit company or other commercial entity;
+
+  (c) Hosting, SaaS, or providing the Software (or substantial functionality
+      derived from it) to paying customers or for advertising or data-monetization
+      revenue; or
+
+  (d) Any other use primarily intended for commercial advantage or private
+      monetary compensation.
+
+To request a Commercial License, contact Licensor at the email address listed
+in the project README or repository metadata. Commercial License terms may
+include fees, royalties, revenue sharing, or other reasonable compensation
+reflecting the commercial value derived from the Software and Licensor's
+rights—consistent with the fact that the Software was offered without charge
+for research and non-profit purposes.
+
+Nothing in this license grants any right to use the Software for commercial or
+for-profit purposes without a separate written Commercial License from Licensor.
+
+----------------------------------------------------------------------
+3. RESERVATION OF RIGHTS; UNAUTHORIZED COMMERCIAL USE
+
+Except for the express rights in section 1, no license is granted under
+copyright, patent, or other intellectual property law. Licensor reserves all
+rights not expressly granted.
+
+If you use the Software outside Permitted Non-Commercial Use without a valid
+Commercial License, your use is not authorized. Licensor may pursue all remedies
+available at law or in equity, which may include injunctive relief and damages
+or other monetary recovery to the extent permitted by applicable law, including
+reasonable compensation reflecting unauthorized commercial benefit.
+
+----------------------------------------------------------------------
+4. NOTICES
+
+You must retain the above copyright notice and this license text in all copies
+or substantial portions of the Software. You must not misrepresent the origin
+of the Software.
+
+----------------------------------------------------------------------
+5. DISCLAIMER OF WARRANTY; LIMITATION OF LIABILITY
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE, EXCEPT TO THE EXTENT LIABILITY CANNOT BE EXCLUDED OR LIMITED UNDER
+APPLICABLE LAW.
+
+----------------------------------------------------------------------
+6. GENERAL
+
+If any provision of this license is held unenforceable, the remaining
+provisions remain in effect. This license is governed by the laws applicable at
+Licensor's principal place of business, without regard to conflict-of-law
+rules, except where preempted by the laws of your jurisdiction regarding
+consumer or mandatory rights.
+
+For licensing questions, contact: xianl.cogneuro@gmail.com

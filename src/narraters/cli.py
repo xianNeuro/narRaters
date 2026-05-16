@@ -27,7 +27,14 @@ from pathlib import Path
 
 from narraters import __version__
 from narraters.paths import ensure_repo_on_path, repo_root, scripts_dir
-
+from narraters.runtime_install import (
+    prepare_cli_correct,
+    prepare_cli_match,
+    prepare_cli_parse,
+    prepare_cli_rate,
+    prepare_cli_segment,
+    prepare_cli_transcribe,
+)
 
 # Map subcommand name → legacy script filename
 _LEGACY_SCRIPTS = {
@@ -72,6 +79,7 @@ def _add_common_io_args(p: argparse.ArgumentParser, *, include_method: bool = Tr
 # ---------------------------------------------------------------------------
 
 def cmd_transcribe(args: argparse.Namespace, extra: list[str]) -> int:
+    prepare_cli_transcribe(args, extra)
     forwarded: list[str] = []
     env: dict[str, str] = {}
     if args.model:
@@ -96,6 +104,7 @@ def cmd_transcribe(args: argparse.Namespace, extra: list[str]) -> int:
 
 
 def cmd_segment(args: argparse.Namespace, extra: list[str]) -> int:
+    prepare_cli_segment(args, extra)
     forwarded: list[str] = []
     env: dict[str, str] = {}
     if args.method:
@@ -122,6 +131,7 @@ def cmd_segment(args: argparse.Namespace, extra: list[str]) -> int:
 
 
 def cmd_correct(args: argparse.Namespace, extra: list[str]) -> int:
+    prepare_cli_correct(args, extra)
     forwarded: list[str] = []
     if args.method:
         forwarded += ["--method", args.method]
@@ -138,6 +148,7 @@ def cmd_correct(args: argparse.Namespace, extra: list[str]) -> int:
 
 
 def cmd_parse(args: argparse.Namespace, extra: list[str]) -> int:
+    prepare_cli_parse(args, extra)
     # Script 4 reads config primarily from env vars; translate accordingly.
     env: dict[str, str] = {}
     if args.method:
@@ -158,6 +169,7 @@ def cmd_parse(args: argparse.Namespace, extra: list[str]) -> int:
 
 
 def cmd_match(args: argparse.Namespace, extra: list[str]) -> int:
+    prepare_cli_match(args, extra)
     # Script 5 is env-driven.
     env: dict[str, str] = {}
     test_mode = bool(args.test_mode)
@@ -183,6 +195,7 @@ def cmd_match(args: argparse.Namespace, extra: list[str]) -> int:
 
 
 def cmd_rate(args: argparse.Namespace, extra: list[str]) -> int:
+    prepare_cli_rate(args, extra)
     forwarded: list[str] = []
     env: dict[str, str] = {}
     if args.method:
@@ -365,9 +378,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_repo_on_path()
     parser = build_parser()
     args, extra = parser.parse_known_args(argv)
-    return args.func(args, extra)
+    try:
+        return args.func(args, extra)
+    except (subprocess.CalledProcessError, RuntimeError) as e:
+        print(f"narraters: dependency setup failed: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
