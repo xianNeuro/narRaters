@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question (GitHub Discussions)
+    url: https://github.com/xianNeuro/narRaters/discussions
+    about: General questions and ideas — enable Discussions under the repo Settings tab if this link is unavailable.
+  - name: Email the maintainer
+    url: mailto:xianl.cogneuro@gmail.com
+    about: Direct contact for licensing or private feedback.

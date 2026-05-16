@@ -1,0 +1,42 @@
+name: Bug report
+description: Report something broken (crash, wrong output, failed install)
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    value: |
+      Describe what went wrong. Do **not** include API keys or raw participant data.
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `narraters serve` (or open narRater.app)
+        2. Configure pipeline with …
+        3. Click …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: Include error messages or screenshots if possible.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: e.g. macOS 14, Python 3.11, pip install -e ".[api]"
+    validations:
+      required: false

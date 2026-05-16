@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Capture the tutorial screenshots from a running narRaters web UI.
 
-The tutorial PDF (`generate_tutorial_pdf.py`) embeds the PNGs in this folder.
-Whenever the UI changes, recapture them with one command:
+The tutorial PDF (`generate_tutorial_pdf.py`) embeds PNGs from ``tutorial_screenshots/``
+at the repository root (gitignored; created on first capture). Whenever the UI changes,
+recapture them with one command:
 
     pip install playwright && playwright install chromium
     narraters serve --no-browser            # in another terminal
-    python tutorial_screenshots/capture_screenshots.py
+    python helpers/capture_tutorial_screenshots.py
 
 Environment:
     NARRATERS_URL   base URL (default http://localhost:5000)
@@ -30,7 +31,7 @@ Shot list (filenames must match exactly — the generator references them):
 
 Steps that need drag-and-drop or hand-editing are best-effort; the script
 prints a clear TODO for any shot it could not fully stage so you can finish
-it by hand, then rebuild the PDF with `python generate_tutorial_pdf.py`.
+it by hand, then rebuild the PDF with ``python generate_tutorial_pdf.py``.
 """
 from __future__ import annotations
 
@@ -38,8 +39,9 @@ import os
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "tutorial_screenshots"
 BASE = os.environ.get("NARRATERS_URL", "http://localhost:5000").rstrip("/")
-OUT = Path(__file__).resolve().parent
 VIEWPORT = {"width": 1280, "height": 900}
 
 try:
@@ -57,6 +59,7 @@ def _save(page, name: str, note: str = "") -> None:
 
 
 def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
     todos: list[str] = []
     with sync_playwright() as p:
         browser = p.chromium.launch()

@@ -1,0 +1,63 @@
+name: Feedback and suggestions
+description: Suggest improvements, report usability issues, or share how you use narRaters
+title: "[Feedback]: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    value: |
+      Thank you for helping improve **narRaters**. Your comments shape future releases.
+      Please avoid pasting API keys or participant-identifiable data.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web UI (dashboard / pipeline config / inspection pages)
+        - Pipeline step (audioTranscribe, eventSegment, sentenceCorrect, textParsing, textMatching, causalRating)
+        - CLI (`narraters` commands)
+        - Installation / packaging (pip, macOS installer, .app bundle)
+        - Documentation (README, tutorial)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing your suggestion or pain point.
+      placeholder: e.g. Batch run dialog should remember the last method per step.
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Steps to reproduce, expected vs actual behavior, or how this would help your study.
+      placeholder: |
+        - What you tried
+        - What happened (or what you wish were possible)
+        - narRaters version or commit if known
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to your work?
+      options:
+        - Nice to have
+        - Would help my workflow
+        - Blocking or urgent
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Follow-up
+      options:
+        - label: I am willing to test a fix or prototype if you share one
+          required: false

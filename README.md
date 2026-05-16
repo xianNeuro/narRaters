@@ -32,6 +32,7 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 - [Library / Python use](#library--python-use)
 - [Project layout](#project-layout)
 - [Further reading](#further-reading)
+- [Feedback](#feedback)
 - [Author](#author)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
@@ -439,9 +440,26 @@ narRaters/
 
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which keys.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
-- **`narRater_Tutorial.pdf`** — illustrated end-to-end walkthrough. To rebuild it: refresh the screenshots with the running app (`python tutorial_screenshots/capture_screenshots.py`, see that file's header for the shot list), then `python generate_tutorial_pdf.py` after `pip install -e ".[pdf]"`.
+- **`narRater_Tutorial.pdf`** — illustrated end-to-end walkthrough. To rebuild it: refresh screenshots with the running app (`python helpers/capture_tutorial_screenshots.py`; see that file's header for the shot list), then `python generate_tutorial_pdf.py` after `pip install -e ".[pdf]"`.
 
 Maintainer-only design notes and internal handbooks are **not** published in this repository; keep those materials private to your team.
+
+---
+
+## Feedback
+
+Comments from visitors and users help improve narRaters. The preferred channel is a short **GitHub feedback form** (no account on this machine is required beyond a GitHub login):
+
+- **[Send feedback](https://github.com/xianNeuro/narRaters/issues/new?template=feedback)** — usability, documentation, and feature suggestions
+- **[Report a bug](https://github.com/xianNeuro/narRaters/issues/new?template=bug_report)** — incorrect output or broken behavior
+- **[All issues](https://github.com/xianNeuro/narRaters/issues)** — search existing reports before filing a duplicate
+- **[Discussions](https://github.com/xianNeuro/narRaters/discussions)** — general questions (enable Discussions under the repo’s GitHub **Settings** if the link is unavailable)
+
+In the web UI, open **Settings** (gear icon) on the dashboard or pipeline-config page for the same links.
+
+After `pip install`, `pip show narraters` lists a **Feedback** project URL. The CLI also prints the feedback link in `narraters --help`.
+
+For licensing or private messages, email [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com).
 
 ---
 

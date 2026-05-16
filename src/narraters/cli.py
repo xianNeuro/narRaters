@@ -285,13 +285,21 @@ def _open_browser_when_ready(host: str, port: int) -> None:
 # ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
+    ensure_repo_on_path()
+    try:
+        from helpers.feedback_links import FEEDBACK_ISSUE_URL
+    except ImportError:
+        FEEDBACK_ISSUE_URL = "https://github.com/xianNeuro/narRaters/issues/new?template=feedback"
+
     parser = argparse.ArgumentParser(
         prog="narraters",
         description=(
             "narRaters — AI-assisted narrative processing with human-screening. "
             "Run `narraters serve` for the web UI, or use the "
-            "per-step subcommands for scripted pipelines."
+            "per-step subcommands for scripted pipelines.\n\n"
+            f"Feedback and suggestions: {FEEDBACK_ISSUE_URL}"
         ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("-V", "--version", action="version", version=f"narRaters {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)

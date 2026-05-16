@@ -45,6 +45,13 @@ if _root not in sys.path:
     sys.path.insert(0, _root)
 
 from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+from helpers.feedback_links import (
+    BUG_ISSUE_URL,
+    DISCUSSIONS_URL,
+    FEEDBACK_ISSUE_URL,
+    ISSUES_URL,
+    REPO_URL,
+)
 from helpers.step_types import (
     AUDIO_TRANSCRIBE,
     CAUSAL_RATING,
@@ -3271,9 +3278,16 @@ def current_rater_name():
 
 
 @app.context_processor
-def inject_username():
-    """Make the current rater name available in all templates."""
-    return {'logged_in_username': session.get('username', '')}
+def inject_template_globals():
+    """Rater name and public feedback links for all templates."""
+    return {
+        'logged_in_username': session.get('username', ''),
+        'narraters_repo_url': REPO_URL,
+        'narraters_feedback_url': FEEDBACK_ISSUE_URL,
+        'narraters_bug_url': BUG_ISSUE_URL,
+        'narraters_discussions_url': DISCUSSIONS_URL,
+        'narraters_issues_url': ISSUES_URL,
+    }
 
 
 # --- Rater identity (replaces account/password login) -----------------------

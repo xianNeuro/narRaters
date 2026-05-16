@@ -66,8 +66,11 @@ all = [
 narraters = "narraters.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/xianl-cogneuro/narrative-processor"
+Homepage = "https://github.com/xianNeuro/narRaters"
 Documentation = "https://github.com/xianNeuro/narRaters/blob/main/README.md"
+Repository = "https://github.com/xianNeuro/narRaters"
+Issues = "https://github.com/xianNeuro/narRaters/issues"
+"Feedback" = "https://github.com/xianNeuro/narRaters/issues/new?template=feedback"
 
 [build-system]
 requires = ["hatchling"]

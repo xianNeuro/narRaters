@@ -1149,6 +1149,15 @@
                     <label for="theme-day" class="theme-option-label">Day Mode (Light)</label>
                 </div>
             </div>
+            <div class="settings-section">
+                <div class="settings-section-title">Feedback</div>
+                <p class="settings-feedback-text" style="margin: 0 0 10px 0; font-size: 0.9em; line-height: 1.45; color: var(--t2, #8890a8);">
+                    Suggestions and usability reports help improve narRaters for everyone.
+                </p>
+                <a href="{{ narraters_feedback_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--acc, #6c63ff);">Send feedback (GitHub)</a>
+                <br>
+                <a href="{{ narraters_bug_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--acc, #6c63ff); font-size: 0.9em;">Report a bug</a>
+            </div>
             <div class="settings-modal-actions">
                 <button class="settings-btn settings-btn-cancel" onclick="closeSettings()">Cancel</button>
                 <button class="settings-btn settings-btn-confirm" onclick="confirmSettings()">Confirm</button>

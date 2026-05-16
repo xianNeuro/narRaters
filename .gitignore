@@ -58,6 +58,8 @@ Thumbs.db
 # Built artifacts — regenerate on demand
 # narRater.app (rebuild: bash packaging/macos/build_app_bundle.sh)
 # narRater_Tutorial.pdf (rebuild: python generate_tutorial_pdf.py)
+# tutorial_screenshots/ (rebuild: python helpers/capture_tutorial_screenshots.py)
+tutorial_screenshots/
 narRater.app/
 narRaters_installer.app/
 # Old DMG filename (replaced by narRaters-macos-installer.dmg at repo root)
