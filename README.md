@@ -1,40 +1,54 @@
 # narRaters
 
-**AI-assisted narrative processing with human-screening.**
+**AI-assisted narrative processing with human screening.**
 
-`narRaters` helps **automate and visualize** a sequence of processing steps for **audio- and text-based narratives** — transcription, segmentation, light text cleanup, parsing, event alignment, and causal scoring. The heavy lifting can be delegated to models or rules, while **human-screening** at every stage lets raters review, correct, and sign off on outputs for quality control.
+**narRaters** is a local research tool that walks **audio or text narratives** through a fixed pipeline: **transcribe → segment story → spell/grammar fix → parse recall → match recall to events → rate causal links between events**. Each step can use **lightweight defaults** (rules, heuristics) or optional **models/APIs**; every step produces **plain, inspectable files** (text, Excel) that you can **open in the browser, edit, and version** before analysis.
 
-The same workflow supports **human cognitive studies** (for example, structured recall experiments) and **AI / NLP research** (for example, comparing or auditing model-generated narratives) whenever you need inspectable artifacts and explicit **human-screening** rather than a single opaque end-to-end run.
+There are no accounts or passwords. You run a small web server on your machine; a **rater name** on the setup page only labels exported hand-edited files (for example `subject_YourName-edit.xlsx`).
 
-Raw audio or text recalls are run through a six-step pipeline — transcription → segmentation → spell/grammar correction → parsing → event matching → causal rating — with a Flask web UI for editing and version control at each step.
+### Typical uses
 
-Once installed, you can drive the entire pipeline from the terminal (one step at a time, with full control over methods, models, and prompts) or open the GUI as described below.
+- **Structured recall studies** — participants encode a story, then recall it; you optionally transcribe audio, clean and segment recalls, align segments with story events, and build causal ratings between events.
+- **Narrative QA and NLP workflows** — same pipeline when you want **human screening**, method choices, and auditable artifacts instead of a single end-to-end model pass.
+- **Teaching or pilots** — defaults avoid large downloads; add `[audio]`, `[api]`, `[match]`, and similar **only when you need them** ([Installation](#installation)).
 
 ---
 
-## How to open narRaters
+## Table of contents
 
-Complete **[Installation](#installation)** once (usually a double-click installer). Then start the web UI:
+- [Getting started](#getting-started)
+- [Pipeline overview](#pipeline-overview)
+- [Installation](#installation)
+- [Where to put your data](#where-to-put-your-data)
+- [Using the web interface](#using-the-web-interface)
+- [Command-line pipeline](#command-line-pipeline)
+- [Prompt templates](#prompt-templates)
+- [Validation / testing](#validation--testing)
+- [Performance notes](#performance-notes)
+- [Library / Python use](#library--python-use)
+- [Project layout](#project-layout)
+- [Further reading](#further-reading)
+- [Author](#author)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
 
-| How | What to do |
-|-----|----------------|
-| **Terminal (macOS, Linux, Windows)** | In the project folder, run `narraters serve`. Your browser should open to `http://localhost:5000` (use `--no-browser` if you prefer to open the URL yourself). |
-| **macOS — shell script** | In Finder, double-click `server/START_HERE.command`. Same server and URL as above (it can install dependencies automatically if needed). |
-| **macOS — app icon** | Build `narRater.app` with `bash packaging/macos/build_app_bundle.sh`, then double-click the app. The bundle is not committed to Git; the icon below is the artwork used when you build it. |
+---
 
-<p align="center">
-  <img src="static/app-icon.png" alt="narRater macOS app icon" width="128" height="128">
-  <br>
-  <em>narRater.app uses this icon (after you run <code>packaging/macos/build_app_bundle.sh</code>).</em>
-</p>
+## Getting started
 
-From the web UI you configure the pipeline, run steps from the dashboard, and open per-subject or per-story tabs to inspect or hand-edit outputs. Command-line equivalents for every step are listed under [Command-line pipeline](#command-line-pipeline).
+1. **[Install](#installation)** once (`pip install -e .` from the project root, or the macOS / Windows installers in the repo).
+2. **[Add inputs](#where-to-put-your-data)** under `data/` (or try **`demo/data/`** to learn the layout without your own files).
+3. **[Start the web UI](#using-the-web-interface)** — from the project folder run `narraters serve`, or on macOS double-click `server/START_HERE.command`. Your browser should open **`http://localhost:5000`**.
+4. **Configure the pipeline** — on the first screen, enter a **rater name** (any label you like), **drag** the steps you need into the flow, adjust paths if needed, then **Continue**. You need a name and at least one step before **Continue** enables.
+5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
+
+**First-session tip:** build a short chain (for example **Correct → Parse → Match** if you already have recall `.txt` files), run **one subject**, open its detail view, and tab through outputs before batching the whole dataset. The same steps are available from the **[command line](#command-line-pipeline)** for scripts and HPC.
 
 ---
 
 ## Pipeline overview
 
-The app covers a six-step pipeline. Every step runs from the GUI **or** the `narraters` terminal command, has a lightweight default method, and can be human-edited afterwards.
+The table below is the **route map**: steps **1–2** are **story**-side; **3–5** run per **subject recall**; **6** scores the **story event list**. Text-only projects can **skip step 1**. Every step runs from the **GUI or** `narraters …` **CLI**, ships with a **minimal default method**, and can be **hand-edited** afterward.
 
 | # | Step | What it does | Terminal command | Default in / out |
 |---|------|--------------|------------------|------------------|
