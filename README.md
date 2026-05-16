@@ -32,7 +32,6 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 - [Library / Python use](#library--python-use)
 - [Project layout](#project-layout)
 - [Further reading](#further-reading)
-- [Feedback](#feedback)
 - [Author](#author)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
@@ -42,7 +41,7 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 ## Getting started
 
 1. **[Install](#installation)** once (`pip install -e .` from the project root, or the macOS / Windows installers in the repo).
-2. **[Add inputs](#where-to-put-your-data)** under `data/` (or try **`demo/data/`** to learn the layout without your own files).
+2. **[Add inputs](#where-to-put-your-data)** under `data/` — the repo includes **bundled examples** (`pieman_edited`, `the_siren`) you can inspect or run as-is; see that section for paths. Smaller **`demo/data/`** samples are also available.
 3. **[Start the web UI](#using-the-web-interface)** — from the project folder run `narraters serve`, or on macOS double-click `server/START_HERE.command`. Your browser should open **`http://localhost:5000`**.
 4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
@@ -158,9 +157,31 @@ After [installation](#installation), place files so the paths match what you con
 | Story audio (optional, Step 1) | `data/1_story_audio/` | `.wav` / `.mp3` / `.m4a`, named by story |
 | Recall audio (optional, Step 1) | `data/4_recall_audio/` | `.wav` / `.mp3` / `.m4a`, named by subject |
 
-Outputs are written under `output/` — one subdirectory per step (`output/recall_corrected/`, `output/recall_parsed/`, `output/recall_rated/`, …). A working demo dataset lives in `demo/data/`.
+Outputs are written under `output/` — one subdirectory per step (`output/recall_corrected/`, `output/recall_parsed/`, `output/recall_rated/`, …). A smaller alternate layout lives in **`demo/data/`** (lighthouse story, three recall `.txt` files).
 
-**File versioning is a core feature.** Automated runs write `{subj_id}_{method}.ext`; your hand-edited versions are saved as `{subj_id}_{ratername}-edit.ext` and never overwrite the originals. The web UI lets you switch between versions via a dropdown, and the `-edit` files are what you export for analysis.
+### Bundled examples (`pieman_edited`, `the_siren`)
+
+The repository ships **realistic sample inputs and outputs** under `data/` and `output/` so you can see accepted naming and file types before adding your own study. Your private files in those folders stay untracked (see `.gitignore`); only the examples below are committed.
+
+**Stories:** **`pieman_edited`** (story audio + transcript + events) and **`the_siren`** (transcript, events, two recall subjects).
+
+| Role | Folder | Example file(s) |
+|------|--------|-----------------|
+| Story audio (input) | `data/1_story_audio/` | `pieman_edited.wav` |
+| Story transcript (input) | `data/2_story_transcript/` | `pieman_edited.txt`, `the_siren.txt` |
+| Story events (input) | `data/3_story_events/` | `pieman_edited_events.xlsx`, `the_siren_events.xlsx` |
+| Recall audio (input) | `data/4_recall_audio/` | `the_siren_sub-01.mp4`, `the_siren_sub-02.mp4` |
+| Recall text (input) | `data/5_recall_texts/` | `the_siren_sub-01.txt`, `the_siren_sub-02.txt` |
+| Story transcription (output) | `output/story_audio-transcribed/` | `pieman_edited.txt` |
+| Recall transcription (output) | `output/recall_audio-transcribed/` | `the_siren_sub-01.txt`, `the_siren_sub-02.txt` |
+| Spell/grammar correction (output) | `output/recall_corrected/` | `the_siren_sub-01.txt`, `the_siren_sub-02.txt` |
+| Parsed recall (output) | `output/recall_parsed/` | `the_siren_sub-01_parsed.xlsx`, `the_siren_sub-02_parsed.xlsx` |
+| Recall ↔ events (output) | `output/recall_rated/` | `the_siren_sub-02_rate-recall-test_mode.xlsx` (method slug in filename) |
+| Causal ratings (output) | `output/causal_rated/` | `pieman_edited_causal-linguistic.xlsx`, `the_siren_causal-linguistic.xlsx` |
+
+**Quick try:** after install, point a pipeline at the default folders above and run **`sentenceCorrect` → `textParsing` → `textMatching`** on `the_siren_sub-01` / `the_siren_sub-02`, or open the bundled **`output/`** files in Excel to inspect column layouts. Story **`pieman_edited`** is useful for **`audioTranscribe`** (large `.wav`) and **`causalRating`** on `pieman_edited_events.xlsx`.
+
+**File versioning is a core feature.** Automated runs write `{subj_id}_{method}.ext` (or `{story}_…` for story-level steps); your hand-edited versions are saved as `{subj_id}_{ratername}-edit.ext` and never overwrite the originals. The web UI lets you switch between versions via a dropdown, and the `-edit` files are what you export for analysis.
 
 ---
 
@@ -424,9 +445,9 @@ narRaters/
 ├── helpers/                      # paths, Ollama/disk/RAM preflight, plotting, tests
 │   ├── disk_space.py             # free-disk preflight for local models
 │   └── resource_preflight.py     # heavy-method (RAM/disk) assessment
-├── data/                         # inputs (audio, transcripts, story events, recalls)
-├── output/                       # pipeline outputs (one subdir per step)
-├── demo/                         # runnable demo dataset
+├── data/                         # inputs (bundled pieman_edited + the_siren examples; your files stay local)
+├── output/                       # pipeline outputs (sample outputs for the same examples)
+├── demo/                         # smaller demo dataset (lighthouse)
 ├── packaging/macos/              # build script for the `.app` bundle
 ├── SETUP_API.md                  # user-facing API key and provider setup
 └── .env.example                  # template for local API keys (copy to `.env`)
@@ -440,26 +461,9 @@ narRaters/
 
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which keys.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
-- **`narRater_Tutorial.pdf`** — illustrated end-to-end walkthrough. To rebuild it: refresh screenshots with the running app (`python helpers/capture_tutorial_screenshots.py`; see that file's header for the shot list), then `python generate_tutorial_pdf.py` after `pip install -e ".[pdf]"`.
+- **`narRater_Tutorial.pdf`** — illustrated end-to-end walkthrough. To rebuild it: refresh the screenshots with the running app (`python tutorial_screenshots/capture_screenshots.py`, see that file's header for the shot list), then `python generate_tutorial_pdf.py` after `pip install -e ".[pdf]"`.
 
 Maintainer-only design notes and internal handbooks are **not** published in this repository; keep those materials private to your team.
-
----
-
-## Feedback
-
-Comments from visitors and users help improve narRaters. The preferred channel is a short **GitHub feedback form** (no account on this machine is required beyond a GitHub login):
-
-- **[Send feedback](https://github.com/xianNeuro/narRaters/issues/new?template=feedback)** — usability, documentation, and feature suggestions
-- **[Report a bug](https://github.com/xianNeuro/narRaters/issues/new?template=bug_report)** — incorrect output or broken behavior
-- **[All issues](https://github.com/xianNeuro/narRaters/issues)** — search existing reports before filing a duplicate
-- **[Discussions](https://github.com/xianNeuro/narRaters/discussions)** — general questions (enable Discussions under the repo’s GitHub **Settings** if the link is unavailable)
-
-In the web UI, open **Settings** (gear icon) on the dashboard or pipeline-config page for the same links.
-
-After `pip install`, `pip show narraters` lists a **Feedback** project URL. The CLI also prints the feedback link in `narraters --help`.
-
-For licensing or private messages, email [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com).
 
 ---
 
