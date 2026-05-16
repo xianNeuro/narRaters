@@ -4,17 +4,17 @@
   AI-assisted narrative processing with human-screening.
 </p>
 
+**narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **`audioTranscribe`**, **`eventSegment`**, **`sentenceCorrect`**, **`textParsing`**, **`textMatching`**, and **`causalRating`**.
+
+You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more).
+
+The app automates and visualizes those steps; human-screening is facilitated through interface at every step, allowing human raters to review, edit, and sign off on outputs. The same platform supports human vs. LLM comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
+
 <p align="center">
   <img src="static/app-icon.png" alt="narRater app icon" width="128" height="128">
   <br>
   <em>macOS: build <code>narRater.app</code> with <code>packaging/macos/build_app_bundle.sh</code> (uses this icon).</em>
 </p>
-
-**narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **`audioTranscribe`**, **`eventSegment`**, **`sentenceCorrect`**, **`textParsing`**, **`textMatching`**, and **`causalRating`**.
-
-You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more).
-
-The app **automates and visualizes** those runs; **human-screening** at every included step lets raters **review, edit, and sign off** on outputs. The same platform supports **human vs. LLM** comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
 
 ---
 
