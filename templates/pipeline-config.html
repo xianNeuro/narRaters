@@ -243,6 +243,8 @@
             align-items: center;
             justify-content: space-between;
             cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
         }
         
         .palette-step-header:active {
@@ -253,10 +255,9 @@
             flex: 1;
             font-weight: 500;
             color: var(--t1);
-            user-select: text;
-            -webkit-user-select: text;
-            -moz-user-select: text;
-            -ms-user-select: text;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: none;
         }
         
         .palette-step-expand {
@@ -264,6 +265,7 @@
             border: none;
             color: var(--t2);
             cursor: pointer;
+            flex-shrink: 0;
             font-size: 18px;
             padding: 0;
             width: 24px;
@@ -279,6 +281,25 @@
         .palette-step-expand:hover {
             background: var(--bg2);
             color: var(--acc);
+        }
+
+        .palette-step-add {
+            flex-shrink: 0;
+            margin-left: 6px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--acc);
+            background: var(--accbg);
+            border: 1px solid var(--acc);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+
+        .palette-step-add:hover {
+            background: var(--acc);
+            color: #fff;
         }
         
         .palette-step.expanded .palette-step-expand {
@@ -385,6 +406,10 @@
             border-style: solid;
         }
         
+        .pipeline-step.empty .drop-zone-label {
+            pointer-events: none;
+        }
+
         .pipeline-step.empty {
             color: var(--t3);
             font-style: italic;
@@ -572,6 +597,213 @@
         .config-field input:focus {
             border-color: var(--acc);
             box-shadow: 0 0 0 3px var(--accbg);
+        }
+
+        .path-input-row {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            min-width: 0;
+        }
+
+        .path-input-row input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .path-input-row--input input {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        .path-input-row--output input {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .path-folder-btn {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            padding: 0;
+            background: var(--bg3);
+            border: 1.5px solid var(--bdr);
+            color: var(--t1);
+            cursor: pointer;
+            transition: all var(--tr);
+            -webkit-user-drag: none;
+            user-select: none;
+        }
+
+        .path-folder-btn:hover {
+            background: var(--accbg);
+            border-color: var(--acc);
+            color: var(--acc2);
+        }
+
+        .path-folder-btn:focus {
+            outline: none;
+            border-color: var(--acc);
+            box-shadow: 0 0 0 3px var(--accbg);
+        }
+
+        .path-input-row--input .path-folder-btn {
+            border-radius: 6px 0 0 6px;
+            border-right: none;
+        }
+
+        .path-input-row--output .path-folder-btn {
+            border-radius: 0 6px 6px 0;
+            border-left: none;
+        }
+
+        .path-folder-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .folder-picker-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: var(--overlay);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .folder-picker-modal.show {
+            display: flex;
+        }
+
+        .folder-picker-content {
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            width: min(480px, 100%);
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-modal);
+        }
+
+        .folder-picker-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--bdr);
+        }
+
+        .folder-picker-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--t0);
+        }
+
+        .folder-picker-path {
+            padding: 10px 18px;
+            font-size: 12px;
+            color: var(--t2);
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            word-break: break-all;
+            border-bottom: 1px solid var(--bdr);
+            background: var(--bg2);
+        }
+
+        .folder-picker-list {
+            overflow-y: auto;
+            padding: 8px;
+            flex: 1;
+            min-height: 120px;
+            max-height: 320px;
+        }
+
+        .folder-picker-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 12px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--t0);
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+            transition: background var(--tr);
+        }
+
+        .folder-picker-item:hover {
+            background: var(--accbg);
+        }
+
+        .folder-picker-item svg {
+            width: 16px;
+            height: 16px;
+            fill: var(--ylw);
+            flex-shrink: 0;
+        }
+
+        .folder-picker-empty {
+            padding: 24px;
+            text-align: center;
+            color: var(--t3);
+            font-size: 13px;
+        }
+
+        .folder-picker-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            padding: 14px 18px;
+            border-top: 1px solid var(--bdr);
+        }
+
+        .folder-picker-actions button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--bdr);
+            transition: all var(--tr);
+        }
+
+        .folder-picker-btn-cancel {
+            background: var(--bg2);
+            color: var(--t1);
+        }
+
+        .folder-picker-btn-cancel:hover {
+            border-color: var(--bdr2);
+        }
+
+        .folder-picker-btn-select {
+            background: var(--acc);
+            color: #fff;
+            border-color: var(--acc);
+        }
+
+        .folder-picker-btn-select:hover {
+            background: var(--acc2);
+            border-color: var(--acc2);
+        }
+
+        .folder-picker-btn-up {
+            background: var(--bg2);
+            color: var(--t1);
+            margin-right: auto;
+        }
+
+        .folder-picker-btn-up:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
         
         .step-actions {
@@ -1164,6 +1396,22 @@
             </div>
         </div>
     </div>
+
+    <div id="folder-picker-modal" class="folder-picker-modal" onclick="closeFolderPickerOnBackdrop(event)">
+        <div class="folder-picker-content" onclick="event.stopPropagation()">
+            <div class="folder-picker-header">
+                <h3 id="folder-picker-title">Choose folder</h3>
+                <button class="settings-modal-close" type="button" onclick="closeFolderPicker()" title="Close">×</button>
+            </div>
+            <div class="folder-picker-path" id="folder-picker-path"></div>
+            <div class="folder-picker-list" id="folder-picker-list"></div>
+            <div class="folder-picker-actions">
+                <button type="button" class="folder-picker-btn-up" id="folder-picker-up" onclick="folderPickerGoUp()">↑ Parent</button>
+                <button type="button" class="folder-picker-btn-cancel" onclick="closeFolderPicker()">Cancel</button>
+                <button type="button" class="folder-picker-btn-select" onclick="confirmFolderPicker()">Select folder</button>
+            </div>
+        </div>
+    </div>
     
     <div class="container">
         <div class="header">
@@ -1204,6 +1452,7 @@
                 <div class="palette-step" data-step="audioTranscribe:story" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">audioTranscribe (story)</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-audioTranscribe:story"></div>
@@ -1211,6 +1460,7 @@
                 <div class="palette-step" data-step="audioTranscribe:recall" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">audioTranscribe (recall)</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-audioTranscribe:recall"></div>
@@ -1218,6 +1468,7 @@
                 <div class="palette-step" data-step="eventSegment" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">eventSegment</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-eventSegment"></div>
@@ -1225,6 +1476,7 @@
                 <div class="palette-step" data-step="sentenceCorrect" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">sentenceCorrect</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-sentenceCorrect"></div>
@@ -1232,6 +1484,7 @@
                 <div class="palette-step" data-step="textParsing" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">textParsing</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-textParsing"></div>
@@ -1239,6 +1492,7 @@
                 <div class="palette-step" data-step="textMatching" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">textMatching</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-textMatching"></div>
@@ -1246,6 +1500,7 @@
                 <div class="palette-step" data-step="causalRating" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
                         <div class="palette-step-title">causalRating</div>
+                        <button type="button" class="palette-step-add" draggable="false" onclick="event.stopPropagation(); addPaletteStepFromEl(this.closest('.palette-step'))" title="Add to pipeline">+ Add</button>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
                     <div class="palette-step-details" id="details-causalRating"></div>
@@ -1258,7 +1513,7 @@
                     </div>
                     <div class="empty-pipeline-content">
                         <p>
-                            <strong>Drag and Drop Steps:</strong> Click on any step above to see details, then drag it from the step header to the "Pipeline Flow" area on the right to add it to your pipeline.
+                            <strong>Add steps:</strong> Click <strong>+ Add</strong> on any step, or drag its header into the Pipeline Flow area on the right.
                         </p>
                         <p>
                             <strong>Reorder Steps:</strong> Once steps are in the pipeline, you can drag and drop them to swap positions and change the processing sequence.
@@ -1285,9 +1540,9 @@
                 </div>
                 <div class="pipeline-steps" id="pipeline-steps">
                     <div class="pipeline-step empty" data-drop-zone="true" data-position="0">
-                        <div style="text-align: center; color: var(--t3);">
+                        <div class="drop-zone-label" style="text-align: center; color: var(--t3);">
                             <div style="font-size: 2em; margin-bottom: 10px;">↓</div>
-                            <div style="font-size: 14px; font-weight: 500;">Drop step here</div>
+                            <div style="font-size: 14px; font-weight: 500;">Drag a step here or click + Add</div>
                         </div>
                     </div>
                 </div>
@@ -1384,7 +1639,7 @@
                 inputs: 'Story transcript files (.txt) from the input directory. Each file should contain the full story transcript text.',
                 parameters: 'Rule-based methods (clause / fine / coarse): local segmentation compositional hierarchy. API path: Anthropic Sonnet/Haiku tiers, GPT-4o/Mini, Gemma 4 E4B via Ollama, or Llama Ollama presets — prompts from scripts/prompt/event_segment*.txt; keys required only for Anthropic/OpenAI.',
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_events.xlsx. Contains columns: event (event number), story_texts (story text for this event), and optionally old_seg, scenes. Each row represents one discrete story event.',
-                implementation: 'Script: scripts/2_eventSegment.py. Rule-based methods use pattern matching and linguistic rules. API method supports Anthropic, OpenAI, and Ollama-backed models (Gemma 4 E4B, Llama presets) with prompts under scripts/prompt/. Preserves original text verbatim where required.'
+                implementation: 'Script: scripts/2_story-event-segment.py. Rule-based methods use pattern matching and linguistic rules. API method supports Anthropic, OpenAI, and Ollama-backed models (Gemma 4 E4B, Llama presets) with prompts under scripts/prompt/. Preserves original text verbatim where required.'
             },
             'sentenceCorrect': {
                 name: 'sentenceCorrect',
@@ -1394,7 +1649,7 @@
                 inputs: 'Plain text files (.txt) from input directory, one file per subject (e.g. data/5_recall_texts/). Each file should contain one subject\'s raw recall text. Also supports Excel summary files (.xlsx) with columns: sub, ID, recall.',
                 parameters: 'Methods: rule-based (default) with pyspellchecker and optional LanguageTool; Gemma 4 via Ollama using scripts/prompt/spell_gram.txt; or Manual. Ollama default tag gemma4:e4b (SPELL_GRAM_OLLAMA_MODEL / OLLAMA_HOST).',
                 outputs: 'Plain text (.txt). Rule-based: {subj_id}.txt. Ollama Gemma: {subj_id}_spell-ollama_*.txt. User edits: {subj_id}_{username}-edit.txt.',
-                implementation: 'Script: scripts/3_sentenceCorrect.py. Rule-based path is fully local. Gemma (Ollama) uses scripts/prompt/spell_gram.txt and a running ollama serve.'
+                implementation: 'Script: scripts/3_spell-grammar-correct.py. Rule-based path is fully local. Gemma (Ollama) uses scripts/prompt/spell_gram.txt and a running ollama serve.'
             },
             'textParsing': {
                 name: 'textParsing',
@@ -1430,6 +1685,90 @@
         
         let pipelineSteps = [];
         let stepCounter = 0;
+
+        const FOLDER_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>';
+
+        const folderPickerState = {
+            stepId: null,
+            field: null,
+            currentPath: '',
+            parentPath: null
+        };
+
+        function formatFolderPickerLabel(relPath) {
+            if (!relPath) return '(project root)';
+            return relPath;
+        }
+
+        async function loadFolderPicker(path) {
+            const listEl = document.getElementById('folder-picker-list');
+            const pathEl = document.getElementById('folder-picker-path');
+            const upBtn = document.getElementById('folder-picker-up');
+            listEl.innerHTML = '<div class="folder-picker-empty">Loading…</div>';
+            const q = encodeURIComponent(path || '');
+            const response = await fetch(`/api/browse-folders?path=${q}`);
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                listEl.innerHTML = `<div class="folder-picker-empty">${escapeHtml(data.error || 'Could not list folders')}</div>`;
+                return;
+            }
+            folderPickerState.currentPath = data.current || '';
+            folderPickerState.parentPath = data.parent;
+            folderPickerState.childPaths = (data.folders || []).map(name =>
+                folderPickerState.currentPath ? `${folderPickerState.currentPath}/${name}` : name
+            );
+            pathEl.textContent = formatFolderPickerLabel(folderPickerState.currentPath);
+            upBtn.disabled = (folderPickerState.parentPath === null || folderPickerState.parentPath === undefined);
+            if (!data.folders.length) {
+                listEl.innerHTML = '<div class="folder-picker-empty">No subfolders — select this folder or go up.</div>';
+                return;
+            }
+            listEl.innerHTML = data.folders.map((name, idx) =>
+                `<button type="button" class="folder-picker-item" onclick="folderPickerEnter(${idx})">${FOLDER_ICON_SVG}<span>${escapeHtml(name)}</span></button>`
+            ).join('');
+        }
+
+        function openFolderPicker(stepId, field) {
+            const step = pipelineSteps.find(s => s.id === stepId);
+            if (!step) return;
+            folderPickerState.stepId = stepId;
+            folderPickerState.field = field;
+            const title = field === 'inputPath' ? 'Choose input folder' : 'Choose output folder';
+            document.getElementById('folder-picker-title').textContent = title;
+            document.getElementById('folder-picker-modal').classList.add('show');
+            const startPath = (step[field] || '').trim().replace(/\\/g, '/');
+            loadFolderPicker(startPath);
+        }
+
+        function closeFolderPicker() {
+            document.getElementById('folder-picker-modal').classList.remove('show');
+            folderPickerState.stepId = null;
+            folderPickerState.field = null;
+        }
+
+        function closeFolderPickerOnBackdrop(event) {
+            if (event.target.id === 'folder-picker-modal') closeFolderPicker();
+        }
+
+        function folderPickerEnter(index) {
+            const path = folderPickerState.childPaths && folderPickerState.childPaths[index];
+            if (path !== undefined) loadFolderPicker(path);
+        }
+
+        function folderPickerGoUp() {
+            if (folderPickerState.parentPath === null || folderPickerState.parentPath === undefined) return;
+            loadFolderPicker(folderPickerState.parentPath);
+        }
+
+        function confirmFolderPicker() {
+            const { stepId, field, currentPath } = folderPickerState;
+            if (stepId == null || !field) return;
+            updateStepConfig(stepId, field, currentPath);
+            const input = document.getElementById(`step-${stepId}-${field}`);
+            if (input) input.value = currentPath;
+            updatePreview();
+            closeFolderPicker();
+        }
         
         // Initialize page when DOM is ready
         if (document.readyState === 'loading') {
@@ -1466,16 +1805,18 @@
             // Populate palette step details
             populatePaletteStepDetails();
             
-            // Set up drag handlers for palette steps
-            const paletteStepHeaders = document.querySelectorAll('.palette-step-header');
-            paletteStepHeaders.forEach(header => {
+            // Set up drag handlers for palette steps (header + step for reliable drag start)
+            document.querySelectorAll('.palette-step-header').forEach(header => {
+                header.setAttribute('draggable', 'true');
                 header.addEventListener('dragstart', handleDragStart);
-                header.addEventListener('dragend', (e) => {
-                    e.target.style.opacity = '1';
-                });
+                header.addEventListener('dragend', handlePaletteDragEnd);
+            });
+            document.querySelectorAll('.palette-step-expand').forEach(btn => {
+                btn.setAttribute('draggable', 'false');
             });
             
             initRaterName();
+            initPipelineDropDelegation();
             renderPipeline();
             updatePreview();
             console.log('Page initialization complete');
@@ -1577,15 +1918,91 @@
             stepElement.classList.toggle('expanded');
         }
         
+        function handlePaletteDragEnd(e) {
+            const header = e.target.closest('.palette-step-header');
+            if (header) header.style.opacity = '1';
+            document.querySelectorAll('.palette-step-header').forEach(h => { h.style.opacity = '1'; });
+        }
+
+        let pipelineDropDelegationBound = false;
+
+        function initPipelineDropDelegation() {
+            const container = document.getElementById('pipeline-steps');
+            if (!container || pipelineDropDelegationBound) return;
+            pipelineDropDelegationBound = true;
+
+            container.addEventListener('dragover', (e) => {
+                const zone = e.target.closest('.pipeline-step.empty[data-drop-zone="true"]');
+                if (!zone) return;
+                handleDragOver(e);
+                zone.classList.add('drag-over');
+            });
+
+            container.addEventListener('dragleave', (e) => {
+                const zone = e.target.closest('.pipeline-step.empty[data-drop-zone="true"]');
+                if (zone && !zone.contains(e.relatedTarget)) {
+                    zone.classList.remove('drag-over');
+                }
+            });
+
+            container.addEventListener('drop', (e) => {
+                const zone = e.target.closest('.pipeline-step.empty[data-drop-zone="true"]');
+                if (!zone) return;
+                e.preventDefault();
+                e.stopPropagation();
+                zone.classList.remove('drag-over');
+
+                const transferId = getDraggedStepType(e);
+                if (isPipelineCardId(transferId)) {
+                    const position = parseInt(zone.getAttribute('data-position'), 10);
+                    const currentIndex = pipelineSteps.findIndex(s => s.id === parseInt(transferId, 10));
+                    if (currentIndex !== -1 && !isNaN(position)) {
+                        const step = pipelineSteps.splice(currentIndex, 1)[0];
+                        const insertPos = currentIndex < position ? position - 1 : position;
+                        pipelineSteps.splice(insertPos, 0, step);
+                        savePipeline();
+                        renderPipeline();
+                    }
+                } else if (isPaletteStepType(transferId)) {
+                    handleDrop(e);
+                }
+            });
+        }
+
+        function addPaletteStepFromEl(paletteEl) {
+            const stepType = paletteEl && paletteEl.getAttribute('data-step');
+            if (!stepType) return;
+            if (pipelineSteps.some(s => s.type === stepType)) {
+                alert('This step is already in the pipeline. Remove it first to add it again.');
+                return;
+            }
+            addStepToPipeline(stepType);
+            hideTutorial();
+        }
+
         function handleDragStart(e) {
-            // Get step type from the parent palette-step element
             const paletteStep = e.target.closest('.palette-step');
             const stepType = paletteStep ? paletteStep.getAttribute('data-step') : null;
             if (!stepType) return;
-            
+
             e.dataTransfer.setData('text/plain', stepType);
+            e.dataTransfer.setData('application/x-narraters-step', stepType);
             e.dataTransfer.effectAllowed = 'copy';
-            e.target.style.opacity = '0.5';
+            const header = paletteStep.querySelector('.palette-step-header');
+            if (header) header.style.opacity = '0.5';
+        }
+
+        function getDraggedStepType(e) {
+            return e.dataTransfer.getData('application/x-narraters-step')
+                || e.dataTransfer.getData('text/plain');
+        }
+
+        function isPaletteStepType(stepType) {
+            return !!(stepType && Object.prototype.hasOwnProperty.call(stepDefinitions, stepType));
+        }
+
+        function isPipelineCardId(id) {
+            return /^\d+$/.test(String(id || ''));
         }
         
         function handleDragOver(e) {
@@ -1598,8 +2015,8 @@
             e.preventDefault();
             e.stopPropagation();
             
-            const stepType = e.dataTransfer.getData('text/plain');
-            if (!stepType) return;
+            const stepType = getDraggedStepType(e);
+            if (!isPaletteStepType(stepType)) return;
             
             document.querySelectorAll('.pipeline-step').forEach(step => {
                 step.classList.remove('drag-over');
@@ -1750,13 +2167,12 @@
             if (pipelineSteps.length === 0) {
                 container.innerHTML = `
                     <div class="pipeline-step empty empty-pipeline-glow" data-drop-zone="true" data-position="0">
-                        <div style="text-align: center; color: var(--t3);">
+                        <div class="drop-zone-label" style="text-align: center; color: var(--t3);">
                             <div style="font-size: 2em; margin-bottom: 10px;">↓</div>
-                            <div style="font-size: 14px; font-weight: 500;">Drop step here</div>
+                            <div style="font-size: 14px; font-weight: 500;">Drag a step here or click + Add</div>
                         </div>
                     </div>
                 `;
-                setupDropZones();
                 return;
             }
             
@@ -1764,6 +2180,10 @@
             
             pipelineSteps.forEach((step, index) => {
                 const stepDef = stepDefinitions[step.type];
+                if (!stepDef) {
+                    console.warn('Unknown pipeline step type:', step.type);
+                    return;
+                }
                 
                 html += `
                     <div class="step-card" data-step-id="${step.id}" draggable="true">
@@ -1781,17 +2201,27 @@
                         <div class="step-config">
                             <div class="config-field">
                                 <label>Input Path/Directory:</label>
-                                <input type="text" 
-                                       value="${escapeHtml(step.inputPath)}" 
-                                       onchange="updateStepConfig(${step.id}, 'inputPath', this.value); updatePreview();"
-                                       placeholder="e.g., data/input">
+                                <div class="path-input-row path-input-row--input">
+                                    <button type="button" class="path-folder-btn" title="Choose input folder" aria-label="Choose input folder"
+                                            onclick="openFolderPicker(${step.id}, 'inputPath')">${FOLDER_ICON_SVG}</button>
+                                    <input type="text"
+                                           id="step-${step.id}-inputPath"
+                                           value="${escapeHtml(step.inputPath)}"
+                                           onchange="updateStepConfig(${step.id}, 'inputPath', this.value); updatePreview();"
+                                           placeholder="e.g., data/5_recall_texts">
+                                </div>
                             </div>
                             <div class="config-field">
                                 <label>Output Path/Directory:</label>
-                                <input type="text" 
-                                       value="${escapeHtml(step.outputPath)}" 
-                                       onchange="updateStepConfig(${step.id}, 'outputPath', this.value); updatePreview();"
-                                       placeholder="e.g., output/">
+                                <div class="path-input-row path-input-row--output">
+                                    <input type="text"
+                                           id="step-${step.id}-outputPath"
+                                           value="${escapeHtml(step.outputPath)}"
+                                           onchange="updateStepConfig(${step.id}, 'outputPath', this.value); updatePreview();"
+                                           placeholder="e.g., output/recall_corrected">
+                                    <button type="button" class="path-folder-btn" title="Choose output folder" aria-label="Choose output folder"
+                                            onclick="openFolderPicker(${step.id}, 'outputPath')">${FOLDER_ICON_SVG}</button>
+                                </div>
                             </div>
                         </div>
                         <button class="step-info-toggle" id="step-toggle-${step.id}" onclick="toggleStepDetails(${step.id})">
@@ -1832,13 +2262,12 @@
                 <div class="pipeline-step empty" data-drop-zone="true" data-position="${pipelineSteps.length}">
                     <div style="text-align: center; color: var(--t3);">
                         <div style="font-size: 2em; margin-bottom: 10px;">↓</div>
-                        <div style="font-size: 14px; font-weight: 500;">Drop step here</div>
+                        <div style="font-size: 14px; font-weight: 500;">Drag a step here or click + Add</div>
                     </div>
                 </div>
             `;
             
             container.innerHTML = html;
-            setupDropZones();
             makeSortable();
             updatePreview();
         }
@@ -1930,56 +2359,6 @@
             
             savePipeline();
             renderPipeline();
-        }
-        
-        function setupDropZones() {
-            const container = document.getElementById('pipeline-steps');
-            const dropZones = container.querySelectorAll('.pipeline-step.empty[data-drop-zone="true"]');
-            dropZones.forEach(zone => {
-                const newZone = zone.cloneNode(true);
-                zone.parentNode.replaceChild(newZone, zone);
-                
-                newZone.addEventListener('dragover', handleDragOver);
-                newZone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Check if dropping a step card (reordering) or a new step from palette
-                    const stepId = e.dataTransfer.getData('text/plain');
-                    const stepCard = document.querySelector(`.step-card[data-step-id="${stepId}"]`);
-                    
-                    if (stepCard) {
-                        // Reordering existing step
-                        const position = parseInt(newZone.getAttribute('data-position'));
-                        const currentIndex = pipelineSteps.findIndex(s => s.id === parseInt(stepId));
-                        
-                        if (currentIndex !== -1 && !isNaN(position)) {
-                            // Remove from current position
-                            const step = pipelineSteps.splice(currentIndex, 1)[0];
-                            // Insert at new position
-                            const insertPos = currentIndex < position ? position - 1 : position;
-                            pipelineSteps.splice(insertPos, 0, step);
-                            savePipeline();
-                            renderPipeline();
-                        }
-                    } else {
-                        // Dropping new step from palette
-                        handleDrop(e);
-                    }
-                    
-                    newZone.classList.remove('drag-over');
-                });
-                newZone.addEventListener('dragenter', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    newZone.classList.add('drag-over');
-                });
-                newZone.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    newZone.classList.remove('drag-over');
-                });
-            });
         }
         
         function makeSortable() {
@@ -2200,10 +2579,14 @@
             closeSettings();
         }
         
-        // Close modal on Escape key
+        // Close modals on Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                closeSettings();
+                if (document.getElementById('folder-picker-modal').classList.contains('show')) {
+                    closeFolderPicker();
+                } else {
+                    closeSettings();
+                }
             }
         });
     </script>

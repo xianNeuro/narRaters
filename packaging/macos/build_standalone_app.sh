@@ -29,6 +29,12 @@ rsync -a \
   --exclude='venv/' \
   --exclude='__pycache__/' \
   --exclude='*.pyc' \
+  --exclude='.cursor/' \
+  --exclude='.vscode/' \
+  --exclude='.idea/' \
+  --exclude='CLAUDE.md' \
+  --exclude='CLAUDE.local.md' \
+  --exclude='developer/' \
   --exclude='narRater.app/' \
   --exclude='narRaters_installer.app/' \
   --exclude='narRaters-macos-installer.dmg' \
@@ -40,7 +46,9 @@ rsync -a \
   --exclude='narRater_Tutorial.pdf' \
   "$PROJECT_ROOT/" "$BUNDLE/"
 
-echo "$VERSION" >"$BUNDLE/.bundle_version"
+# Include a build stamp so replacing the app triggers a full runtime sync (pyproject version alone stays 0.1.0).
+BUILD_ID="${VERSION}+build.$(date +%Y%m%d%H%M%S)"
+echo "$BUILD_ID" >"$BUNDLE/.bundle_version"
 
 START_SH="$OUT_APP/Contents/MacOS/start_server.sh"
 cat >"$START_SH" <<'EOF'
@@ -88,6 +96,12 @@ if [[ ! -x "$PY" ]] || ! "$PY" -c "import flask" 2>/dev/null; then
   PY="$VENV/bin/python3"
   "$PY" -m pip install -U pip wheel
   "$PY" -m pip install -e "$RUNTIME_ROOT"
+fi
+
+# Refresh UI templates and server entrypoint from the bundle on every launch.
+if [[ -d "$BUNDLE_ROOT/templates" ]]; then
+  rsync -a "$BUNDLE_ROOT/templates/" "$RUNTIME_ROOT/templates/"
+  rsync -a "$BUNDLE_ROOT/server/web-interface.py" "$RUNTIME_ROOT/server/web-interface.py"
 fi
 
 export NARRATERS_PROJECT_ROOT="$RUNTIME_ROOT"

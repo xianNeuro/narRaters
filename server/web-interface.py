@@ -115,7 +115,7 @@ def _apply_recall_rmatch_api_key(env, step_options, api_key):
     return
 
 
-# Story segmentation presets that call Ollama (must match keys in scripts/2_eventSegment.py SUPPORTED_MODELS).
+# Story segmentation presets that call Ollama (must match keys in scripts/2_story-event-segment.py SUPPORTED_MODELS).
 _EVENT_SEGMENT_OLLAMA_MODEL_KEYS = frozenset(
     {"gemma4-e4b-ollama", "llama5.3-ollama", "llama3.3-ollama"}
 )
@@ -4883,6 +4883,61 @@ def save_audio_transcription(subj_id):
         return jsonify({'error': str(e)}), 500
 
 
+def _safe_project_dir(rel_path: str) -> Path | None:
+    """Resolve a relative directory under PROJECT_ROOT, or None if invalid."""
+    root = PROJECT_ROOT.resolve()
+    rel = (rel_path or '').strip().replace('\\', '/').strip('/')
+    target = (root / rel).resolve() if rel else root
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    if not target.is_dir():
+        return None
+    return target
+
+
+def _relative_project_path(directory: Path) -> str:
+    root = PROJECT_ROOT.resolve()
+    directory = directory.resolve()
+    if directory == root:
+        return ''
+    return directory.relative_to(root).as_posix()
+
+
+@app.route('/api/browse-folders', methods=['GET'])
+def browse_folders():
+    """List subdirectories under the project root for pipeline path pickers."""
+    try:
+        rel = request.args.get('path', '')
+        target = _safe_project_dir(rel)
+        if target is None:
+            return jsonify({'success': False, 'error': 'Invalid or missing folder path'}), 400
+
+        root = PROJECT_ROOT.resolve()
+        folders = []
+        for name in sorted(_list_dir_names(target)):
+            child = target / name
+            if child.is_dir():
+                folders.append(name)
+
+        parent = None
+        if target != root:
+            parent = _relative_project_path(target.parent)
+
+        return jsonify({
+            'success': True,
+            'current': _relative_project_path(target),
+            'parent': parent,
+            'folders': folders,
+            'projectRoot': str(root),
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/pipeline/save', methods=['POST'])
 def save_pipeline():
     """Save pipeline configuration."""
@@ -4917,7 +4972,7 @@ def get_event_segment_options():
     """Return available models and prompt versions for story event segmentation."""
     try:
         import importlib.util
-        seg_file = SCRIPTS_DIR / '2_eventSegment.py'
+        seg_file = SCRIPTS_DIR / '2_story-event-segment.py'
         spec = importlib.util.spec_from_file_location("event_seg", seg_file)
         seg_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(seg_module)
@@ -5081,8 +5136,8 @@ def process_files():
         script_map = {
             'audioTranscribe:story': '1_audio-transcribe.py',
             'audioTranscribe:recall': '1_audio-transcribe.py',
-            'eventSegment': '2_eventSegment.py',
-            'sentenceCorrect': '3_sentenceCorrect.py',
+            'eventSegment': '2_story-event-segment.py',
+            'sentenceCorrect': '3_spell-grammar-correct.py',
             'textParsing': '4_parse-texts.py',
             'textMatching': '5_recall-rater.py',
             'causalRating': '6_causal-rater.py'
@@ -6229,8 +6284,8 @@ def execute_step(item_id, step_index):
         script_map = {
             'audioTranscribe:story': '1_audio-transcribe.py',
             'audioTranscribe:recall': '1_audio-transcribe.py',
-            'eventSegment': '2_eventSegment.py',
-            'sentenceCorrect': '3_sentenceCorrect.py',
+            'eventSegment': '2_story-event-segment.py',
+            'sentenceCorrect': '3_spell-grammar-correct.py',
             'textParsing': '4_parse-texts.py',
             'textMatching': '5_recall-rater.py',
             'causalRating': '6_causal-rater.py'
@@ -6625,8 +6680,8 @@ def batch_process(step_type):
         script_map = {
             'audioTranscribe:story': '1_audio-transcribe.py',
             'audioTranscribe:recall': '1_audio-transcribe.py',
-            'eventSegment': '2_eventSegment.py',
-            'sentenceCorrect': '3_sentenceCorrect.py',
+            'eventSegment': '2_story-event-segment.py',
+            'sentenceCorrect': '3_spell-grammar-correct.py',
             'textParsing': '4_parse-texts.py',
             'textMatching': '5_recall-rater.py',
             'causalRating': '6_causal-rater.py'
