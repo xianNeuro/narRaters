@@ -2,6 +2,10 @@
 
 Developer handbook for this repository. **New here?** Start with the short [root README](../README.md), then return here for pipeline details.
 
+## Local AI assistant context (private)
+
+Files used only by coding agents (for example **`CLAUDE.md`** at the repository root and the **`.cursor/`** directory) are **gitignored** and are not part of the public GitHub tree. Maintain your own local copies for Cursor / Claude Code / similar workflows. Contributor-facing project facts live in this handbook and the root `README.md` — do not commit agent-specific guidance or internal maintainer notes you intend to stay private.
+
 ## Project Overview
 
 This project processes narrative recall data from subjects through a multi-step pipeline that transforms raw recall text into corrected, parsed, and matched formats suitable for analysis. The project maintains strict protocols to preserve the original narrative structure, meaning, and style while fixing errors, organizing content, and matching recall segments to story events.

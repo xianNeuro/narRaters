@@ -1,0 +1,36 @@
+# Build narRaters-macos-installer.dmg at the repository root (macOS).
+# - workflow_dispatch: upload DMG as a workflow artifact (for testing or manual distribution).
+# - release published: attach narRaters-macos-installer.dmg to that GitHub Release.
+
+name: Build macOS installer DMG
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build DMG
+        run: bash packaging/macos/build_installer_dmg.sh
+
+      - name: Upload workflow artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: narRaters-macos-installer
+          path: narRaters-macos-installer.dmg
+
+      - name: Attach DMG to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: narRaters-macos-installer.dmg

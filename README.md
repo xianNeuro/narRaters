@@ -14,21 +14,13 @@ Once installed, you can drive the entire pipeline from the terminal (one step at
 
 ## How to open narRaters
 
-**First-time setup without the terminal (macOS):** double-click **`narRaters_installer.app`** if you already built it (`bash packaging/macos/build_narRaters_installer_app.sh`), or double-click **`narRaters_installer.command`** in the project root. Both run a one-time `pip install -e .`. If the icon “does nothing” the first time, **right-click → Open** once (Gatekeeper), then click **Open** — after that, double-click works normally.
-
-**Windows:** double-click **`narRaters_installer.bat`**.
-
-You need **Python 3.10+** installed first ([python.org](https://www.python.org/downloads/) or your platform store). These installers do not bundle Python.
-
-**Distributing a disk image (macOS):** from the project root run `bash packaging/macos/build_installer_dmg.sh`. That writes **`narRaters_installer.dmg`** next to `server/`. Recipients open the DMG, double-click **`narRaters_installer.app`**, then work inside the mounted **`narRaters_source`** folder (or copy that folder anywhere and keep the app next to `server/` as in a normal clone).
-
-**Prerequisite:** the package must be installed once (click-installer above, or `pip install -e .` from the project root — see [Installation](#installation)). After that, use any of the following.
+Complete **[Installation](#installation)** once (usually a double-click installer). Then start the web UI:
 
 | How | What to do |
 |-----|----------------|
 | **Terminal (macOS, Linux, Windows)** | In the project folder, run `narraters serve`. Your browser should open to `http://localhost:5000` (use `--no-browser` if you prefer to open the URL yourself). |
 | **macOS — shell script** | In Finder, double-click `server/START_HERE.command`. Same server and URL as above (it can install dependencies automatically if needed). |
-| **macOS — app icon** | Build the double-clickable launcher with `bash packaging/macos/build_app_bundle.sh`. That creates `narRater.app` next to `server/` and `static/`. Double-click the app to start the server and open the UI. The `.app` bundle is **not** committed to Git (you build it locally); the icon below is the artwork used for that bundle. |
+| **macOS — app icon** | Build `narRater.app` with `bash packaging/macos/build_app_bundle.sh`, then double-click the app. The bundle is not committed to Git; the icon below is the artwork used when you build it. |
 
 <p align="center">
   <img src="static/app-icon.png" alt="narRater macOS app icon" width="128" height="128">
@@ -59,9 +51,28 @@ Steps 1 and 2 operate on the *story*; steps 3–5 on each *subject's recall*; st
 
 ## Installation
 
-`narRaters` requires **Python 3.10 or newer**.
+**Prerequisite:** [Python 3.10+](https://www.python.org/downloads/) on your PATH (or the Microsoft Store / Homebrew equivalent). The installers below do **not** bundle Python.
 
-### From source (recommended while in development)
+### Quick install (double-click)
+
+| Platform | File (repo root) | What it does |
+|----------|------------------|----------------|
+| **macOS** | `narRaters_installer.command` | Runs a one-time `pip install -e .` for this folder. If nothing happens the first time, **Right-click → Open**, then **Open** (Gatekeeper). |
+| **Windows** | `narRaters_installer.bat` | Same, using `py -3` or `python` (install Python with “Add to PATH” enabled). |
+
+**macOS disk image (standard layout):** **`narRaters-macos-installer.dmg`** at the **repository root** (top level of the clone, next to `README.md`) — Finder volume contains **`narRaters_installer.app`**, **`narRaters_source/`** (full tree), an **`Applications`** shortcut, and **`INSTALL-macOS.txt`**. Download from the repo ([raw on `main`](https://github.com/xianNeuro/narRaters/raw/main/narRaters-macos-installer.dmg) once the file is committed), from [**GitHub Releases**](https://github.com/xianNeuro/narRaters/releases), or build locally: **`bash packaging/macos/build_installer_dmg.sh`**. Follow **`INSTALL-macOS.txt`** on the disk.
+
+That completes a normal install. The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
+
+| Step | Default method |
+|------|----------------|
+| 2 — segment | `clause` (heuristic) |
+| 3 — correct | `rules` (spell-checker) |
+| 4 — parse | `rules` (regex) |
+| 5 — match | `test` (keyword) |
+| 6 — rate | `linguistic` (regex; spaCy if installed) |
+
+### Developers: clone + editable install
 
 ```bash
 git clone https://github.com/xianNeuro/narRaters.git
@@ -69,80 +80,48 @@ cd narRaters
 pip install -e .
 ```
 
-The `-e` flag installs the package in **editable** mode, so your changes to the source take effect immediately without reinstalling.
+Use `-e` so edits to the source apply without reinstalling.
 
-If you prefer not to use Terminal for that step, use **`narRaters_installer.command`** (macOS), **`narRaters_installer.app`** (build first; see [How to open narRaters](#how-to-open-narRaters)), or **`narRaters_installer.bat`** (Windows).
+### Optional extras (heavier methods)
 
-`pip install -e .` (or `pip install -r requirements.txt`) installs a **deliberately minimal** set of dependencies — just enough to run the lightweight default method of every pipeline step plus the web UI. It pulls **no** multi-GB machine-learning frameworks, so a fresh install is fast and will not fill up your disk.
-
-| Step | Minimal method installed by default |
-|---|---|
-| 2 — segment | `clause` (heuristic, no model) |
-| 3 — correct | `rules` (spell-checker, no model) |
-| 4 — parse | `rules` (regex, no model) |
-| 5 — match | `test` / keyword (no model) |
-| 6 — rate | `linguistic` (regex; spaCy used only if present) |
-
-### Optional extras (heavier methods — opt in only)
-
-Each extra enables a heavier, non-minimal method. Install only the ones you need:
+Install only what you need (`[audio]`, `[local-llm]`, and `[match]` pull **torch**, multi-GB):
 
 ```bash
-pip install -e ".[api]"        # Anthropic + OpenAI clients — Step 5/6 --method api
-pip install -e ".[audio]"      # Whisper / WhisperX — Step 1 audio transcription (pulls torch)
-pip install -e ".[nlp]"        # spaCy + benepar — higher-accuracy Step 2 fine/coarse
-pip install -e ".[grammar]"    # language-tool-python — extra Step 3 grammar rules
-pip install -e ".[local-llm]"  # transformers + torch + accelerate — local Gemma (HF)
-pip install -e ".[match]"      # rmatch — embedding Step 5 backend (pulls torch + sentence-transformers)
-pip install -e ".[all]"        # api + match together
+pip install -e ".[api]"        # Step 5/6 --method api
+pip install -e ".[audio]"     # Step 1 — Whisper / WhisperX
+pip install -e ".[nlp]"       # Step 2 — spaCy + benepar
+pip install -e ".[grammar]"   # Step 3 — language-tool-python
+pip install -e ".[local-llm]" # local Gemma (HF)
+pip install -e ".[match]"     # Step 5 — rmatch
+pip install -e ".[all]"       # api + match
 ```
 
-> ⚠️ `[audio]`, `[local-llm]`, and `[match]` transitively pull `torch` (several GB). Install them deliberately, not by default. Local-model methods additionally run a **free-disk-space and RAM preflight** before any download or run — see *Heavy-method warning* below.
+> ⚠️ Heavy methods run a **disk/RAM preflight** before downloads — see *Heavy-method warning* under [Launching the GUI](#launching-the-gui).
 
-### Local models via Ollama (no cloud billing)
+### Ollama (local Gemma, no cloud billing)
 
-The `gemma-ollama` methods (Steps 3, 4, 5) talk to a local [Ollama](https://ollama.com) server instead of a cloud API. After installing Ollama:
-
-```bash
-ollama pull gemma4:e4b      # ~ a few GB — narRaters checks free disk first
-```
-
-`narRaters` checks free disk space **before** advising a pull and warns in the UI if the model would not fit, so an install cannot wedge your machine.
+Install [Ollama](https://ollama.com), then e.g. `ollama pull gemma4:e4b` for the `gemma-ollama` methods (Steps 3–5). The app checks free disk before suggesting large pulls.
 
 ### API keys
 
-LLM-based methods read keys from a `.env` file in the project root. Copy the template and fill in whichever keys you'll use:
-
 ```bash
-cp developer/.env.example .env
-# then edit .env to add ANTHROPIC_API_KEY, OPENAI_API_KEY, HF_TOKEN, etc.
+cp developer/.env.example .env   # then edit for ANTHROPIC_API_KEY, OPENAI_API_KEY, HF_TOKEN, …
 ```
 
-See [`developer/SETUP_API.md`](developer/SETUP_API.md) for the full list of supported providers and model names.
+Full provider list: [`developer/SETUP_API.md`](developer/SETUP_API.md).
 
-### Local installable app (macOS)
+### Optional: macOS `narRater.app` (GUI launcher)
 
-After you run `bash packaging/macos/build_app_bundle.sh`, `narRater.app` appears next to `server/`, `static/`, and `templates/`. It is a small portable launcher: the project path and Python interpreter are resolved at launch time, so you can move the whole project folder (Documents, `/Applications`, …) and the bundle keeps working as long as it stays a sibling of `server/`. Double-click the app; it opens Terminal, starts the Flask server, and points your default browser at `http://localhost:5000`.
+`bash packaging/macos/build_app_bundle.sh` builds **`narRater.app`** next to `server/`. Double-click to start the Flask server and open the browser. The bundle picks a `python3` that can `import flask`; if none qualifies, it prompts you to run the click-installer or `pip install -e .` first. Rebuild after changing `static/app-icon.png`.
 
-What happens on the first launch:
-
-- The bundle looks for `python3` in `/opt/homebrew/bin`, `/usr/local/bin`, `$(which python3)`, and `/usr/bin`. The first one that can `import flask` wins. If none qualifies, the bundle pops up a dialog asking you to run `pip install -e .` (or use `narRaters_installer.app` / `narRaters_installer.command`) inside the project folder.
-- The bundle resolves the project root from its own location, so there's no rebuild needed if you move the folder.
-
-To build or refresh the bundle (for example, after editing the icon at `static/app-icon.png`):
+### Maintainers: rebuild installer `.app` / DMG
 
 ```bash
-bash packaging/macos/build_app_bundle.sh
+bash packaging/macos/build_narRaters_installer_app.sh   # narRaters_installer.app at repo root (gitignored)
+bash packaging/macos/build_installer_dmg.sh             # narRaters-macos-installer.dmg at repo root
 ```
 
-**Installer app and DMG** (optional — for `pip install -e .` without typing Terminal commands, or to ship a disk image):
-
-```bash
-bash packaging/macos/build_narRaters_installer_app.sh   # narRaters_installer.app next to server/
-bash packaging/macos/build_installer_dmg.sh             # narRaters_installer.dmg (app + narRaters_source/)
-```
-
-If you prefer not to use a `.app` bundle, use `narraters serve` or double-click `server/START_HERE.command` — see [How to open narRaters](#how-to-open-narRaters).
+CI: `.github/workflows/build-installer-dmg.yml` (artifact on manual runs; attaches the DMG to GitHub Releases). Commit **`narRaters-macos-installer.dmg`** at the repo root when you want a direct in-tree download link.
 
 ---
 
