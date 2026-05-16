@@ -45,6 +45,20 @@ if _root not in sys.path:
     sys.path.insert(0, _root)
 
 from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+from helpers.step_types import (
+    AUDIO_TRANSCRIBE,
+    CAUSAL_RATING,
+    EVENT_SEGMENT,
+    SENTENCE_CORRECT,
+    TEXT_MATCHING,
+    TEXT_PARSING,
+    audio_scope_for_step,
+    normalize_pipeline_config,
+    normalize_pipeline_step,
+    normalize_step_type,
+    step_runtime_key,
+)
+
 
 # Change to project root directory
 os.chdir(str(PROJECT_ROOT))
@@ -93,7 +107,7 @@ def _apply_recall_rmatch_api_key(env, step_options, api_key):
     return
 
 
-# Story segmentation presets that call Ollama (must match keys in scripts/2_story-event-segment.py SUPPORTED_MODELS).
+# Story segmentation presets that call Ollama (must match keys in scripts/2_eventSegment.py SUPPORTED_MODELS).
 _EVENT_SEGMENT_OLLAMA_MODEL_KEYS = frozenset(
     {"gemma4-e4b-ollama", "llama5.3-ollama", "llama3.3-ollama"}
 )
@@ -121,7 +135,7 @@ def _gemma4_preflight_report(step_type: str, method: str | None, step_options: d
             "details": {},
         }
 
-    if step_type == "recall-match-events" and m == "gemma-ollama":
+    if step_type == "textMatching" and m == "gemma-ollama":
         tag = (
             str(
                 opts.get("recall_rating_ollama_model")
@@ -132,19 +146,19 @@ def _gemma4_preflight_report(step_type: str, method: str | None, step_options: d
             or None
         ) or os.environ.get("RECALL_RATING_OLLAMA_MODEL") or "gemma4:e4b"
         return check_ollama_gemma_e4b_environment(model_tag=tag)
-    if step_type == "recall-parse" and m == "gemma-ollama":
+    if step_type == "textParsing" and m == "gemma-ollama":
         tag = (
             str(opts.get("recall_parse_ollama_model") or opts.get("ollama_model") or "").strip()
             or None
         ) or os.environ.get("RECALL_PARSE_OLLAMA_MODEL") or "gemma4:e4b"
         return check_ollama_gemma_e4b_environment(model_tag=tag)
-    if step_type == "spell-grammar-correct" and m == "gemma-ollama":
+    if step_type == "sentenceCorrect" and m == "gemma-ollama":
         tag = (
             str(opts.get("ollama_model") or opts.get("spell_gram_ollama_model") or "").strip()
             or None
         ) or os.environ.get("SPELL_GRAM_OLLAMA_MODEL") or "gemma4:e4b"
         return check_ollama_gemma_e4b_environment(model_tag=tag)
-    if step_type == "story-event-segment" and m == "api":
+    if step_type == "eventSegment" and m == "api":
         api_model = str(opts.get("model") or opts.get("event_segment_model") or "").strip()
         if api_model in _EVENT_SEGMENT_OLLAMA_MODEL_KEYS:
             default_tag = _EVENT_SEGMENT_OLLAMA_DEFAULT_TAGS.get(api_model, "gemma4:e4b")
@@ -588,13 +602,13 @@ EXCEL_FILES = [
 
 # Step type to default output directory (used when pipeline config has no outputPath)
 STEP_TYPE_DEFAULT_OUTPUT = {
-    'spell-grammar-correct': RECALL_CORRECTED_DIR,
-    'recall-parse': RECALL_PARSED_DIR,
-    'recall-match-events': RECALL_RATED_DIR,
-    'causal-rate-events': CAUSAL_RATED_DIR,
-    'story-event-segment': STORY_EVENTS_DIR,
-    'story-audio-transcribe': STORY_AUDIO_TRANSCRIBED_DIR,
-    'recall-audio-transcribe': RECALL_AUDIO_TRANSCRIBED_DIR,
+    'sentenceCorrect': RECALL_CORRECTED_DIR,
+    'textParsing': RECALL_PARSED_DIR,
+    'textMatching': RECALL_RATED_DIR,
+    'causalRating': CAUSAL_RATED_DIR,
+    'eventSegment': STORY_EVENTS_DIR,
+    'audioTranscribe:story': STORY_AUDIO_TRANSCRIBED_DIR,
+    'audioTranscribe:recall': RECALL_AUDIO_TRANSCRIBED_DIR,
 }
 
 
@@ -619,7 +633,7 @@ def get_output_dir_for_step_type(step_type):
     config = get_pipeline_config()
     if config and config.get('steps'):
         for step in config['steps']:
-            if step.get('type') == step_type:
+            if step_runtime_key(step) == step_type:
                 out = step.get('outputPath', '')
                 if out:
                     return _resolve_path_from_config(out)
@@ -641,7 +655,7 @@ def iter_story_events_search_dirs():
     env_override = (os.environ.get('NARRATIVE_STORY_EVENTS_DIR') or '').strip()
     if env_override:
         candidates.append(Path(env_override).expanduser())
-    primary = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+    primary = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
     sibling_repo_events = PROJECT_ROOT.parent / 'data' / '3_story_events'
     candidates.extend([primary, STORY_EVENTS_DIR, sibling_repo_events])
     for d in candidates:
@@ -663,7 +677,7 @@ def get_input_dir_for_step_type(step_type):
     config = get_pipeline_config()
     if config and config.get('steps'):
         for step in config['steps']:
-            if step.get('type') == step_type:
+            if step_runtime_key(step) == step_type:
                 inp = step.get('inputPath', '')
                 if inp:
                     return _resolve_path_from_config(inp)
@@ -697,9 +711,9 @@ def is_story_focused_pipeline(pipeline_config):
     if not pipeline_config or not pipeline_config.get('steps'):
         return False
     
-    story_step_types = ['story-audio-transcribe', 'story-event-segment', 'causal-rate-events']
+    story_step_types = {'audioTranscribe:story', 'eventSegment', 'causalRating'}
     for step in pipeline_config['steps']:
-        if step.get('type') in story_step_types:
+        if step_runtime_key(step) in story_step_types:
             return True
     return False
 
@@ -788,16 +802,16 @@ def expand_story_event_file_bases(item_id):
 #   - tail_pat:  optional fixed tail substring required in the stem (e.g. ``_events``
 #                for story-events streams) — empty string means "no constraint"
 _STEP_INPUT_STREAMS = {
-    'story-audio-transcribe':  [('main',          'Input',         'BATCH_INPUT_VARIANT',         'audio', '')],
-    'recall-audio-transcribe': [('main',          'Input',         'BATCH_INPUT_VARIANT',         'audio', '')],
-    'story-event-segment':     [('main',          'Story Transcript', 'BATCH_INPUT_VARIANT',      '.txt',  '')],
-    'spell-grammar-correct':   [('main',          'Recall Text',   'BATCH_INPUT_VARIANT',         '.txt',  '')],
-    'recall-parse':            [('main',          'Corrected Recall', 'BATCH_INPUT_VARIANT',      '.txt',  '')],
-    'recall-match-events':     [
+    'audioTranscribe:story':  [('main',          'Input',         'BATCH_INPUT_VARIANT',         'audio', '')],
+    'audioTranscribe:recall': [('main',          'Input',         'BATCH_INPUT_VARIANT',         'audio', '')],
+    'eventSegment':     [('main',          'Story Transcript', 'BATCH_INPUT_VARIANT',      '.txt',  '')],
+    'sentenceCorrect':   [('main',          'Recall Text',   'BATCH_INPUT_VARIANT',         '.txt',  '')],
+    'textParsing':            [('main',          'Corrected Recall', 'BATCH_INPUT_VARIANT',      '.txt',  '')],
+    'textMatching':     [
         ('parsed_recall', 'Parsed Recall', 'BATCH_INPUT_VARIANT',          '.xlsx', '_parsed'),
         ('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',   '.xlsx', '_events'),
     ],
-    'causal-rate-events':      [('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',  '.xlsx', '_events')],
+    'causalRating':      [('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',  '.xlsx', '_events')],
 }
 
 
@@ -815,7 +829,7 @@ def _resolve_stream_dir(step_inputPath, stream_key, item_id):
     """Resolve the directory to search for a given stream.
 
     Most streams use the step's configured ``inputPath``. The story-events stream
-    on step 5 (recall-match-events) is special: the script reads it from the
+    on step 5 (textMatching) is special: the script reads it from the
     canonical ``data/3_story_events`` regardless of the parsed-recall input dir.
     """
     if stream_key == 'story_events' and step_inputPath and 'story_events' not in step_inputPath:
@@ -959,8 +973,8 @@ def get_all_stories(pipeline_config):
     # Check all story-focused steps to discover stories from both input and output paths
     if pipeline_config and pipeline_config.get('steps'):
         for step in pipeline_config.get('steps', []):
-            step_type = step.get('type', '')
-            if step_type in ['story-audio-transcribe', 'story-event-segment', 'causal-rate-events']:
+            step_type = step_runtime_key(step)
+            if step_type in ['audioTranscribe:story', 'eventSegment', 'causalRating']:
                 # Check input path
                 input_path = step.get('inputPath', '')
                 if input_path:
@@ -1019,7 +1033,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
     
     Args:
         path: Directory path (Path object or string)
-        step_type: Type of step (e.g., 'spell-grammar-correct', 'recall-parse', etc.)
+        step_type: Type of step (e.g., 'sentenceCorrect', 'textParsing', etc.)
         is_story: Whether discovering stories (True) or subjects (False)
         scan_type: 'input' when scanning an input directory, 'output' when scanning an
                    output directory, or 'any' to use patterns covering both (default).
@@ -1045,7 +1059,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         return items
     
     # Determine file patterns based on step type and scan direction
-    if step_type == 'story-audio-transcribe':
+    if step_type == 'audioTranscribe:story':
         if scan_type == 'input':
             patterns = [f'*{ext}' for ext in SUPPORTED_AUDIO_EXTENSIONS]
         elif scan_type == 'output':
@@ -1053,7 +1067,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         else:
             patterns = ['*.txt'] + [f'*{ext}' for ext in SUPPORTED_AUDIO_EXTENSIONS]
         extract_func = get_story_name_from_filename if is_story else get_subject_id_from_filename
-    elif step_type == 'recall-audio-transcribe':
+    elif step_type == 'audioTranscribe:recall':
         if scan_type == 'input':
             patterns = [f'*{ext}' for ext in SUPPORTED_AUDIO_EXTENSIONS]
         elif scan_type == 'output':
@@ -1061,7 +1075,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         else:
             patterns = ['*.txt'] + [f'*{ext}' for ext in SUPPORTED_AUDIO_EXTENSIONS]
         extract_func = get_subject_id_from_filename
-    elif step_type == 'story-event-segment':
+    elif step_type == 'eventSegment':
         if scan_type == 'input':
             patterns = ['*.txt']
         elif scan_type == 'output':
@@ -1069,10 +1083,10 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         else:
             patterns = ['*.txt', '*_events.xlsx', '*_events-*.xlsx', '*_events_rule-based.xlsx', '*_events_api.xlsx']
         extract_func = get_story_name_from_filename if is_story else get_subject_id_from_filename
-    elif step_type == 'spell-grammar-correct':
+    elif step_type == 'sentenceCorrect':
         patterns = ['*.txt']
         extract_func = get_subject_id_from_filename
-    elif step_type == 'recall-parse':
+    elif step_type == 'textParsing':
         if scan_type == 'input':
             patterns = ['*.txt']
         elif scan_type == 'output':
@@ -1080,7 +1094,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         else:
             patterns = ['*.txt', '*_parsed.xlsx']
         extract_func = get_subject_id_from_filename
-    elif step_type == 'recall-match-events':
+    elif step_type == 'textMatching':
         if scan_type == 'input':
             patterns = ['*_parsed.xlsx', '*_events.xlsx', '*_events-*.xlsx']
         elif scan_type == 'output':
@@ -1088,7 +1102,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         else:
             patterns = ['*_rate-recall.xlsx', '*_rate-recall-*.xlsx', '*_parsed.xlsx', '*_events.xlsx']
         extract_func = get_subject_id_from_filename
-    elif step_type == 'causal-rate-events':
+    elif step_type == 'causalRating':
         if scan_type == 'input':
             patterns = ['*_events.xlsx', '*_events-*.xlsx']
         elif scan_type == 'output':
@@ -1105,9 +1119,9 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         for file in cached_glob(dir_path, pattern):
             # Skip human-edit files for discovery (they'll be found via original files)
             if not is_user_edit_file(file.name):
-                # For recall-parse with .txt files, make sure we're getting the right files
+                # For textParsing with .txt files, make sure we're getting the right files
                 # (exclude audio transcription files that might have similar patterns)
-                if step_type == 'recall-parse' and pattern == '*.txt':
+                if step_type == 'textParsing' and pattern == '*.txt':
                     # Only include .txt files that are corrected text files (not audio transcriptions)
                     # Audio transcriptions typically have patterns like "*_recall*.txt" or are in different dirs
                     if '_recall' not in file.name or file.name.startswith('sub') or file.name.startswith('int'):
@@ -1168,13 +1182,13 @@ def get_all_subjects(pipeline_config=None):
     # If pipeline is configured, also discover subjects from configured input and output paths
     if pipeline_config and pipeline_config.get('steps'):
         for step in pipeline_config['steps']:
-            step_type = step.get('type', '')
+            step_type = step_runtime_key(step)
             input_path = step.get('inputPath', '')
             output_path = step.get('outputPath', '')
             
             # Only check subject-focused steps (not story-focused)
-            if step_type in ['recall-audio-transcribe', 'spell-grammar-correct', 'recall-parse', 'recall-match-events']:
-                # Check input path (for steps like recall-parse, input contains the source files)
+            if step_type in ['audioTranscribe:recall', 'sentenceCorrect', 'textParsing', 'textMatching']:
+                # Check input path (for steps like textParsing, input contains the source files)
                 if input_path:
                     discovered = discover_items_from_path(input_path, step_type, is_story=False, scan_type='input')
                     for subj_id in discovered:
@@ -1378,21 +1392,21 @@ def get_dashboard_panels():
         chains.append(current_chain)
 
     panels = []
-    story_step_types = {'story-audio-transcribe', 'story-event-segment', 'causal-rate-events'}
+    story_step_types = {'audioTranscribe:story', 'eventSegment', 'causalRating'}
 
     for group_steps in chains:
         if not group_steps:
             continue
         # Root source = first step's input path (start of the chain)
         source_input_path = normalize_path(group_steps[0].get('inputPath', '')) or '(default)'
-        is_story = any(s.get('type') in story_step_types for s in group_steps)
+        is_story = any(step_runtime_key(s) in story_step_types for s in group_steps)
         item_type = 'story' if is_story else 'subject'
         row_label = 'Story Name' if is_story else 'Subject ID'
 
         # Discover items only from the chain's source input path (first step's input)
         items_set = set()
         first_step = group_steps[0]
-        first_step_type = first_step.get('type', '')
+        first_step_type = step_runtime_key(first_step)
         source_inp = (first_step.get('inputPath') or '').strip().rstrip('/')
         if source_inp:
             discovered = discover_items_from_path(source_inp, first_step_type, is_story=is_story, scan_type='input')
@@ -1490,7 +1504,7 @@ def check_step_status(item_id, step_config, is_story=False):
         else:
             input_dir = PROJECT_ROOT / input_path.rstrip('/')
     
-    if step_type == 'story-audio-transcribe':
+    if step_type == 'audioTranscribe:story':
         # For story audio, check transcription output
         if output_dir and _dir_exists_cached(output_dir):
             # Story name might be in filename (e.g., my_story.wav -> my_story.txt)
@@ -1499,7 +1513,7 @@ def check_step_status(item_id, step_config, is_story=False):
                 if cached_glob(output_dir, pattern):
                     return True
         return False
-    elif step_type == 'recall-audio-transcribe':
+    elif step_type == 'audioTranscribe:recall':
         # Check recall audio transcription
         if output_dir and _dir_exists_cached(output_dir):
             patterns = [f"{item_id}*.txt", f"*{item_id}*.txt"]
@@ -1507,7 +1521,7 @@ def check_step_status(item_id, step_config, is_story=False):
                 if cached_glob(output_dir, pattern):
                     return True
         return False
-    elif step_type == 'story-event-segment':
+    elif step_type == 'eventSegment':
         # Check story events file
         if output_dir and _dir_exists_cached(output_dir):
             # Story events file naming: {story_name}_events.xlsx or {story_name}_events-{method}.xlsx
@@ -1517,7 +1531,7 @@ def check_step_status(item_id, step_config, is_story=False):
             method_files += cached_glob(output_dir, f"{item_id}_events_api.xlsx")
             return cached_path_exists(event_file) or has_any_edit_file(output_dir, item_id, '_events', '.xlsx') or len(method_files) > 0
         return False
-    elif step_type == 'spell-grammar-correct':
+    elif step_type == 'sentenceCorrect':
         # Check corrected text (rule-based file or Gemma method outputs)
         if output_dir and _dir_exists_cached(output_dir):
             corrected_file = output_dir / f"{item_id}.txt"
@@ -1543,7 +1557,7 @@ def check_step_status(item_id, step_config, is_story=False):
                 if matching_files:
                     return True
         return False
-    elif step_type == 'recall-parse':
+    elif step_type == 'textParsing':
         # Check parsed file (output)
         if output_dir and _dir_exists_cached(output_dir):
             # Try exact match first in main directory
@@ -1594,7 +1608,7 @@ def check_step_status(item_id, step_config, is_story=False):
         # Input file existence is checked separately via the input-files API endpoint
         # This function should only indicate completion (output exists), not availability (input exists)
         return False
-    elif step_type == 'recall-match-events':
+    elif step_type == 'textMatching':
         # Check rated file (including method-suffixed variants like _rate-recall-api.xlsx)
         if output_dir and _dir_exists_cached(output_dir):
             # Try exact match first
@@ -1617,7 +1631,7 @@ def check_step_status(item_id, step_config, is_story=False):
                 if matching_files:
                     return True
         return False
-    elif step_type == 'causal-rate-events':
+    elif step_type == 'causalRating':
         if output_dir and _dir_exists_cached(output_dir):
             patterns = [
                 f"{item_id}_causal-*.xlsx",
@@ -1666,11 +1680,11 @@ def _read_raw_recall_from_excel(excel_path, subj_id):
 
 
 def get_raw_recall_text(subj_id):
-    """Get raw recall text from spell-grammar-correct input path (.txt files) or Excel files.
-    Uses pipeline config inputPath for spell-grammar-correct when configured.
+    """Get raw recall text from sentenceCorrect input path (.txt files) or Excel files.
+    Uses pipeline config inputPath for sentenceCorrect when configured.
     """
-    # 1. Try spell-grammar-correct input path
-    input_path = get_input_dir_for_step_type('spell-grammar-correct')
+    # 1. Try sentenceCorrect input path
+    input_path = get_input_dir_for_step_type('sentenceCorrect')
     if input_path and input_path.exists():
         if input_path.is_dir():
             # Raw input is typically subj_id.txt (spell-grammar excludes user-edit files as input)
@@ -1711,10 +1725,10 @@ def get_raw_recall_text(subj_id):
 def get_corrected_text(subj_id, file_version=None):
     """Get corrected recall text.
     Prioritizes user-edit version if available.
-    Uses pipeline config outputPath for spell-grammar-correct when configured.
+    Uses pipeline config outputPath for sentenceCorrect when configured.
     file_version: '{username}-edit', 'original', or None (auto-select)
     """
-    output_dir = get_output_dir_for_step_type('spell-grammar-correct') or RECALL_CORRECTED_DIR
+    output_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
     # Determine which file to use
     if file_version and file_version.endswith('-edit'):
         file_path = output_dir / f"{subj_id}_{file_version}.txt"
@@ -1767,10 +1781,10 @@ def get_corrected_text(subj_id, file_version=None):
 def get_parsed_texts(subj_id, file_version=None):
     """Get parsed recall texts as list of segments.
     Prioritizes user-edit version if available.
-    Uses pipeline config outputPath for recall-parse when configured.
+    Uses pipeline config outputPath for textParsing when configured.
     file_version: '{username}-edit', 'original', or None (auto-select)
     """
-    output_dir = get_output_dir_for_step_type('recall-parse') or RECALL_PARSED_DIR
+    output_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
     # Non-edit parsed source files (canonical and method-suffixed), newest first
     non_edit_parsed = list_subject_parsed_source_files(output_dir, subj_id)
     canonical = output_dir / f"{subj_id}_parsed.xlsx"
@@ -1824,10 +1838,10 @@ def get_parsed_texts(subj_id, file_version=None):
 def get_rated_texts(subj_id, file_version=None):
     """Get rated recall texts with event matches.
     Prioritizes user-edit version if available, otherwise shows original.
-    Uses pipeline config outputPath for recall-match-events when configured.
+    Uses pipeline config outputPath for textMatching when configured.
     file_version: '{username}-edit', 'original', or None (auto-select)
     """
-    output_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+    output_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
     
     def _find_rated_file(subj, suffix=''):
         """Find rated file, checking method-suffixed variants if exact match missing."""
@@ -1922,8 +1936,8 @@ def get_available_file_versions(subj_id, is_story=False):
         'story_transcript': [],
     }
     
-    # Step 1: Check corrected text files (spell-grammar-correct output)
-    corrected_dir = get_output_dir_for_step_type('spell-grammar-correct') or RECALL_CORRECTED_DIR
+    # Step 1: Check corrected text files (sentenceCorrect output)
+    corrected_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
     original_corrected = corrected_dir / f"{subj_id}.txt"
     
     edit_versions_1 = get_all_edit_versions(corrected_dir, subj_id, '', '.txt')
@@ -1931,8 +1945,8 @@ def get_available_file_versions(subj_id, is_story=False):
     if original_corrected.exists():
         versions['step1'].append('original')
     
-    # Step 2: Check parsed files (recall-parse output)
-    parsed_dir = get_output_dir_for_step_type('recall-parse') or RECALL_PARSED_DIR
+    # Step 2: Check parsed files (textParsing output)
+    parsed_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
     original_parsed = parsed_dir / f"{subj_id}_parsed.xlsx"
     method_parsed = list_subject_parsed_source_files(parsed_dir, subj_id)
 
@@ -1941,8 +1955,8 @@ def get_available_file_versions(subj_id, is_story=False):
     if original_parsed.exists() or method_parsed:
         versions['step2'].append('original')
     
-    # Step 3: Check rated files (recall-match-events output, including method-suffixed)
-    rated_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+    # Step 3: Check rated files (textMatching output, including method-suffixed)
+    rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
     original_rated = rated_dir / f"{subj_id}_rate-recall.xlsx"
     method_rated = list_subject_rated_recall_source_files(rated_dir, subj_id)
     
@@ -1971,7 +1985,7 @@ def get_available_file_versions(subj_id, is_story=False):
         })
     
     # Causal ratings: list all causal rating output files
-    causal_dir = get_output_dir_for_step_type('causal-rate-events') or CAUSAL_RATED_DIR
+    causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
     if causal_dir and causal_dir.exists():
         causal_files = sorted(causal_dir.glob(f"{subj_id}_causal*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
         for cf in causal_files:
@@ -2140,7 +2154,7 @@ def get_story_transcript(item_id, is_story=False, transcript_file=None):
                     print(f"Error reading story transcript from file: {e}")
     
     # Fallback: Try to reconstruct from events file
-    events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+    events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
     if is_story:
         event_filename_base = f"{item_id}_events"
     else:
@@ -2328,7 +2342,7 @@ def build_story_events_prefix_for_export(item_id, story_events_filename):
 
 def resolve_rated_file_path(item_id, file_version=None):
     """Path to the rated recall .xlsx that get_rated_texts would use."""
-    output_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+    output_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
 
     def _find_rated_file(subj, suffix=''):
         exact = output_dir / f"{subj}_rate-recall{suffix}.xlsx"
@@ -2455,7 +2469,7 @@ def list_subject_parsed_source_files(output_dir, subj_id):
 
 
 def resolve_corrected_source_path(item_id, file_version=None):
-    output_dir = get_output_dir_for_step_type('spell-grammar-correct') or RECALL_CORRECTED_DIR
+    output_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
     if file_version and file_version.endswith('-edit'):
         return output_dir / f"{item_id}_{file_version}.txt"
     if file_version == 'original':
@@ -2508,7 +2522,7 @@ def _get_story_events_for_event_base(base_id, file_version=None, min_event_count
 def get_story_events(item_id, file_version=None, is_story=False, min_event_count=0):
     """Get story events for a subject or story.
     Prioritizes user-edit version if available.
-    Uses pipeline config outputPath for story-event-segment when configured.
+    Uses pipeline config outputPath for eventSegment when configured.
     file_version: '{username}-edit', 'original', specific filename, or None (auto-select)
     is_story: Whether item_id is a story name (True) or subject ID (False)
     min_event_count: If > 0, prefer an event file with at least this many events (e.g. when loading causal pairs).
@@ -2960,7 +2974,7 @@ def get_causal_ratings(item_id, file_version=None):
     Returns dict with 'matrix' (2D array), 'event_count', and 'source_file', or None.
     file_version: specific .xlsx filename, or None (auto-select).
     """
-    causal_dir = get_output_dir_for_step_type('causal-rate-events') or CAUSAL_RATED_DIR
+    causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
     if not causal_dir or not causal_dir.exists():
         return None
 
@@ -3024,7 +3038,7 @@ def get_all_event_granularities(item_id):
     """Get both fine-grained and coarse-grained event segmentations for a story.
     Returns dict with 'fine' and 'coarse' event lists, or None if not available.
     """
-    events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+    events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
     if not events_dir or not events_dir.exists():
         return None
     
@@ -3125,23 +3139,23 @@ def get_default_export_path(
         transcript_slug = _sanitize_export_token(Path(story_transcript_file).stem)
 
     if step == 'corrected':
-        d = get_output_dir_for_step_type('spell-grammar-correct') or RECALL_CORRECTED_DIR
+        d = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
         pl = recall_pipeline_slug(item_id, recall_file_version)
         stem = f"{item_id}_recall-corrected_recall-version-{pl}"
         return _rel(d / f"{stem}{edit_suffix}.txt")
     if step == 'parsed':
-        d = get_output_dir_for_step_type('recall-parse') or RECALL_PARSED_DIR
+        d = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
         pl = recall_pipeline_slug(item_id, recall_file_version)
-        stem = f"{events_prefix}_{item_id}_recall-parsed_recall-version-{pl}"
+        stem = f"{events_prefix}_{item_id}_textParsingd_recall-version-{pl}"
         return _rel(d / f"{stem}{edit_suffix}.xlsx")
     if step == 'rated':
-        d = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+        d = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
         rated_p = resolve_rated_file_path(item_id, recall_file_version)
         method = extract_recall_rated_method_slug(rated_p, item_id)
         stem = f"{events_prefix}_{item_id}_rate-recall_{method}"
         return _rel(d / f"{stem}{edit_suffix}.xlsx")
     if step == 'audio':
-        transcribed_dir = get_output_dir_for_step_type('recall-audio-transcribe') or RECALL_AUDIO_TRANSCRIBED_DIR
+        transcribed_dir = get_output_dir_for_step_type('audioTranscribe:recall') or RECALL_AUDIO_TRANSCRIBED_DIR
         audio_file = get_audio_file(item_id, is_story=is_story)
         if not audio_file:
             stem = f"{item_id}_audio-transcript_source-{transcript_slug}"
@@ -3150,7 +3164,7 @@ def get_default_export_path(
         stem = f"{audio_path.stem}_audio-transcript_source-{transcript_slug}"
         return _rel(transcribed_dir / f"{stem}{edit_suffix}.txt")
     if step == 'story-events':
-        d = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+        d = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
         if source_file and source_file.endswith('.xlsx'):
             base_name = Path(source_file).stem
             base_name = re.sub(r'_(\w+-edit)$', '', base_name)
@@ -3161,7 +3175,7 @@ def get_default_export_path(
             return _rel(d / f"{stem}{edit_suffix}.xlsx")
         return _rel(d / f"{item_id}_events_segmented_transcript-{transcript_slug}{edit_suffix}.xlsx")
     if step == 'causal':
-        d = get_output_dir_for_step_type('causal-rate-events') or CAUSAL_RATED_DIR
+        d = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
         if source_file and source_file.endswith('.xlsx'):
             base_name = Path(source_file).stem
             if is_user_edit_file(source_file):
@@ -3200,11 +3214,11 @@ def get_audio_file(item_id, is_story=False):
 
 def get_audio_transcription(item_id, is_story=False):
     """Get audio transcription text for a subject or story.
-    Uses pipeline config outputPath for story-audio-transcribe/recall-audio-transcribe when configured.
+    Uses pipeline config outputPath for audioTranscribe:story/audioTranscribe:recall when configured.
     """
     if is_story:
         # For story audio transcription
-        transcribed_dir = get_output_dir_for_step_type('story-audio-transcribe') or STORY_AUDIO_TRANSCRIBED_DIR
+        transcribed_dir = get_output_dir_for_step_type('audioTranscribe:story') or STORY_AUDIO_TRANSCRIBED_DIR
         if not transcribed_dir.exists():
             return None
         patterns = [
@@ -3214,7 +3228,7 @@ def get_audio_transcription(item_id, is_story=False):
         ]
     else:
         # For recall audio transcription
-        transcribed_dir = get_output_dir_for_step_type('recall-audio-transcribe') or RECALL_AUDIO_TRANSCRIBED_DIR
+        transcribed_dir = get_output_dir_for_step_type('audioTranscribe:recall') or RECALL_AUDIO_TRANSCRIBED_DIR
         if not transcribed_dir.exists():
             return None
         patterns = [
@@ -3867,7 +3881,7 @@ def save_corrected_text(subj_id):
         file_path = _resolve_and_validate_output_path(output_path_str)
         if file_path is None:
             # Use pipeline output path when configured
-            output_dir = get_output_dir_for_step_type('spell-grammar-correct') or RECALL_CORRECTED_DIR
+            output_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
             output_dir.mkdir(parents=True, exist_ok=True)
             edit_suffix = get_edit_suffix()
             file_path = output_dir / f"{subj_id}{edit_suffix}.txt"
@@ -3914,7 +3928,7 @@ def save_corrected_text(subj_id):
                 parsed_df = create_dataframe_func(parsed_units)
                 
                 # Save to parsed file with _{username}-edit suffix (use pipeline output path)
-                parsed_dir = get_output_dir_for_step_type('recall-parse') or RECALL_PARSED_DIR
+                parsed_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
                 parsed_dir.mkdir(parents=True, exist_ok=True)
                 parsed_file = parsed_dir / f"{subj_id}_parsed{edit_suffix}.xlsx"
                 
@@ -3935,7 +3949,7 @@ def save_corrected_text(subj_id):
                     get_anthropic_client_func = rate_module.get_anthropic_client
                     
                     # Read story events (check for method-suffixed files too)
-                    events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+                    events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
                     event_filename_base = f"{subj_id}_events"
                     story_file = events_dir / f"{event_filename_base}.xlsx"
                     if not story_file.exists():
@@ -4005,7 +4019,7 @@ def save_corrected_text(subj_id):
                         parsed_df = parsed_df[['recalled_events', 'recall_in_temporal_order']]
                         
                         # Save to rated file - update original filename when cascading
-                        rated_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+                        rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
                         rated_dir.mkdir(parents=True, exist_ok=True)
                         rated_file = rated_dir / f"{subj_id}_rate-recall.xlsx"
                         parsed_df.to_excel(rated_file, index=False, engine='openpyxl', na_rep='')
@@ -4072,7 +4086,7 @@ def save_rated_events(subj_id):
         output_path_str = data.get('output_path', '')
         file_path = _resolve_and_validate_output_path(output_path_str)
         if file_path is None:
-            rated_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+            rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
             rated_dir.mkdir(parents=True, exist_ok=True)
             edit_suffix = get_edit_suffix()
             file_path = rated_dir / f"{subj_id}_rate-recall{edit_suffix}.xlsx"
@@ -4085,7 +4099,7 @@ def save_rated_events(subj_id):
             print(f"Reading from existing user-edit file: {file_path.name}")
         else:
             # Try to read from original rated file first (to preserve existing ratings)
-            orig_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+            orig_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
             original_rated = orig_dir / f"{subj_id}_rate-recall.xlsx"
             if not original_rated.exists():
                 candidates = list_subject_rated_recall_source_files(orig_dir, subj_id)
@@ -4097,7 +4111,7 @@ def save_rated_events(subj_id):
             else:
                 # Fallback: create from parsed file (prioritize user-edit, then canonical,
                 # then any method-suffixed parsed output)
-                parsed_dir = get_output_dir_for_step_type('recall-parse') or RECALL_PARSED_DIR
+                parsed_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
                 parsed_edit = find_best_edit_file(parsed_dir, subj_id, '_parsed', '.xlsx')
                 parsed_original = parsed_dir / f"{subj_id}_parsed.xlsx"
                 if parsed_edit:
@@ -4308,7 +4322,7 @@ def save_parsed_segments(subj_id):
         output_path_str = data.get('output_path', '')
         file_path = _resolve_and_validate_output_path(output_path_str)
         if file_path is None:
-            parsed_dir = get_output_dir_for_step_type('recall-parse') or RECALL_PARSED_DIR
+            parsed_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
             parsed_dir.mkdir(parents=True, exist_ok=True)
             edit_suffix = get_edit_suffix()
             file_path = parsed_dir / f"{subj_id}_parsed{edit_suffix}.xlsx"
@@ -4413,7 +4427,7 @@ def save_parsed_segments(subj_id):
             get_anthropic_client_func = rate_module.get_anthropic_client
             
             # Read story events (check for method-suffixed files too)
-            events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+            events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
             event_filename_base = f"{subj_id}_events"
             story_file = events_dir / f"{event_filename_base}.xlsx"
             if not story_file.exists():
@@ -4480,7 +4494,7 @@ def save_parsed_segments(subj_id):
                 new_df = new_df[['recalled_events', 'recall_in_temporal_order']]
                 
                 # Save to rated file - update original filename when cascading
-                rated_dir = get_output_dir_for_step_type('recall-match-events') or RECALL_RATED_DIR
+                rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
                 rated_dir.mkdir(parents=True, exist_ok=True)
                 rated_file = rated_dir / f"{subj_id}_rate-recall.xlsx"
                 new_df.to_excel(rated_file, index=False, engine='openpyxl', na_rep='')
@@ -4527,7 +4541,7 @@ def save_story_events(subj_id):
         output_path_str = data.get('output_path', '')
         file_path = _resolve_and_validate_output_path(output_path_str)
         if file_path is None:
-            events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+            events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
             events_dir.mkdir(parents=True, exist_ok=True)
             edit_suffix = get_edit_suffix()
             source_file = data.get('source_file', '')
@@ -4550,7 +4564,7 @@ def save_story_events(subj_id):
         new_df = pd.DataFrame(events_data)
         
         # Try to preserve other columns from original file if it exists
-        events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+        events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
         original_file = events_dir / f"{subj_id}_events.xlsx"
         if not original_file.exists():
             candidates = sorted(events_dir.glob(f"{subj_id}_events-*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -4611,7 +4625,7 @@ def save_causal_matrix(story_name):
                 print(f"save_causal_matrix: using user output_path={output_path_str!r} -> {file_path}")
             # If path is filename-only (no slashes), resolve relative to causal output dir
             if file_path is None and '/' not in output_path_str and '\\' not in output_path_str:
-                causal_dir = get_output_dir_for_step_type('causal-rate-events') or CAUSAL_RATED_DIR
+                causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
                 try:
                     rel = str(causal_dir.relative_to(PROJECT_ROOT))
                 except ValueError:
@@ -4619,7 +4633,7 @@ def save_causal_matrix(story_name):
                 file_path = _resolve_and_validate_output_path(f"{rel}/{output_path_str}".replace('//', '/'))
             # Fallback: use user's filename in default causal dir (preserves custom names like ...edit999.xlsx)
             if file_path is None and output_path_str:
-                causal_dir = get_output_dir_for_step_type('causal-rate-events') or CAUSAL_RATED_DIR
+                causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
                 filename = Path(output_path_str).name
                 if filename and (filename.endswith('.xlsx') or filename.endswith('.csv')):
                     candidate = causal_dir / filename
@@ -4634,7 +4648,7 @@ def save_causal_matrix(story_name):
         else:
             print(f"save_causal_matrix: no output_path in request, using default")
         if file_path is None:
-            causal_dir = get_output_dir_for_step_type('causal-rate-events') or CAUSAL_RATED_DIR
+            causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
             causal_dir.mkdir(parents=True, exist_ok=True)
             edit_suffix = get_edit_suffix()
             source_file = data.get('source_file', '')
@@ -4828,7 +4842,7 @@ def save_audio_transcription(subj_id):
         output_path_str = data.get('output_path', '')
         file_path = _resolve_and_validate_output_path(output_path_str)
         if file_path is None:
-            transcribed_dir = get_output_dir_for_step_type('recall-audio-transcribe') or RECALL_AUDIO_TRANSCRIBED_DIR
+            transcribed_dir = get_output_dir_for_step_type('audioTranscribe:recall') or RECALL_AUDIO_TRANSCRIBED_DIR
             transcribed_dir.mkdir(parents=True, exist_ok=True)
             audio_file = get_audio_file(subj_id)
             if not audio_file:
@@ -4864,8 +4878,9 @@ def save_pipeline():
         if not steps:
             return jsonify({'success': False, 'error': 'No steps provided'}), 400
         
+        normalized_steps = [normalize_pipeline_step(s) for s in steps]
         pipeline_config = {
-            'steps': steps,
+            'steps': normalized_steps,
             'created_at': datetime.now().isoformat(),
         }
         
@@ -4887,7 +4902,7 @@ def get_event_segment_options():
     """Return available models and prompt versions for story event segmentation."""
     try:
         import importlib.util
-        seg_file = SCRIPTS_DIR / '2_story-event-segment.py'
+        seg_file = SCRIPTS_DIR / '2_eventSegment.py'
         spec = importlib.util.spec_from_file_location("event_seg", seg_file)
         seg_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(seg_module)
@@ -5049,13 +5064,13 @@ def process_files():
         
         # Process files using the appropriate script
         script_map = {
-            'story-audio-transcribe': '1_audio-transcribe.py',
-            'recall-audio-transcribe': '1_audio-transcribe.py',
-            'story-event-segment': '2_story-event-segment.py',
-            'spell-grammar-correct': '3_spell-grammar-correct.py',
-            'recall-parse': '4_parse-texts.py',
-            'recall-match-events': '5_recall-rater.py',
-            'causal-rate-events': '6_causal-rater.py'
+            'audioTranscribe:story': '1_audio-transcribe.py',
+            'audioTranscribe:recall': '1_audio-transcribe.py',
+            'eventSegment': '2_eventSegment.py',
+            'sentenceCorrect': '3_sentenceCorrect.py',
+            'textParsing': '4_parse-texts.py',
+            'textMatching': '5_recall-rater.py',
+            'causalRating': '6_causal-rater.py'
         }
         
         script_name = script_map.get(step_type)
@@ -5078,7 +5093,7 @@ def process_files():
         # For single file processing, call scripts with appropriate arguments
         cmd = [sys.executable, str(script_path)]
         
-        if step_type == 'story-event-segment':
+        if step_type == 'eventSegment':
             # For story event segmentation, process each uploaded file individually
             # Each file should be a transcript file
             processed_count = 0
@@ -5126,7 +5141,7 @@ def process_files():
                     'error': f'Failed to process files: {"; ".join(errors)}'
                 }), 500
                 
-        elif step_type in ['story-audio-transcribe', 'recall-audio-transcribe']:
+        elif step_type in ['audioTranscribe:story', 'audioTranscribe:recall']:
             # For audio transcription, set environment variables for batch processing
             # The script will process all files in the input directory
             env['BATCH_INPUT_DIR'] = str(input_dir)
@@ -5254,7 +5269,7 @@ def get_input_files(item_id, step_index):
             return jsonify({'success': False, 'error': 'Invalid step index'}), 400
         
         step = pipeline_config['steps'][step_index]
-        step_type = step.get('type', '')
+        step_type = step_runtime_key(step)
         input_path = step.get('inputPath', '')
         
         print(f"DEBUG: step_type={step_type}, input_path={input_path}")
@@ -5283,10 +5298,10 @@ def get_input_files(item_id, step_index):
             # If it's a file, check if it contains data for this item
             print(f"DEBUG: Input path is a file: {input_path_obj}")
             
-            # For spell-grammar-correct with Excel input, the file contains multiple subjects
+            # For sentenceCorrect with Excel input, the file contains multiple subjects
             # So if the file exists, it's available for all items
-            if step_type == 'spell-grammar-correct' and input_path_obj.suffix.lower() in ['.xlsx', '.xls']:
-                print(f"DEBUG: Excel file input for spell-grammar-correct, returning file for all items")
+            if step_type == 'sentenceCorrect' and input_path_obj.suffix.lower() in ['.xlsx', '.xls']:
+                print(f"DEBUG: Excel file input for sentenceCorrect, returning file for all items")
                 return jsonify({
                     'success': True,
                     'files': [{
@@ -5350,9 +5365,9 @@ def get_input_files(item_id, step_index):
                     print(f"Warning: Could not read Excel file {input_path_obj}: {e}")
                     import traceback
                     traceback.print_exc()
-                    # For spell-grammar-correct, if we can't read the Excel, still return it
+                    # For sentenceCorrect, if we can't read the Excel, still return it
                     # since it likely contains the data
-                    if step_type == 'spell-grammar-correct':
+                    if step_type == 'sentenceCorrect':
                         return jsonify({
                             'success': True,
                             'files': [{
@@ -5366,8 +5381,8 @@ def get_input_files(item_id, step_index):
             else:
                 # For other file types, check if filename matches item_id or return it anyway
                 file_stem = input_path_obj.stem
-                if item_id in file_stem or file_stem in item_id or step_type == 'spell-grammar-correct':
-                    # For spell-grammar-correct, return the file even if item_id doesn't match
+                if item_id in file_stem or file_stem in item_id or step_type == 'sentenceCorrect':
+                    # For sentenceCorrect, return the file even if item_id doesn't match
                     # (the file might contain multiple subjects)
                     return jsonify({
                         'success': True,
@@ -5387,7 +5402,7 @@ def get_input_files(item_id, step_index):
         files = []
         found_files = set()
         
-        if step_type == 'spell-grammar-correct' and input_dir.is_dir():
+        if step_type == 'sentenceCorrect' and input_dir.is_dir():
             exact_txt = input_dir / f"{item_id}.txt"
             if exact_txt.is_file():
                 return jsonify({
@@ -5401,7 +5416,7 @@ def get_input_files(item_id, step_index):
         
         # First, do a quick direct check for the most common case (exact filename match)
         # This is faster and more reliable than pattern matching
-        if step_type == 'recall-parse':
+        if step_type == 'textParsing':
             # Check for exact match first
             exact_file = input_dir / f"{item_id}.txt"
             if exact_file.exists() and exact_file.is_file():
@@ -5425,25 +5440,25 @@ def get_input_files(item_id, step_index):
                 # Actually, let's continue to check patterns in case there are variations, but we've already found the main one
         
         # For some steps, we need to check multiple locations or use more flexible patterns
-        if step_type == 'story-audio-transcribe':
+        if step_type == 'audioTranscribe:story':
             patterns = []
             for ext in SUPPORTED_AUDIO_EXTENSIONS:
                 patterns.extend([f"{item_id}{ext}", f"{item_id}*{ext}", f"*{item_id}*{ext}"])
-        elif step_type == 'recall-audio-transcribe':
+        elif step_type == 'audioTranscribe:recall':
             patterns = []
             for ext in SUPPORTED_AUDIO_EXTENSIONS:
                 patterns.extend([
                     f"{item_id}_recall*{ext}", f"{item_id}_*{ext}",
                     f"*{item_id}*recall*{ext}", f"*{item_id}*{ext}"
                 ])
-        elif step_type == 'story-event-segment':
+        elif step_type == 'eventSegment':
             patterns = [
                 f"{item_id}.txt", f"{item_id}*.txt",
                 f"*{item_id}*.txt",
                 f"{item_id}.xlsx", f"{item_id}*.xlsx"
             ]
-        elif step_type == 'spell-grammar-correct':
-            # For spell-grammar-correct, input might be from Excel files or raw text
+        elif step_type == 'sentenceCorrect':
+            # For sentenceCorrect, input might be from Excel files or raw text
             # Check the configured input path first
             patterns = [
                 f"{item_id}.txt", f"{item_id}*.txt",
@@ -5451,8 +5466,8 @@ def get_input_files(item_id, step_index):
             ]
             # Also check Excel files that might contain raw recall text
             patterns.extend([f"*{item_id}*.xlsx"])
-        elif step_type == 'recall-parse':
-            # For recall-parse, input is corrected text files (from previous step output)
+        elif step_type == 'textParsing':
+            # For textParsing, input is corrected text files (from previous step output)
             # Try multiple patterns to catch various naming conventions
             patterns = [
                 f"{item_id}.txt",  # Exact match first (most common case)
@@ -5461,8 +5476,8 @@ def get_input_files(item_id, step_index):
             ]
             # Exclude audio transcription files (but be more specific)
             exclude_patterns = ['_recall_audio', '_recall_transcribed', '_audio_transcribed']
-        elif step_type == 'recall-match-events':
-            # For recall-match-events, input is parsed files
+        elif step_type == 'textMatching':
+            # For textMatching, input is parsed files
             # Try multiple patterns to catch various naming conventions
             patterns = [
                 f"{item_id}_parsed.xlsx",
@@ -5475,7 +5490,7 @@ def get_input_files(item_id, step_index):
                 f"{item_id}_parsed*.xlsx",
                 f"*{item_id}*parsed*.xlsx"
             ]
-        elif step_type == 'causal-rate-events':
+        elif step_type == 'causalRating':
             patterns = [
                 f"{item_id}_events.xlsx",
                 f"{item_id}_events-*.xlsx",
@@ -5484,9 +5499,9 @@ def get_input_files(item_id, step_index):
         else:
             patterns = [f"{item_id}*", f"*{item_id}*"]
         
-        # Search for files matching patterns (recall-match-events may read recall-parse output from _prev/)
+        # Search for files matching patterns (textMatching may read textParsing output from _prev/)
         input_glob_roots = [input_dir]
-        if step_type == 'recall-match-events':
+        if step_type == 'textMatching':
             _prev_in = input_dir / '_prev'
             if _prev_in.is_dir():
                 input_glob_roots.append(_prev_in)
@@ -5512,12 +5527,12 @@ def get_input_files(item_id, step_index):
                     for file_path in matching_files:
                         if file_path.is_file() and file_path.name not in found_files:
                             # Skip human-edit files for input listing unless this step accepts them as primary input
-                            # (recall-parse "complete" includes *_parsed_*-edit.xlsx; recall-match-events must list the same)
-                            if is_user_edit_file(file_path.name) and step_type != 'recall-match-events':
+                            # (textParsing "complete" includes *_parsed_*-edit.xlsx; textMatching must list the same)
+                            if is_user_edit_file(file_path.name) and step_type != 'textMatching':
                                 continue
 
-                            # For recall-parse, exclude audio transcription files
-                            if step_type == 'recall-parse':
+                            # For textParsing, exclude audio transcription files
+                            if step_type == 'textParsing':
                                 file_lower = file_path.name.lower()
                                 if any(exclude in file_lower for exclude in ['_recall_audio', '_recall_transcribed', '_audio_transcribed', '_transcribed_audio']):
                                     print(f"DEBUG: Excluding audio transcription file: {file_path.name}")
@@ -5546,8 +5561,8 @@ def get_input_files(item_id, step_index):
         
         # Sort by filename
         # If no files found in configured input path, try common fallback locations
-        if not files and step_type == 'spell-grammar-correct':
-            # For spell-grammar-correct, first check default recall texts directory
+        if not files and step_type == 'sentenceCorrect':
+            # For sentenceCorrect, first check default recall texts directory
             recall_texts_dir = PROJECT_ROOT / 'data' / '5_recall_texts'
             if recall_texts_dir.exists() and recall_texts_dir.is_dir():
                 fallback_file = recall_texts_dir / f"{item_id}.txt"
@@ -5595,11 +5610,11 @@ def get_input_files(item_id, step_index):
                         print(f"Warning: Could not read Excel file {excel_file}: {e}")
                         continue
         
-        # For recall-match-events, also check for story events files (required input)
+        # For textMatching, also check for story events files (required input)
         # This should happen regardless of whether parsed files were found
-        if step_type == 'recall-match-events':
-            # Story events are required input (from story-event-segment output)
-            events_dir = get_output_dir_for_step_type('story-event-segment') or STORY_EVENTS_DIR
+        if step_type == 'textMatching':
+            # Story events are required input (from eventSegment output)
+            events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
             event_filename_base = f"{item_id}_events"
             
             if events_dir.exists() and events_dir.is_dir():
@@ -5669,7 +5684,7 @@ def get_input_files(item_id, step_index):
         
         # If no files found with patterns, try a more lenient search
         lenient_roots = [input_dir]
-        if step_type == 'recall-match-events':
+        if step_type == 'textMatching':
             _prev_lenient = input_dir / '_prev'
             if _prev_lenient.is_dir():
                 lenient_roots.append(_prev_lenient)
@@ -5717,16 +5732,16 @@ def get_input_files(item_id, step_index):
 
                         if matched:
                             # Skip human-edit files unless that step treats edits as valid primary input
-                            if is_user_edit_file(file_path.name) and step_type not in ('recall-parse', 'recall-match-events'):
+                            if is_user_edit_file(file_path.name) and step_type not in ('textParsing', 'textMatching'):
                                 continue
-                            if step_type == 'recall-parse':
+                            if step_type == 'textParsing':
                                 file_lower = file_path.name.lower()
                                 if any(exclude in file_lower for exclude in ['_recall_audio', '_recall_transcribed', '_audio_transcribed', '_transcribed_audio']):
                                     print(f"DEBUG: Excluding audio transcription file in lenient search: {file_path.name}")
                                     continue
                                 if file_path.suffix.lower() != '.txt':
                                     continue
-                            if step_type == 'recall-match-events':
+                            if step_type == 'textMatching':
                                 if '_parsed' not in file_path.name.lower() or file_path.suffix.lower() != '.xlsx':
                                     continue
 
@@ -5804,7 +5819,7 @@ def get_step_input_variants(step_index):
             return jsonify({'success': False, 'error': 'Invalid step index'}), 400
 
         step = pipeline_config['steps'][step_index]
-        step_type = step.get('type', '')
+        step_type = step_runtime_key(step)
         input_path = step.get('inputPath', '')
 
         raw_ids = request.args.get('item_ids', '').strip()
@@ -5837,7 +5852,7 @@ def get_output_files(item_id, step_index):
             return jsonify({'success': False, 'error': 'Invalid step index'}), 400
         
         step = pipeline_config['steps'][step_index]
-        step_type = step.get('type', '')
+        step_type = step_runtime_key(step)
         output_path = step.get('outputPath', '')
         
         if not output_path:
@@ -5857,19 +5872,19 @@ def get_output_files(item_id, step_index):
         
         # Get file patterns based on step type
         patterns = []
-        if step_type == 'story-audio-transcribe':
+        if step_type == 'audioTranscribe:story':
             patterns = [f'*{item_id}*_story_audio*.txt', f'*{item_id}*_story_audio*.json']
-        elif step_type == 'recall-audio-transcribe':
+        elif step_type == 'audioTranscribe:recall':
             patterns = [f'*{item_id}*_recall_audio*.txt', f'*{item_id}*_recall_audio*.json']
-        elif step_type == 'story-event-segment':
+        elif step_type == 'eventSegment':
             patterns = [f'{item_id}_events*.xlsx', f'{item_id}_events-*.xlsx']
-        elif step_type == 'spell-grammar-correct':
+        elif step_type == 'sentenceCorrect':
             patterns = [f'*{item_id}*.txt']
-        elif step_type == 'recall-parse':
+        elif step_type == 'textParsing':
             patterns = [f'*{item_id}*_parsed.xlsx']
-        elif step_type == 'recall-match-events':
+        elif step_type == 'textMatching':
             patterns = [f'*{item_id}*_rate-recall.xlsx', f'*{item_id}*_rate-recall-*.xlsx']
-        elif step_type == 'causal-rate-events':
+        elif step_type == 'causalRating':
             patterns = [f'{item_id}_causal-*.xlsx', f'{item_id}_causal.xlsx']
         else:
             # Default: look for any file containing item_id
@@ -5918,7 +5933,7 @@ def get_completed_methods(item_id, step_index):
             return jsonify({'success': False, 'error': 'Invalid step index'}), 400
 
         step = pipeline_config['steps'][step_index]
-        step_type = step.get('type', '')
+        step_type = step_runtime_key(step)
         output_path = step.get('outputPath', '')
         if not output_path:
             return jsonify({'success': True, 'methods': {}})
@@ -5936,7 +5951,7 @@ def get_completed_methods(item_id, step_index):
 
         methods = {}
 
-        if step_type == 'story-event-segment':
+        if step_type == 'eventSegment':
             for f in output_dir.glob(f'{item_id}_events-*.xlsx'):
                 if is_user_edit_file(f.name):
                     continue
@@ -5960,7 +5975,7 @@ def get_completed_methods(item_id, step_index):
             # the method modal vs coarse/clause, which always run from the transcript in-script).
             if has_any_edit_file(output_dir, item_id, '_events', '.xlsx'):
                 methods.setdefault('manual', {'completed': True, 'is_api': False, 'trials': 1, 'files': []})
-        elif step_type == 'causal-rate-events':
+        elif step_type == 'causalRating':
             for f in output_dir.glob(f'{item_id}_causal-*.xlsx'):
                 if is_user_edit_file(f.name):
                     continue
@@ -5979,7 +5994,7 @@ def get_completed_methods(item_id, step_index):
                     methods[display_method] = {'completed': True, 'is_api': is_api, 'trials': 0, 'files': []}
                 methods[display_method]['trials'] = max(methods[display_method]['trials'], trial_num)
                 methods[display_method]['files'].append(f.name)
-        elif step_type == 'spell-grammar-correct':
+        elif step_type == 'sentenceCorrect':
             for f in output_dir.glob(f'{item_id}*.txt'):
                 if is_user_edit_file(f.name):
                     continue
@@ -5992,7 +6007,7 @@ def get_completed_methods(item_id, step_index):
                 elif '_spell-ollama_' in f.name:
                     methods.setdefault('gemma-ollama', {'completed': True, 'is_api': False, 'trials': 1, 'files': []})
                     methods['gemma-ollama']['files'].append(f.name)
-        elif step_type == 'recall-parse':
+        elif step_type == 'textParsing':
             for f in output_dir.glob(f'{item_id}_parsed*.xlsx'):
                 if is_user_edit_file(f.name):
                     continue
@@ -6005,9 +6020,9 @@ def get_completed_methods(item_id, step_index):
         else:
             all_output_files = []
             patterns_for_type = {
-                'story-audio-transcribe': [f'{item_id}*.txt'],
-                'recall-audio-transcribe': [f'{item_id}*.txt'],
-                'recall-match-events': [f'{item_id}_rate-recall*.xlsx'],
+                'audioTranscribe:story': [f'{item_id}*.txt'],
+                'audioTranscribe:recall': [f'{item_id}*.txt'],
+                'textMatching': [f'{item_id}_rate-recall*.xlsx'],
             }
             for pattern in patterns_for_type.get(step_type, [f'*{item_id}*']):
                 all_output_files.extend(output_dir.glob(pattern))
@@ -6048,7 +6063,7 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             return jsonify({'success': False, 'error': 'No output path configured'}), 400
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        if step_type == 'spell-grammar-correct':
+        if step_type == 'sentenceCorrect':
             # Copy raw recall text as-is to the output directory
             if not input_dir or not input_dir.exists():
                 return jsonify({'success': False, 'error': 'Input directory not found'}), 404
@@ -6068,12 +6083,12 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
                 f.write(raw_text)
             return jsonify({'success': True, 'message': f'Input text copied to output for manual editing ({len(raw_text)} chars)'})
         
-        elif step_type == 'recall-parse':
+        elif step_type == 'textParsing':
             # Read corrected text and create single-segment parsed file
-            corrected_dir = get_output_dir_for_step_type('spell-grammar-correct') or RECALL_CORRECTED_DIR
+            corrected_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
             corrected_text = get_corrected_text(item_id)
             if not corrected_text:
-                return jsonify({'success': False, 'error': f'Corrected text not found for {item_id}. Run spell-grammar-correct first or use manual mode for that step.'}), 404
+                return jsonify({'success': False, 'error': f'Corrected text not found for {item_id}. Run sentenceCorrect first or use manual mode for that step.'}), 404
             df = pd.DataFrame({
                 'recalled_events': [''] * 1,
                 'recall_in_temporal_order': [corrected_text]
@@ -6082,11 +6097,11 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             df.to_excel(out_file, index=False, engine='openpyxl', na_rep='')
             return jsonify({'success': True, 'message': f'Corrected text placed as single segment for manual parsing'})
         
-        elif step_type == 'recall-match-events':
+        elif step_type == 'textMatching':
             # Read parsed segments and create rated file with empty event matches
             parsed_texts = get_parsed_texts(item_id)
             if not parsed_texts:
-                return jsonify({'success': False, 'error': f'Parsed texts not found for {item_id}. Run recall-parse first.'}), 404
+                return jsonify({'success': False, 'error': f'Parsed texts not found for {item_id}. Run textParsing first.'}), 404
             segments = [seg.get('text', '') for seg in parsed_texts]
             df = pd.DataFrame({
                 'recalled_events': [''] * len(segments),
@@ -6096,7 +6111,7 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             df.to_excel(out_file, index=False, engine='openpyxl', na_rep='')
             return jsonify({'success': True, 'message': f'Parsed segments copied with empty event matches for manual rating ({len(segments)} segments)'})
         
-        elif step_type == 'story-event-segment':
+        elif step_type == 'eventSegment':
             # Read story transcript and create single-event events file
             transcript = get_story_transcript(item_id, is_story=True)
             if not transcript:
@@ -6120,14 +6135,14 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             df.to_excel(out_file, index=False, engine='openpyxl')
             return jsonify({'success': True, 'message': f'Story transcript placed as single event for manual segmentation'})
         
-        elif step_type == 'causal-rate-events':
+        elif step_type == 'causalRating':
             # Create an empty causal rating scaffold file
             df = pd.DataFrame(columns=['event_A_number', 'event_B_number', 'rating', 'reasoning'])
             out_file = output_dir / f"{item_id}_causal-manual.xlsx"
             df.to_excel(out_file, index=False, engine='openpyxl', na_rep='')
             return jsonify({'success': True, 'message': f'Empty causal rating file created for manual entry'})
         
-        elif step_type in ('story-audio-transcribe', 'recall-audio-transcribe'):
+        elif step_type in ('audioTranscribe:story', 'audioTranscribe:recall'):
             # Create an empty transcript file for the user to fill in manually
             out_file = output_dir / f"{item_id}.txt"
             with open(out_file, 'w', encoding='utf-8') as f:
@@ -6174,11 +6189,11 @@ def execute_step(item_id, step_index):
         
         # Get step configuration - same as batch_process
         step = pipeline_config['steps'][step_index]
-        step_type = step.get('type', '')
+        step_type = step_runtime_key(step)
         input_path = step.get('inputPath', '')
         output_path = step.get('outputPath', '')
 
-        if method and step_type == 'spell-grammar-correct' and method in ('gemma-hf', 'gemma'):
+        if method and step_type == 'sentenceCorrect' and method in ('gemma-hf', 'gemma'):
             method = 'gemma-ollama'
         
         print(f"Starting single-item processing for {step_type} (item: {item_id})")
@@ -6197,13 +6212,13 @@ def execute_step(item_id, step_index):
         
         # Map step types to scripts - same as batch_process
         script_map = {
-            'story-audio-transcribe': '1_audio-transcribe.py',
-            'recall-audio-transcribe': '1_audio-transcribe.py',
-            'story-event-segment': '2_story-event-segment.py',
-            'spell-grammar-correct': '3_spell-grammar-correct.py',
-            'recall-parse': '4_parse-texts.py',
-            'recall-match-events': '5_recall-rater.py',
-            'causal-rate-events': '6_causal-rater.py'
+            'audioTranscribe:story': '1_audio-transcribe.py',
+            'audioTranscribe:recall': '1_audio-transcribe.py',
+            'eventSegment': '2_eventSegment.py',
+            'sentenceCorrect': '3_sentenceCorrect.py',
+            'textParsing': '4_parse-texts.py',
+            'textMatching': '5_recall-rater.py',
+            'causalRating': '6_causal-rater.py'
         }
         
         script_name = script_map.get(step_type)
@@ -6221,7 +6236,7 @@ def execute_step(item_id, step_index):
         env = os.environ.copy()
         
         # Add method argument if provided (for scripts that support it)
-        if method and step_type == 'story-event-segment':
+        if method and step_type == 'eventSegment':
             cmd.extend(['--method', method])
             # For API method, pass model and prompt version via env vars
             if method == 'api':
@@ -6248,7 +6263,7 @@ def execute_step(item_id, step_index):
                     else:
                         env['ANTHROPIC_API_KEY'] = api_key
                     print(f"DEBUG: API key set for {provider}")
-        elif method and step_type == 'recall-match-events':
+        elif method and step_type == 'textMatching':
             if method == 'test-mode':
                 env['TEST_MODE'] = '1'
             elif method == 'api':
@@ -6278,12 +6293,12 @@ def execute_step(item_id, step_index):
                     v = opts.get(src_key)
                     if v not in (None, ''):
                         env[env_key] = str(v)
-        elif method and step_type == 'spell-grammar-correct':
+        elif method and step_type == 'sentenceCorrect':
             env['SPELL_GRAM_METHOD'] = method
-        elif method and step_type == 'recall-parse':
+        elif method and step_type == 'textParsing':
             if method == 'gemma-ollama':
                 env['RECALL_PARSE_METHOD'] = 'ollama'
-        elif step_type == 'causal-rate-events':
+        elif step_type == 'causalRating':
             if method:
                 cmd.extend(['--method', method])
             if method == 'api':
@@ -6303,9 +6318,9 @@ def execute_step(item_id, step_index):
                     else:
                         env['ANTHROPIC_API_KEY'] = api_key
         
-        # Set API key if provided (generic fallback for non-story-event-segment steps)
-        if api_key and step_type != 'story-event-segment':
-            if step_type == 'recall-match-events' and method in ('gemma-ollama', 'rmatch'):
+        # Set API key if provided (generic fallback for non-eventSegment steps)
+        if api_key and step_type != 'eventSegment':
+            if step_type == 'textMatching' and method in ('gemma-ollama', 'rmatch'):
                 pass
             else:
                 env['ANTHROPIC_API_KEY'] = api_key
@@ -6323,7 +6338,7 @@ def execute_step(item_id, step_index):
         # Forward input-variant selections from the launcher dropdown(s).
         # ``input_variant`` is the empty-or-suffix string for the primary input stream.
         # ``story_events_variant`` is the (optional) suffix for the story-events stream
-        # consumed by recall-match-events and causal-rate-events.
+        # consumed by textMatching and causalRating.
         input_variant = request_data.get('input_variant')
         if input_variant is not None:
             env['BATCH_INPUT_VARIANT'] = str(input_variant)
@@ -6588,18 +6603,18 @@ def batch_process(step_type):
         input_path = step_config.get('inputPath', '')
         output_path = step_config.get('outputPath', '')
 
-        if method and step_type == 'spell-grammar-correct' and method in ('gemma-hf', 'gemma'):
+        if method and step_type == 'sentenceCorrect' and method in ('gemma-hf', 'gemma'):
             method = 'gemma-ollama'
         
         # Map step types to scripts
         script_map = {
-            'story-audio-transcribe': '1_audio-transcribe.py',
-            'recall-audio-transcribe': '1_audio-transcribe.py',
-            'story-event-segment': '2_story-event-segment.py',
-            'spell-grammar-correct': '3_spell-grammar-correct.py',
-            'recall-parse': '4_parse-texts.py',
-            'recall-match-events': '5_recall-rater.py',
-            'causal-rate-events': '6_causal-rater.py'
+            'audioTranscribe:story': '1_audio-transcribe.py',
+            'audioTranscribe:recall': '1_audio-transcribe.py',
+            'eventSegment': '2_eventSegment.py',
+            'sentenceCorrect': '3_sentenceCorrect.py',
+            'textParsing': '4_parse-texts.py',
+            'textMatching': '5_recall-rater.py',
+            'causalRating': '6_causal-rater.py'
         }
         
         script_name = script_map.get(step_type)
@@ -6631,7 +6646,7 @@ def batch_process(step_type):
         env['BATCH_STEP_TYPE'] = step_type
         
         # Add method argument if provided
-        if method and step_type == 'story-event-segment':
+        if method and step_type == 'eventSegment':
             cmd.extend(['--method', method])
             if method == 'api':
                 api_model = request_data.get('model')
@@ -6653,7 +6668,7 @@ def batch_process(step_type):
                         pass
                     else:
                         env['ANTHROPIC_API_KEY'] = api_key
-        elif method and step_type == 'recall-match-events':
+        elif method and step_type == 'textMatching':
             if method == 'test-mode':
                 env['TEST_MODE'] = '1'
             elif method == 'api':
@@ -6683,12 +6698,12 @@ def batch_process(step_type):
                     v = opts.get(src_key)
                     if v not in (None, ''):
                         env[env_key] = str(v)
-        elif method and step_type == 'spell-grammar-correct':
+        elif method and step_type == 'sentenceCorrect':
             env['SPELL_GRAM_METHOD'] = method
-        elif method and step_type == 'recall-parse':
+        elif method and step_type == 'textParsing':
             if method == 'gemma-ollama':
                 env['RECALL_PARSE_METHOD'] = 'ollama'
-        elif step_type == 'causal-rate-events':
+        elif step_type == 'causalRating':
             if method:
                 cmd.extend(['--method', method])
             if method == 'api':
@@ -6708,8 +6723,8 @@ def batch_process(step_type):
                     else:
                         env['ANTHROPIC_API_KEY'] = api_key
         
-        if api_key and step_type not in ('story-event-segment',):
-            if step_type == 'recall-match-events' and method == 'gemma-ollama':
+        if api_key and step_type not in ('eventSegment',):
+            if step_type == 'textMatching' and method == 'gemma-ollama':
                 pass
             else:
                 env['ANTHROPIC_API_KEY'] = api_key
@@ -6822,7 +6837,7 @@ def get_pipeline_config():
     
     try:
         with open(pipeline_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            return normalize_pipeline_config(json.load(f))
     except Exception as e:
         print(f"Error loading pipeline config: {e}")
         return None

@@ -51,13 +51,13 @@ _RAM_PROFILE = {
 
 # Lighter, dependency-free fallback per step type.
 _LIGHTER_METHOD = {
-    "spell-grammar-correct": ("rules", "Rule-based spell/grammar (no model, instant)"),
-    "recall-parse": ("rules", "Rule-based parsing (regex, no model)"),
-    "recall-match-events": ("test-mode", "Keyword matching (Test Mode, no model)"),
-    "story-event-segment": ("clause", "Clause heuristic segmentation (no model)"),
-    "causal-rate-events": ("linguistic", "Linguistic heuristics (no model)"),
-    "recall-audio-transcribe": (None, "a smaller Whisper model, or pre-transcribed text"),
-    "story-audio-transcribe": (None, "a smaller Whisper model, or pre-transcribed text"),
+    "sentenceCorrect": ("rules", "Rule-based spell/grammar (no model, instant)"),
+    "textParsing": ("rules", "Rule-based parsing (regex, no model)"),
+    "textMatching": ("test-mode", "Keyword matching (Test Mode, no model)"),
+    "eventSegment": ("clause", "Clause heuristic segmentation (no model)"),
+    "causalRating": ("linguistic", "Linguistic heuristics (no model)"),
+    "audioTranscribe:recall": (None, "a smaller Whisper model, or pre-transcribed text"),
+    "audioTranscribe:story": (None, "a smaller Whisper model, or pre-transcribed text"),
 }
 
 
@@ -121,21 +121,21 @@ def _available_ram_gb() -> float | None:
 def _classify(step_type: str, method: str | None, opts: dict) -> tuple[str | None, str | None]:
     """Return (ram_profile_key, model_tag) for the heavy backend, or (None, None)."""
     m = (method or "").strip().lower()
-    if step_type in ("story-audio-transcribe", "recall-audio-transcribe"):
+    if step_type in ("audioTranscribe:story", "audioTranscribe:recall"):
         return "whisper", None
-    if step_type == "recall-match-events":
+    if step_type == "textMatching":
         if m == "rmatch":
             return "rmatch", None
         if m in ("gemma-ollama", "gemma"):
             tag = str(opts.get("recall_rating_ollama_model") or opts.get("ollama_model") or "").strip() or "gemma4:e4b"
             return "ollama-gemma4-e4b", tag
-    if step_type in ("spell-grammar-correct", "recall-parse"):
+    if step_type in ("sentenceCorrect", "textParsing"):
         if m in ("gemma-ollama", "gemma", "ollama"):
             tag = str(opts.get("ollama_model") or "").strip() or "gemma4:e4b"
             return "ollama-gemma4-e4b", tag
         if m in ("gemma-hf",):
             return "gemma-hf", None
-    if step_type == "story-event-segment" and m == "api":
+    if step_type == "eventSegment" and m == "api":
         model = str(opts.get("model") or opts.get("event_segment_model") or "").strip().lower()
         if "ollama" in model or "gemma" in model or "llama" in model:
             return "ollama-gemma4-e4b", "gemma4:e4b"

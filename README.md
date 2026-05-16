@@ -1,8 +1,14 @@
-# narRaters
+<h1 align="center">narRaters</h1>
 
-**AI-assisted narrative processing with human-screening.**
+<p align="center">
+  AI-assisted narrative processing with human-screening.
+</p>
 
-**narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **transcription**, **segmentation**, **light text cleanup**, **parsing**, **event alignment** (mapping recall to story events), and **causal scoring**. You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more). The app **automates and visualizes** those runs; **human-screening** at every included step lets raters **review, edit, and sign off** on outputs. The same platform supports **human vs. LLM** comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
+**narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **`audioTranscribe`**, **`eventSegment`**, **`sentenceCorrect`**, **`textParsing`**, **`textMatching`**, and **`causalRating`**.
+
+You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more).
+
+The app **automates and visualizes** those runs; **human-screening** at every included step lets raters **review, edit, and sign off** on outputs. The same platform supports **human vs. LLM** comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
 
 ### Example use cases
 
@@ -46,22 +52,22 @@
 4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
 
-**First-session tip:** build a short chain (for example **Correct → Parse → Match** if you already have recall `.txt` files), run **one subject**, open its detail view, and tab through outputs before batching the whole dataset. The same steps are available from the **[command line](#command-line-pipeline)** for scripts and HPC.
+**First-session tip:** build a short chain (for example **`sentenceCorrect` → `textParsing` → `textMatching`** if you already have recall `.txt` files), run **one subject**, open its detail view, and tab through outputs before batching the whole dataset. The same steps are available from the **[command line](#command-line-pipeline)** for scripts and HPC.
 
 ---
 
 ## Pipeline overview
 
-**Six steps, your configuration.** narRaters does **not** require all six steps or a fixed order. On the configuration page you **select and chain** only what your study needs; when you run a step you choose its **method** (and model or prompt, if applicable). The table below describes each step’s role and default folders. In typical recall work, steps **1–2** target the **story**, **3–5** each **subject recall**, and **6** the **story event list**—but text-only projects may skip transcription, and you might run only **Segment** and **Rate**, or **Correct → Parse → Match**, and so on. Every included step is available from the **GUI** or **`narraters` CLI**, has a **lightweight default method**, and supports **hand-editing** afterward.
+**Six steps, your configuration.** narRaters does **not** require all six steps or a fixed order. On the configuration page you **select and chain** only what your study needs; when you run a step you choose its **method** (and model or prompt, if applicable). The table below lists each step’s **ID** (used in the web UI and `pipeline_config.json`), role, CLI command, and default folders. In typical recall work, **`audioTranscribe`** / **`eventSegment`** target the **story**, **`sentenceCorrect`**–**`textMatching`** each **subject recall**, and **`causalRating`** the **story event list**—but text-only projects may skip **`audioTranscribe`**, and you might run only **`eventSegment`** and **`causalRating`**, or **`sentenceCorrect` → `textParsing` → `textMatching`**, and so on. Every included step is available from the **GUI** or **`narraters` CLI**, has a **lightweight default method**, and supports **hand-editing** afterward.
 
-| # | Step | What it does | Terminal command | Default in / out |
-|---|------|--------------|------------------|------------------|
-| 1 | **Transcribe** | Audio recordings → text (Whisper/WhisperX) | `narraters transcribe` | `data/4_recall_audio/` (or `data/1_story_audio/` with `--kind story`) → `output/*_audio-transcribed/` |
-| 2 | **Segment** | Story transcript → numbered events | `narraters segment` | `data/2_story_transcript/` → `data/3_story_events/` |
-| 3 | **Correct** | Fix spelling/grammar in recall text (no rewriting) | `narraters correct` | `data/5_recall_texts/` → `output/recall_corrected/` |
-| 4 | **Parse** | Corrected recall → clause-level segments | `narraters parse` | `output/recall_corrected/` → `output/recall_parsed/` |
-| 5 | **Match** | Recall segments ↔ story events | `narraters match` | `output/recall_parsed/` + `data/3_story_events/` → `output/recall_rated/` |
-| 6 | **Rate** | Causal strength of every story-event pair | `narraters rate` | `data/3_story_events/` → `output/causal_rated/` |
+| # | Step ID | What it does | Terminal command | Default in / out |
+|---|---------|--------------|------------------|------------------|
+| 1 | **`audioTranscribe`** | Audio recordings → text (Whisper/WhisperX); story vs recall via `audioScope` or `--kind` | `narraters transcribe` | `data/4_recall_audio/` (or `data/1_story_audio/` with `--kind story`) → `output/*_audio-transcribed/` |
+| 2 | **`eventSegment`** | Story transcript → numbered events | `narraters segment` | `data/2_story_transcript/` → `data/3_story_events/` |
+| 3 | **`sentenceCorrect`** | Fix spelling/grammar in recall text (no rewriting) | `narraters correct` | `data/5_recall_texts/` → `output/recall_corrected/` |
+| 4 | **`textParsing`** | Corrected recall → clause-level segments | `narraters parse` | `output/recall_corrected/` → `output/recall_parsed/` |
+| 5 | **`textMatching`** | Recall segments ↔ story events | `narraters match` | `output/recall_parsed/` + `data/3_story_events/` → `output/recall_rated/` |
+| 6 | **`causalRating`** | Causal strength of every story-event pair | `narraters rate` | `data/3_story_events/` → `output/causal_rated/` |
 
 For each step, the GUI runs the same backends as the CLI. **Available methods, flags, and examples** are under **[Command-line pipeline](#command-line-pipeline)** below.
 
@@ -368,23 +374,23 @@ python helpers/test_bar_metrics_all_rated.py
 
 The steps below follow the **same numbering as the pipeline overview**. Citations motivate or validate **automated** approaches similar to optional narRaters methods; your study still needs design-appropriate evaluation.
 
-**Step 1 — Transcribe**  
+**`audioTranscribe` (step 1)**  
 No paper cited here; validation is Whisper/WhisperX accuracy on your audio and manual spot checks. See [Installation](#installation) (`[audio]` extra) and the helper scripts above.
 
-**Step 2 — Segment (story transcript to events)**  
+**`eventSegment` (step 2)**  
 Michelmann, Kumar, **Norman**, & Toneva, *Large language models can segment narrative events similarly to humans*: GPT-3 zero-shot boundaries correlate with human segmentations and approximate crowd consensus on continuous text—useful precedent for LLM-based story segmentation in narRaters. [arXiv:2301.10297](https://arxiv.org/abs/2301.10297), [Behavior Research Methods (2025)](https://doi.org/10.3758/s13428-024-02569-z), [companion code](https://github.com/s-michelmann/GPT_event_segmentation).
 
-**Step 3 — Correct**  
+**`sentenceCorrect` (step 3)**  
 No external benchmark listed; the package enforces minimal, non-paraphrasing edits. Exercise the recall-correction helpers if you change rules or prompts.
 
-**Step 4 — Parse**  
-No paper cited here; clause-level structure is checked against the same independent-clause logic as segmentation (see Step 2 above and the web UI tooltips).
+**`textParsing` (step 4)**  
+No paper cited here; clause-level structure is checked against the same independent-clause logic as **`eventSegment`** (see above and the web UI tooltips).
 
-**Step 5 — Match (recall segments to story events)**  
+**`textMatching` (step 5)**  
 - **Norman lab / Computational Memory (Princeton)** — Toneva et al., *Memory for long narratives* (presentation materials, 2021; includes **K. A. Norman**): long-form novel recall scored by aligning recalled events to chapter events with GPT-2 representations, toward scalable scoring without fully manual coding. [PDF (Princeton Computational Memory Lab)](https://compmem.princeton.edu/wp/wp-content/uploads/2022/05/memory-for-long-narratives.pdf).  
 - **rMatch** — Kressin Palacios & Arekar: embedding-based recall-to-event matching with human-data validation. [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch).
 
-**Step 6 — Rate (pairwise causal strength between story events)**  
+**`causalRating` (step 6)**  
 Li et al., *Agency personalizes episodic memories* (PsyArXiv, 2024): behavioral work with **choose-your-own-adventure** narratives and controlled choice, examining how agency shapes memory for branching, choice-contingent event sequences—aligned with rich **event-wise** materials for which pairwise **causal** ratings are meaningful. [DOI:10.31234/osf.io/7evwj](https://doi.org/10.31234/osf.io/7evwj).
 
 ---

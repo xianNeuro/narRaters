@@ -2299,26 +2299,34 @@
             if (href) window.location.href = href;
         });
         
+        function expandPipelineStep(step) {
+            const s = Object.assign({}, step);
+            if (s.type === 'audioTranscribe' && s.audioScope && String(s.type).indexOf(':') < 0) {
+                s.type = 'audioTranscribe:' + s.audioScope;
+            }
+            return s;
+        }
+
         // Step type to route mapping
         const stepRouteMap = {
-            'story-audio-transcribe': 'step0_story_audio',
-            'recall-audio-transcribe': 'step0_audio',
-            'story-event-segment': 'step0',
-            'spell-grammar-correct': 'step1',
-            'recall-parse': 'step2',
-            'recall-match-events': 'step3',
-            'causal-rate-events': 'step0_causal'
+            'audioTranscribe:story': 'step0_story_audio',
+            'audioTranscribe:recall': 'step0_audio',
+            'eventSegment': 'step0',
+            'sentenceCorrect': 'step1',
+            'textParsing': 'step2',
+            'textMatching': 'step3',
+            'causalRating': 'step0_causal'
         };
         
         // Step type to display name mapping
         const stepNameMap = {
-            'story-audio-transcribe': 'Story Audio Transcribe',
-            'recall-audio-transcribe': 'Recall Audio Transcribe',
-            'story-event-segment': 'Story Event Segment',
-            'spell-grammar-correct': 'Spell & Grammar Correction',
-            'recall-parse': 'Recall Parse to Segments',
-            'recall-match-events': 'Recall Match to Events',
-            'causal-rate-events': 'Causal Rate Events'
+            'audioTranscribe:story': 'audioTranscribe (story)',
+            'audioTranscribe:recall': 'audioTranscribe (recall)',
+            'eventSegment': 'eventSegment',
+            'sentenceCorrect': 'sentenceCorrect',
+            'textParsing': 'textParsing',
+            'textMatching': 'textMatching',
+            'causalRating': 'causalRating'
         };
         
         async function loadSubjectsWithStatus() {
@@ -2358,7 +2366,7 @@
                     window.location.href = '/pipeline-config';
                     return;
                 }
-                pipelineConfig = pipelineData.pipeline.steps;
+                pipelineConfig = pipelineData.pipeline.steps.map(expandPipelineStep);
                 const headerActions = document.getElementById('header-pipeline-actions');
                 if (headerActions) headerActions.style.display = 'flex';
                 const stepsCountEl = document.getElementById('pipeline-steps-count');
@@ -2409,7 +2417,7 @@
                     const rowLabel = panel.rowLabel || 'Item';
                     const isStoryFocused = panel.itemType === 'story';
                     const panelStepRoutes = (steps || []).map(function(s) {
-                        if (isStoryFocused) return s.type === 'story-event-segment' ? 'step0' : (s.type === 'story-audio-transcribe' ? 'step0_story_audio' : stepRouteMap[s.type] || 'step0');
+                        if (isStoryFocused) return s.type === 'eventSegment' ? 'step0' : (s.type === 'audioTranscribe:story' ? 'step0_story_audio' : stepRouteMap[s.type] || 'step0');
                         return stepRouteMap[s.type] || 'step0_audio';
                     });
                     const panelStepsAttr = JSON.stringify(panelStepRoutes).replace(/"/g, '&quot;');
@@ -2438,7 +2446,7 @@
                         let routeName, routePrefix;
                         if (isStoryFocused) {
                             routePrefix = 'story';
-                            routeName = step.type === 'story-event-segment' ? 'step0' : (step.type === 'story-audio-transcribe' ? 'step0_story_audio' : stepRouteMap[step.type] || `step${globalStepIndex}`);
+                            routeName = step.type === 'eventSegment' ? 'step0' : (step.type === 'audioTranscribe:story' ? 'step0_story_audio' : stepRouteMap[step.type] || `step${globalStepIndex}`);
                         } else {
                             routePrefix = 'subject';
                             routeName = stepRouteMap[step.type] || `step${globalStepIndex}`;
@@ -2574,7 +2582,7 @@
             }
             
             // Steps that can be batch processed
-            const batchableSteps = ['story-audio-transcribe', 'recall-audio-transcribe', 'story-event-segment', 'spell-grammar-correct', 'recall-parse', 'recall-match-events', 'causal-rate-events'];
+            const batchableSteps = ['audioTranscribe:story', 'audioTranscribe:recall', 'eventSegment', 'sentenceCorrect', 'textParsing', 'textMatching', 'causalRating'];
             
             let html = '';
             pipelineConfig.forEach((step, index) => {
@@ -2675,7 +2683,7 @@
                 }
             }
             
-            if (stepType === 'recall-match-events') {
+            if (stepType === 'textMatching') {
                 html += `
                     <div class="batch-rmatch-section" id="batch-rmatch-${stepIndex}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr);">
                         <div class="batch-options-label">rMatch (PyPI)</div>
@@ -2736,7 +2744,7 @@
                 }
             }
 
-            if (['spell-grammar-correct', 'recall-parse', 'recall-match-events'].includes(stepType)) {
+            if (['sentenceCorrect', 'textParsing', 'textMatching'].includes(stepType)) {
                 html += `
                     <div class="batch-ollama-section" id="batch-ollama-section-${stepIndex}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr);">
                         <label for="batch-ollama-model-${stepIndex}">Ollama model tag (optional)</label>
@@ -2758,7 +2766,7 @@
                 optionsPanel.classList.add('show');
                 
                 const stepType = checkbox.value;
-                if (stepType === 'story-event-segment' || stepType === 'causal-rate-events') {
+                if (stepType === 'eventSegment' || stepType === 'causalRating') {
                     loadStepModelOptions(stepType).then(opts => {
                         if (opts) populateBatchModelPromptDropdowns(stepIndex, opts);
                     });
@@ -2806,7 +2814,7 @@
                 }
                 const batchOllama = document.getElementById(`batch-ollama-section-${stepIndex}`);
                 if (batchOllama) {
-                    const show = methodId === 'gemma-ollama' && ['spell-grammar-correct', 'recall-parse', 'recall-match-events'].includes(stepType);
+                    const show = methodId === 'gemma-ollama' && ['sentenceCorrect', 'textParsing', 'textMatching'].includes(stepType);
                     batchOllama.style.display = show ? 'block' : 'none';
                 }
             }
@@ -3187,9 +3195,9 @@
 
                     const batchOllamaEl = document.getElementById(`batch-ollama-model-${stepIndex}`);
                     if (batchOllamaEl && batchOllamaEl.value.trim() && method === 'gemma-ollama') {
-                        if (stepType === 'spell-grammar-correct') options.spell_gram_ollama_model = batchOllamaEl.value.trim();
-                        else if (stepType === 'recall-parse') options.recall_parse_ollama_model = batchOllamaEl.value.trim();
-                        else if (stepType === 'recall-match-events') options.recall_rating_ollama_model = batchOllamaEl.value.trim();
+                        if (stepType === 'sentenceCorrect') options.spell_gram_ollama_model = batchOllamaEl.value.trim();
+                        else if (stepType === 'textParsing') options.recall_parse_ollama_model = batchOllamaEl.value.trim();
+                        else if (stepType === 'textMatching') options.recall_rating_ollama_model = batchOllamaEl.value.trim();
                     }
                     
                 }
@@ -3604,7 +3612,7 @@
         
         // Define which steps have multiple methods and/or optional flags
         const stepsWithMultipleMethods = {
-            'story-audio-transcribe': {
+            'audioTranscribe:story': {
                 methods: [
                     {
                         id: 'auto',
@@ -3624,7 +3632,7 @@
                     { id: 'timestamps', label: 'Output word timestamps', description: 'Additionally generates an Excel file with word-level timing (count, text, onset, offset).', defaultValue: false }
                 ]
             },
-            'recall-audio-transcribe': {
+            'audioTranscribe:recall': {
                 methods: [
                     {
                         id: 'auto',
@@ -3644,7 +3652,7 @@
                     { id: 'timestamps', label: 'Output word timestamps', description: 'Additionally generates an Excel file with word-level timing (count, text, onset, offset).', defaultValue: false }
                 ]
             },
-            'spell-grammar-correct': {
+            'sentenceCorrect': {
                 methods: [
                     {
                         id: 'auto',
@@ -3670,7 +3678,7 @@
                     { id: 'remove_fillers', label: 'Remove filler words', description: 'Clean up oral filler words (um, uh, ah, er, hmm, etc.) from the text.', defaultValue: true }
                 ]
             },
-            'recall-parse': {
+            'textParsing': {
                 methods: [
                     {
                         id: 'auto',
@@ -3693,7 +3701,7 @@
                     }
                 ]
             },
-            'story-event-segment': {
+            'eventSegment': {
                 methods: [
                     {
                         id: 'clause',
@@ -3729,7 +3737,7 @@
                     }
                 ]
             },
-            'recall-match-events': {
+            'textMatching': {
                 methods: [
                     {
                         id: 'test-mode',
@@ -3766,7 +3774,7 @@
                     }
                 ]
             },
-            'causal-rate-events': {
+            'causalRating': {
                 methods: [
                     {
                         id: 'linguistic',
@@ -3916,7 +3924,7 @@
                     // Story segmentation reads the transcript each time; finer methods run inside coarse/fine
                     // in Python. Allow re-running clause/fine/coarse/manual so users are not blocked after
                     // one completed run (badges still show prior output).
-                    const allowRerun = stepType === 'story-event-segment' || stepType === 'spell-grammar-correct' || stepType === 'recall-parse';
+                    const allowRerun = stepType === 'eventSegment' || stepType === 'sentenceCorrect' || stepType === 'textParsing';
                     const isDisabled = !allowRerun && isCompleted && !isApi;
                     const trialCount = cm ? (cm.trials || 0) : 0;
                     
@@ -3999,8 +4007,8 @@
         async function loadStepModelOptions(stepType) {
             if (cachedStepOptions[stepType]) return cachedStepOptions[stepType];
             const endpointMap = {
-                'story-event-segment': '/api/event-segment-options',
-                'causal-rate-events': '/api/causal-rating-options'
+                'eventSegment': '/api/event-segment-options',
+                'causalRating': '/api/causal-rating-options'
             };
             const url = endpointMap[stepType];
             if (!url) return null;
@@ -4018,7 +4026,7 @@
         }
         
         async function loadEventSegmentOptions() {
-            return loadStepModelOptions('story-event-segment');
+            return loadStepModelOptions('eventSegment');
         }
         
         function populateModelPromptDropdowns(opts) {
@@ -4169,7 +4177,7 @@
             const localOllamaInput = document.getElementById('local-ollama-model-input');
             const st = methodSelectionState.stepType;
             const showLocalOllama = selectedMethodObj && selectedMethodObj.id === 'gemma-ollama'
-                && ['spell-grammar-correct', 'recall-parse', 'recall-match-events'].includes(st);
+                && ['sentenceCorrect', 'textParsing', 'textMatching'].includes(st);
             if (localOllamaSection) {
                 localOllamaSection.style.display = showLocalOllama ? 'block' : 'none';
             }
@@ -4256,9 +4264,9 @@
             const lo = document.getElementById('local-ollama-model-input');
             if (lo && lo.value.trim() && methodSelectionState.selectedMethod === 'gemma-ollama') {
                 const st = methodSelectionState.stepType;
-                if (st === 'spell-grammar-correct') options.spell_gram_ollama_model = lo.value.trim();
-                else if (st === 'recall-parse') options.recall_parse_ollama_model = lo.value.trim();
-                else if (st === 'recall-match-events') options.recall_rating_ollama_model = lo.value.trim();
+                if (st === 'sentenceCorrect') options.spell_gram_ollama_model = lo.value.trim();
+                else if (st === 'textParsing') options.recall_parse_ollama_model = lo.value.trim();
+                else if (st === 'textMatching') options.recall_rating_ollama_model = lo.value.trim();
             }
             
             const savedState = { ...methodSelectionState };

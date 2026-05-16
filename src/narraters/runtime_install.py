@@ -251,9 +251,9 @@ def prepare_web_step(
         opts = step_options or {}
         m = (method or "").strip().lower() if method else None
 
-        if step_type in ("story-audio-transcribe", "recall-audio-transcribe"):
+        if step_type in ("audioTranscribe:story", "audioTranscribe:recall"):
             ensure_audio_stack()
-        elif step_type == "story-event-segment":
+        elif step_type == "eventSegment":
             seg_method = m or "fine"
             if seg_method in ("fine", "coarse"):
                 ensure_nlp_stack()
@@ -268,7 +268,7 @@ def prepare_web_step(
                     ensure_api_clients()
                 else:
                     ensure_api_clients()
-        elif step_type == "spell-grammar-correct":
+        elif step_type == "sentenceCorrect":
             if m == "gemma-ollama":
                 tag = (
                     str(opts.get("ollama_model") or opts.get("spell_gram_ollama_model") or "").strip()
@@ -278,7 +278,7 @@ def prepare_web_step(
                 ensure_ollama_model(tag)
             elif m == "rules" or not m:
                 _ensure_modules(("spellchecker",), ("pyspellchecker>=0.7.0",))
-        elif step_type == "recall-parse":
+        elif step_type == "textParsing":
             if m == "gemma-ollama":
                 env_method = "ollama"
             else:
@@ -290,7 +290,7 @@ def prepare_web_step(
                     or "gemma4:e4b"
                 )
                 ensure_ollama_model(tag)
-        elif step_type == "recall-match-events":
+        elif step_type == "textMatching":
             if m in (None, "", "test-mode", "test"):
                 return None
             if m == "gemma-ollama":
@@ -309,7 +309,7 @@ def prepare_web_step(
                 ensure_rmatch_stack()
             elif m == "api":
                 ensure_api_clients()
-        elif step_type == "causal-rate-events":
+        elif step_type == "causalRating":
             if m == "api":
                 ensure_api_clients()
         return None

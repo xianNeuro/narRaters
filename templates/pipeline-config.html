@@ -1192,54 +1192,54 @@
         <div class="pipeline-builder">
             <div class="steps-palette">
                 <div class="palette-title">Available Steps</div>
-                <div class="palette-step" data-step="story-audio-transcribe" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="audioTranscribe:story" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Story Audio Transcribe</div>
+                        <div class="palette-step-title">audioTranscribe (story)</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-story-audio-transcribe"></div>
+                    <div class="palette-step-details" id="details-audioTranscribe:story"></div>
                 </div>
-                <div class="palette-step" data-step="recall-audio-transcribe" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="audioTranscribe:recall" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Recall Audio Transcribe</div>
+                        <div class="palette-step-title">audioTranscribe (recall)</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-recall-audio-transcribe"></div>
+                    <div class="palette-step-details" id="details-audioTranscribe:recall"></div>
                 </div>
-                <div class="palette-step" data-step="story-event-segment" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="eventSegment" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Story Event Segment</div>
+                        <div class="palette-step-title">eventSegment</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-story-event-segment"></div>
+                    <div class="palette-step-details" id="details-eventSegment"></div>
                 </div>
-                <div class="palette-step" data-step="spell-grammar-correct" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="sentenceCorrect" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Spell & Grammar Correction</div>
+                        <div class="palette-step-title">sentenceCorrect</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-spell-grammar-correct"></div>
+                    <div class="palette-step-details" id="details-sentenceCorrect"></div>
                 </div>
-                <div class="palette-step" data-step="recall-parse" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="textParsing" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Recall Parse to Segments</div>
+                        <div class="palette-step-title">textParsing</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-recall-parse"></div>
+                    <div class="palette-step-details" id="details-textParsing"></div>
                 </div>
-                <div class="palette-step" data-step="recall-match-events" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="textMatching" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Recall Match to Story Events</div>
+                        <div class="palette-step-title">textMatching</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-recall-match-events"></div>
+                    <div class="palette-step-details" id="details-textMatching"></div>
                 </div>
-                <div class="palette-step" data-step="causal-rate-events" onclick="togglePaletteStep(this)">
+                <div class="palette-step" data-step="causalRating" onclick="togglePaletteStep(this)">
                     <div class="palette-step-header" draggable="true">
-                        <div class="palette-step-title">Causal Rate Event Pairs</div>
+                        <div class="palette-step-title">causalRating</div>
                         <button class="palette-step-expand" onclick="event.stopPropagation(); togglePaletteStep(this.closest('.palette-step'))">▼</button>
                     </div>
-                    <div class="palette-step-details" id="details-causal-rate-events"></div>
+                    <div class="palette-step-details" id="details-causalRating"></div>
                 </div>
                 
                 <div class="empty-pipeline-notification" id="empty-pipeline-notification">
@@ -1310,7 +1310,7 @@
                             <strong>Dependent Steps:</strong> Other steps must follow a specific sequence because one step's input depends on another step's output.
                         </p>
                         <div class="tutorial-example">
-                            <strong>Example:</strong> "Recall Match to Story Events" requires the output from "Recall Parse to Segments" as its input. Make sure "Recall Parse to Segments" comes before "Recall Match to Story Events" in your pipeline.
+                            <strong>Example:</strong> <code>textMatching</code> requires the output from <code>textParsing</code> as its input. Place <code>textParsing</code> before <code>textMatching</code> in your pipeline.
                         </div>
                         <p style="font-size: 11px; color: var(--t2); margin-top: 12px;">
                             This notification will disappear when you interact with the pipeline.
@@ -1328,9 +1328,27 @@
     </div>
     
     <script>
+        function expandPipelineStep(step) {
+            const s = Object.assign({}, step);
+            if (s.type === 'audioTranscribe' && s.audioScope && String(s.type).indexOf(':') < 0) {
+                s.type = 'audioTranscribe:' + s.audioScope;
+            }
+            return s;
+        }
+
+        function canonicalizePipelineStep(step) {
+            const s = Object.assign({}, step);
+            const idx = String(s.type || '').indexOf(':');
+            if (idx > 0) {
+                s.audioScope = s.type.slice(idx + 1);
+                s.type = s.type.slice(0, idx);
+            }
+            return s;
+        }
+
         const stepDefinitions = {
-            'story-audio-transcribe': {
-                name: 'Story Audio Transcribe',
+            'audioTranscribe:story': {
+                name: 'audioTranscribe (story)',
                 defaultInput: 'data/1_story_audio',
                 defaultOutput: 'output/story_audio-transcribed',
                 function: 'Transcribes story audio files verbatim using Whisper speech recognition model',
@@ -1339,8 +1357,8 @@
                 outputs: 'Plain text files (.txt) saved to output directory. Each audio file produces one transcript file with the same base name. Output format: {audio_filename}.txt containing verbatim transcription.',
                 implementation: 'Script: scripts/1_audio-transcribe.py. Uses Whisper API to transcribe audio files. Preserves original audio content verbatim without modifications.'
             },
-            'recall-audio-transcribe': {
-                name: 'Recall Audio Transcribe',
+            'audioTranscribe:recall': {
+                name: 'audioTranscribe (recall)',
                 defaultInput: 'data/4_recall_audio',
                 defaultOutput: 'output/recall_audio-transcribed',
                 function: 'Transcribes recall audio files verbatim using Whisper speech recognition model',
@@ -1349,28 +1367,28 @@
                 outputs: 'Plain text files (.txt) saved to output directory. Each audio file produces one transcript file. Output format: {audio_filename}.txt containing verbatim transcription of the recall audio.',
                 implementation: 'Script: scripts/1_audio-transcribe.py. Uses Whisper API to transcribe recall audio files. Preserves original audio content verbatim.'
             },
-            'story-event-segment': {
-                name: 'Story Event Segment',
+            'eventSegment': {
+                name: 'eventSegment',
                 defaultInput: 'data/2_story_transcript',
                 defaultOutput: 'data/3_story_events',
                 function: 'Segments story transcript into discrete events based on semantic boundaries and narrative structure',
                 inputs: 'Story transcript files (.txt) from the input directory. Each file should contain the full story transcript text.',
                 parameters: 'Rule-based methods (clause / fine / coarse): local segmentation compositional hierarchy. API path: Anthropic Sonnet/Haiku tiers, GPT-4o/Mini, Gemma 4 E4B via Ollama, or Llama Ollama presets — prompts from scripts/prompt/event_segment*.txt; keys required only for Anthropic/OpenAI.',
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_events.xlsx. Contains columns: event (event number), story_texts (story text for this event), and optionally old_seg, scenes. Each row represents one discrete story event.',
-                implementation: 'Script: scripts/2_story-event-segment.py. Rule-based methods use pattern matching and linguistic rules. API method supports Anthropic, OpenAI, and Ollama-backed models (Gemma 4 E4B, Llama presets) with prompts under scripts/prompt/. Preserves original text verbatim where required.'
+                implementation: 'Script: scripts/2_eventSegment.py. Rule-based methods use pattern matching and linguistic rules. API method supports Anthropic, OpenAI, and Ollama-backed models (Gemma 4 E4B, Llama presets) with prompts under scripts/prompt/. Preserves original text verbatim where required.'
             },
-            'spell-grammar-correct': {
-                name: 'Spell & Grammar Correction',
+            'sentenceCorrect': {
+                name: 'sentenceCorrect',
                 defaultInput: 'data/5_recall_texts',
                 defaultOutput: 'output/recall_corrected',
                 function: 'Applies conservative spelling and grammar corrections to recall texts without changing sentence structure',
                 inputs: 'Plain text files (.txt) from input directory, one file per subject (e.g. data/5_recall_texts/). Each file should contain one subject\'s raw recall text. Also supports Excel summary files (.xlsx) with columns: sub, ID, recall.',
                 parameters: 'Methods: rule-based (default) with pyspellchecker and optional LanguageTool; Gemma 4 via Ollama using scripts/prompt/spell_gram.txt; or Manual. Ollama default tag gemma4:e4b (SPELL_GRAM_OLLAMA_MODEL / OLLAMA_HOST).',
                 outputs: 'Plain text (.txt). Rule-based: {subj_id}.txt. Ollama Gemma: {subj_id}_spell-ollama_*.txt. User edits: {subj_id}_{username}-edit.txt.',
-                implementation: 'Script: scripts/3_spell-grammar-correct.py. Rule-based path is fully local. Gemma (Ollama) uses scripts/prompt/spell_gram.txt and a running ollama serve.'
+                implementation: 'Script: scripts/3_sentenceCorrect.py. Rule-based path is fully local. Gemma (Ollama) uses scripts/prompt/spell_gram.txt and a running ollama serve.'
             },
-            'recall-parse': {
-                name: 'Recall Parse to Segments',
+            'textParsing': {
+                name: 'textParsing',
                 defaultInput: 'output/recall_corrected',
                 defaultOutput: 'output/recall_parsed',
                 function: 'Parses corrected recall texts into fine-grained event-sized segments at clause boundaries',
@@ -1379,8 +1397,8 @@
                 outputs: 'Excel (.xlsx): {subj_id}_parsed.xlsx (rules) or {subj_id}_parsed-ollama_*.xlsx (Ollama). Column recall_in_temporal_order; recalled_events filled later.',
                 implementation: 'Script: scripts/4_parse-texts.py. Rules mirror clause-level story segmentation heuristics; Ollama path calls helpers/ollama_gemma_e4b.py with the same prompt file.'
             },
-            'recall-match-events': {
-                name: 'Recall Match to Story Events',
+            'textMatching': {
+                name: 'textMatching',
                 defaultInput: 'output/recall_parsed',
                 defaultOutput: 'output/recall_rated',
                 function: 'Matches each recall segment to corresponding story event(s) using semantic similarity',
@@ -1389,8 +1407,8 @@
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_rate-recall.xlsx. Contains columns: recall_in_temporal_order (recall segment text), recalled_events (matched story event number(s), comma-separated if multiple). Also generates comparison matrices and performance metrics.',
                 implementation: 'Script: scripts/5_recall-rater.py. API uses Anthropic Messages API with one batch prompt + JSON. Gemma E4B (Ollama) uses the same batch prompt via local HTTP. Outputs method-tagged rated files (e.g. _rate-recall-api_*.xlsx, _rate-recall-ollama_*.xlsx).'
             },
-            'causal-rate-events': {
-                name: 'Causal Rate Event Pairs',
+            'causalRating': {
+                name: 'causalRating',
                 defaultInput: 'data/3_story_events',
                 defaultOutput: 'output/causal_rated',
                 function: 'Rates causal relationships between all pairs of story events',
@@ -1427,7 +1445,7 @@
                 const response = await fetch('/api/pipeline/load');
                 const data = await response.json();
                 if (data.success && data.pipeline && data.pipeline.steps && data.pipeline.steps.length > 0) {
-                    pipelineSteps = data.pipeline.steps;
+                    pipelineSteps = data.pipeline.steps.map(expandPipelineStep);
                     stepCounter = Math.max(0, ...pipelineSteps.map(s => s.id)) + 1;
                     savePipeline();
                     console.log('Loaded existing pipeline with', pipelineSteps.length, 'steps for editing');
@@ -2089,7 +2107,7 @@
                 const resp = await fetch('/api/pipeline/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ steps: pipelineSteps })
+                    body: JSON.stringify({ steps: pipelineSteps.map(canonicalizePipelineStep) })
                 });
                 const data = await resp.json();
                 if (data.success) {
