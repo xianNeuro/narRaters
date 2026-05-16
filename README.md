@@ -77,8 +77,8 @@ This section goes beyond the minimal path in **[Getting started](#getting-starte
 
 | Platform | File (repo root) | What it does |
 |----------|------------------|----------------|
-| **macOS** | `narRaters_installer.command` | Runs a one-time `pip install -e .` for this folder. If nothing happens the first time, **Right-click → Open**, then **Open** (Gatekeeper). |
-| **Windows** | `narRaters_installer.bat` | Same, using `py -3` or `python` (install Python with “Add to PATH” enabled). |
+| **macOS** | `narRaters_installer.command` | Creates a **`.venv/`** in this folder and installs narRaters there (avoids Homebrew PEP 668 errors). If nothing happens the first time, **Right-click → Open**, then **Open** (Gatekeeper). |
+| **Windows** | `narRaters_installer.bat` | Same (`.venv\`), using `py -3` or `python` (install Python with “Add to PATH” enabled). |
 
 **macOS disk image (standard layout):** **`narRaters-macos-installer.dmg`** at the **repository root** (top level of the clone, next to `README.md`) — Finder volume contains **`narRaters_installer.app`**, **`narRaters_source/`** (full tree), an **`Applications`** shortcut, and **`INSTALL-macOS.txt`**. Download from the repo ([raw on `main`](https://github.com/xianNeuro/narRaters/raw/main/narRaters-macos-installer.dmg) once the file is committed), from [**GitHub Releases**](https://github.com/xianNeuro/narRaters/releases), or build locally: **`bash packaging/macos/build_installer_dmg.sh`**. Follow **`INSTALL-macOS.txt`** on the disk.
 
@@ -97,10 +97,11 @@ That completes a normal install. The default dependency set is **minimal** (no m
 ```bash
 git clone https://github.com/xianNeuro/narRaters.git
 cd narRaters
-pip install -e .
+bash scripts/setup_project_venv.sh .
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 ```
 
-Use `-e` so edits to the source apply without reinstalling.
+This creates `.venv/` and installs in editable mode (`-e`). On Homebrew macOS, use the venv instead of `pip install -e .` on system Python (PEP 668).
 
 ### Optional extras (heavier methods)
 

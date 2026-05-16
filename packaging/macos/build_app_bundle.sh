@@ -76,26 +76,27 @@ if [[ ! -f web-interface.py ]]; then
   exit 1
 fi
 
-# Find a python3 with Flask installed. No interpreter is embedded at build time.
+# Prefer project .venv (created by narRaters_installer); else any python3 with Flask.
 PY=""
-for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 "$(command -v python3 2>/dev/null)" /usr/bin/python3; do
-  [[ -z "$p" || ! -x "$p" ]] && continue
-  if "$p" -c "import flask" 2>/dev/null; then
-    PY="$p"
-    break
-  fi
-done
+if [[ -x "$PROJECT_ROOT/.venv/bin/python3" ]]; then
+  PY="$PROJECT_ROOT/.venv/bin/python3"
+elif [[ -f "$PROJECT_ROOT/scripts/project_python.sh" ]]; then
+  PY="$(bash "$PROJECT_ROOT/scripts/project_python.sh" "$PROJECT_ROOT" 2>/dev/null || true)"
+fi
+if [[ -n "$PY" ]] && ! "$PY" -c "import flask" 2>/dev/null; then
+  PY=""
+fi
 if [[ -z "$PY" ]]; then
-  while IFS= read -r p; do
+  for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 "$(command -v python3 2>/dev/null)" /usr/bin/python3; do
     [[ -z "$p" || ! -x "$p" ]] && continue
     if "$p" -c "import flask" 2>/dev/null; then
       PY="$p"
       break
     fi
-  done < <(which -a python3 2>/dev/null || true)
+  done
 fi
 if [[ -z "$PY" ]]; then
-  osascript -e 'display dialog "Flask was not found on any system python3.\n\nOpen Terminal, cd into this project, and run one of:\n\n  pip install -e .\n  pip install -r requirements.txt\n\nThen relaunch the app." buttons {"OK"} default button "OK" with icon stop'
+  osascript -e 'display dialog "Flask was not found.\n\nDouble-click narRaters_installer.command (or .app) once to create .venv/, or run:\n\n  bash scripts/setup_project_venv.sh .\n\nThen relaunch narRater.app." buttons {"OK"} default button "OK" with icon stop'
   exit 1
 fi
 

@@ -62,8 +62,10 @@ Steps:
   1. Copy the folder "narRaters_source" to your Mac (Documents or Desktop is fine).
   2. Copy "narRaters_installer.app" to the same parent folder as "narRaters_source"
      (so the .app sits next to that folder, not inside it).
-  3. Double-click narRaters_installer.app once to install Python dependencies.
-  4. Open narRaters_source/server/START_HERE.command, or run: narraters serve
+  3. Double-click narRaters_installer.app once (creates .venv/ and installs deps).
+  4. Open narRaters_source/server/START_HERE.command, or run:
+       .venv/bin/narraters serve
+     (from inside narRaters_source/)
 
 Optional: drag narRaters_installer.app onto the Applications alias if you want
 the installer in /Applications — still keep narRaters_source somewhere permanent

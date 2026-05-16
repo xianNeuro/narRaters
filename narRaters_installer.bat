@@ -20,9 +20,21 @@ if not defined PYEXE (
 
 echo Installing narRaters in:
 echo   %cd%
+echo   (creates .venv\ if needed)
 echo.
 
-%PYEXE% -m pip install -e "%cd%"
+if not exist ".venv\Scripts\python.exe" (
+  echo Creating virtual environment .venv\
+  %PYEXE% -m venv .venv
+  if errorlevel 1 (
+    echo Failed to create .venv
+    pause
+    exit /b 1
+  )
+)
+
+.venv\Scripts\python.exe -m pip install -U pip wheel
+.venv\Scripts\python.exe -m pip install -e "%cd%"
 if errorlevel 1 (
   echo.
   echo Install failed. See messages above.
@@ -31,8 +43,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo Done. To start the app:  narraters serve
-echo Or see README for narRaters_installer.app / START_HERE.
+echo Done. To start the app:  .venv\Scripts\narraters serve
+echo Or see README for START_HERE.
 echo.
 pause
 exit /b 0

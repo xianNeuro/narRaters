@@ -24,17 +24,22 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-echo "Python version: $(python3 --version)"
+PY="$(bash "$PROJECT_ROOT/scripts/project_python.sh" "$PROJECT_ROOT" 2>/dev/null || true)"
+if [[ -z "$PY" ]]; then
+    echo "ERROR: Python 3 is not installed!"
+    osascript -e 'display dialog "Python 3 is not installed. Please install Python 3 first." buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+fi
+echo "Python: $PY ($("$PY" --version 2>&1))"
 
-# Check Flask
-if ! python3 -c "import flask" 2>/dev/null; then
-    echo "ERROR: Flask is not installed!"
-    echo "Installing package (editable) from project root..."
-    python3 -m pip install -e "$PROJECT_ROOT"
-    if [ $? -ne 0 ]; then
-        osascript -e 'display dialog "Failed to install dependencies. Double-click narRaters_installer.command (or narRaters_installer.app) in the project folder, or run: pip install -e ." buttons {"OK"} default button "OK" with icon stop'
+# Check Flask; install into project .venv if missing
+if ! "$PY" -c "import flask" 2>/dev/null; then
+    echo "Flask not found — running setup (creates .venv if needed)..."
+    if ! bash "$PROJECT_ROOT/scripts/setup_project_venv.sh" "$PROJECT_ROOT"; then
+        osascript -e 'display dialog "Failed to install dependencies. Double-click narRaters_installer.command in the project folder, or run: bash scripts/setup_project_venv.sh ." buttons {"OK"} default button "OK" with icon stop'
         exit 1
     fi
+    PY="$(bash "$PROJECT_ROOT/scripts/project_python.sh" "$PROJECT_ROOT")"
 fi
 
 # Check if port 5000 is already in use
@@ -49,9 +54,9 @@ fi
 # Test if the file syntax is valid
 echo "Testing server file..."
 cd "$SERVER_DIR"
-if ! python3 -m py_compile web-interface.py 2>/dev/null; then
+if ! "$PY" -m py_compile web-interface.py 2>/dev/null; then
     echo "ERROR: Server file has syntax errors!"
-    python3 -m py_compile web-interface.py 2>&1 | head -20
+    "$PY" -m py_compile web-interface.py 2>&1 | head -20
     osascript -e 'display dialog "Server file has syntax errors. Check the Terminal for details." buttons {"OK"} default button "OK" with icon stop'
     exit 1
 fi
@@ -62,7 +67,7 @@ echo "Starting server in new Terminal window..."
 osascript <<EOF
 tell application "Terminal"
     activate
-    set newTab to do script "cd '$SERVER_DIR' && clear && echo '==========================================' && echo 'Narrative Processor Web Viewer' && echo '==========================================' && echo '' && echo 'Project root: $PROJECT_ROOT' && echo 'Server directory: $SERVER_DIR' && echo '' && echo 'Starting server...' && echo '' && python3 web-interface.py 2>&1 || (echo '' && echo 'ERROR: Server failed to start!' && echo 'Check the error messages above.' && echo '' && read -p 'Press Enter to close this window...')"
+    set newTab to do script "cd '$SERVER_DIR' && clear && echo '==========================================' && echo 'Narrative Processor Web Viewer' && echo '==========================================' && echo '' && echo 'Project root: $PROJECT_ROOT' && echo 'Server directory: $SERVER_DIR' && echo '' && echo 'Starting server...' && echo '' && '$PY' web-interface.py 2>&1 || (echo '' && echo 'ERROR: Server failed to start!' && echo 'Check the error messages above.' && echo '' && read -p 'Press Enter to close this window...')"
 end tell
 EOF
 
