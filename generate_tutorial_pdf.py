@@ -2,7 +2,14 @@
 """Generate the narRater tutorial PDF with TOC and screenshots."""
 
 import os
+import sys
+from pathlib import Path
 from fpdf import FPDF
+
+_repo_root = Path(__file__).resolve().parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, anthropic_model_slug
 
 SCREENSHOT_DIR = "tutorial_screenshots"
 OUTPUT_FILE = "narRater_Tutorial.pdf"
@@ -317,7 +324,7 @@ def build_pdf():
     pdf.chapter_title("2.2", "Setting Up API Keys", level=1)
     pdf.body_text(
         "Several steps can use LLM models via API for higher-quality results. "
-        "The software supports both Anthropic (Claude) and OpenAI (GPT) models. "
+        "The software supports both Anthropic and OpenAI (GPT) models. "
         "To set up an API key:"
     )
     pdf.bullet("Anthropic: export ANTHROPIC_API_KEY='your-key-here'")
@@ -648,8 +655,8 @@ def build_pdf():
         "a segmented version."
     )
     pdf.body_text("Available API models:")
-    pdf.bullet("Claude Sonnet 4.5 (Anthropic) -- requires ANTHROPIC_API_KEY")
-    pdf.bullet("Claude Haiku 3.5 (Anthropic) -- faster, lower cost")
+    pdf.bullet("Sonnet 4.5 tier (Anthropic) -- requires ANTHROPIC_API_KEY")
+    pdf.bullet("Haiku 3.5 tier (Anthropic) -- faster, lower cost")
     pdf.bullet("GPT-4o (OpenAI) -- requires OPENAI_API_KEY")
     pdf.bullet("GPT-4o Mini (OpenAI) -- faster, lower cost")
     pdf.bullet("Gemma 4 E4B (Ollama, local) -- no cloud key; requires Ollama with e.g. gemma4:e4b pulled")
@@ -706,22 +713,17 @@ def build_pdf():
          "no key needed"),
     ])
     pdf.body_text("Models offered when method=api (see Section 15.1 for the full list):")
-    pdf.methods_table([
-        ("claude-opus-4-7",
-         "Anthropic top-tier; highest quality, slowest, most expensive.",
-         "ANTHROPIC_API_KEY"),
-        ("claude-sonnet-4-6",
-         "Anthropic balanced (newest). Good default.",
-         "ANTHROPIC_API_KEY"),
-        ("claude-haiku-4-5-20251001",
-         "Anthropic fast tier (newest). Cheapest cloud.",
-         "ANTHROPIC_API_KEY"),
-        ("claude-sonnet-4-5-20250929",
-         "Prior balanced; previous default.",
-         "ANTHROPIC_API_KEY"),
-        ("claude-haiku-3-5-20241022",
-         "Older fast tier; kept for reproducibility.",
-         "ANTHROPIC_API_KEY"),
+    _anthropic_rows = [
+        (
+            mid,
+            f"{meta['label']}; see Anthropic console for pricing.",
+            "ANTHROPIC_API_KEY",
+        )
+        for mid, meta in sorted(ANTHROPIC_SUPPORTED_MODELS.items(), key=lambda kv: kv[0])
+    ]
+    pdf.methods_table(
+        _anthropic_rows
+        + [
         ("gpt-4o / gpt-4o-mini",
          "OpenAI alternatives.",
          "OPENAI_API_KEY"),
@@ -750,10 +752,11 @@ def build_pdf():
     # =========================================================================
     pdf.chapter_title("7.11", "Terminal Command", level=1)
     pdf.body_text("Run Step 2 from the terminal:")
+    _seg_m = anthropic_model_slug("sonnet-4-6")
     pdf.code_block([
         "narraters segment --method clause",
         "narraters segment --method fine -i data/2_story_transcript/my_story.txt",
-        "narraters segment --method api --model claude-sonnet-4-6 \\",
+        f"narraters segment --method api --model {_seg_m} \\",
         "                  --prompt-version event_segment",
         "narraters segment --list-prompts     # show available prompt versions",
     ])
@@ -954,8 +957,8 @@ def build_pdf():
         "events per segment. Fast, no cost, no API key needed."
     )
     pdf.bullet(
-        "API (LLM Call): Sends all recall segments and story events to a Claude (or other "
-        "Anthropic) model in a single batch request. The launcher exposes a Model dropdown "
+        "API (LLM Call): Sends all recall segments and story events to an Anthropic "
+        "Messages API model in a single batch request. The launcher exposes a Model dropdown "
         "(Opus 4.7, Sonnet 4.6, Haiku 4.5, Sonnet 4.5, Haiku 3.5 -- see Section 14.1). "
         "More accurate for semantic matching. Requires ANTHROPIC_API_KEY."
     )
@@ -964,7 +967,7 @@ def build_pdf():
         "numbers manually in the detail view."
     )
     pdf.bullet(
-        "Gemma 4 (Ollama, local): Same batch JSON prompt as Claude (scripts/prompt/recall_rating.txt) via Ollama; "
+        "Gemma 4 (Ollama, local): Same batch JSON prompt as the cloud API path (scripts/prompt/recall_rating.txt) via Ollama; "
         "default tag gemma4:e4b. Output is JSON-schema-constrained so the model returns one "
         "match object per recall row even without an Anthropic key."
     )
@@ -977,7 +980,7 @@ def build_pdf():
     pdf.chapter_title("10.3", "API Method Details", level=1)
     pdf.body_text(
         "When using the API method, the software sends all recall segments and story events "
-        "to the Claude API in a single batch request. The model returns a JSON mapping each "
+        "to the Anthropic Messages API in a single batch request. The model returns a JSON mapping each "
         "recall row to its matched event number(s)."
     )
     pdf.body_text("Prompt used (from scripts/prompt/recall_rating.txt):")
@@ -1067,7 +1070,7 @@ def build_pdf():
          "Keyword/phrase overlap matcher. Fast, deterministic, no LLM.",
          "no key needed"),
         ("api",
-         "Anthropic Claude batch matcher. Picks Anthropic model from dropdown.",
+         "Anthropic batch matcher. Picks Anthropic model from dropdown.",
          "ANTHROPIC_API_KEY\nRECALL_RATING_MODEL=<id>"),
         ("gemma-ollama",
          "Local Gemma 4 E4B via Ollama; JSON-schema constrained output.",
@@ -1123,7 +1126,7 @@ def build_pdf():
         "if installed; falls back to a regex-based scorer otherwise."
     )
     pdf.bullet(
-        "API (LLM Call): Sends each pair (or batch of pairs) to a Claude or OpenAI model "
+        "API (LLM Call): Sends each pair (or batch of pairs) to an Anthropic or OpenAI model "
         "and parses a structured rating + reasoning. Model dropdown lists the same Anthropic "
         "options as Steps 2 and 5 (Opus 4.7, Sonnet 4.6, Haiku 4.5, Sonnet 4.5, Haiku 3.5; "
         "see Section 15.1). Requires an API key."
@@ -1190,9 +1193,10 @@ def build_pdf():
     # =========================================================================
     pdf.chapter_title("11.7", "Terminal Command", level=1)
     pdf.body_text("Run Step 6 from the terminal:")
+    _rate_m = anthropic_model_slug("sonnet-4-6")
     pdf.code_block([
         "narraters rate --method linguistic",
-        "narraters rate --method api --model claude-sonnet-4-6 \\",
+        f"narraters rate --method api --model {_rate_m} \\",
         "               --prompt-version causal_rating",
         "narraters rate --method manual     # empty NxN matrix to fill by hand",
     ])
@@ -1313,15 +1317,12 @@ def build_pdf():
         "Step 6 Causal Rating)."
     )
     pdf.ln(1)
-    pdf.bold_text("Anthropic (Claude):", "")
-    pdf.bullet("claude-opus-4-7 -- newest top-tier; highest quality, slowest, most expensive")
-    pdf.bullet("claude-sonnet-4-6 -- newest balanced model; good default for most tasks")
-    pdf.bullet("claude-haiku-4-5 -- newest fast tier; cheapest")
-    pdf.bullet("claude-sonnet-4-5 -- prior balanced model; still supported")
-    pdf.bullet("claude-haiku-3-5 -- older fast tier; supported for reproducibility")
+    pdf.bold_text("Anthropic Messages API:", "")
+    for mid, meta in sorted(ANTHROPIC_SUPPORTED_MODELS.items(), key=lambda kv: kv[0]):
+        pdf.bullet(f"{mid} -- {meta['label']}")
     pdf.ln(1)
     pdf.bold_text("OpenAI:", "")
-    pdf.bullet("gpt-4o -- high quality, alternative to Claude Sonnet")
+    pdf.bullet("gpt-4o -- high quality, alternative to Anthropic balanced tiers")
     pdf.bullet("gpt-4o-mini -- faster and cheaper")
     pdf.ln(1)
     pdf.bold_text("Local (no cloud key):", "")
@@ -1369,7 +1370,7 @@ def build_pdf():
         "pip install spacy && python -m spacy download en_core_web_sm"
     )
     pdf.bullet(
-        "If you have an Anthropic API key, the API segmentation method and Claude-based "
+        "If you have an Anthropic API key, the API segmentation method and Anthropic-based "
         "recall rating tend to produce higher-quality results."
     )
     pdf.bullet(

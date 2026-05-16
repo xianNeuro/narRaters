@@ -18,6 +18,11 @@ import json
 import re
 import numpy as np
 
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+
 # Import core recall rater functions
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from importlib import import_module
@@ -44,7 +49,7 @@ SUBJ_ID = "example_subject"  # Replace with your subject ID
 TEMPERATURE = 0
 PROMPT_VERSION = "recall_rating_v4"  # Change this to test different versions
 
-MODEL_NAME = "claude-sonnet-4-5-20250929"
+MODEL_NAME = DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
 MAX_TOKENS = 2000
 
 STORY_DIR = Path("data/3_story_events")

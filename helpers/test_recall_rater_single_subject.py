@@ -16,6 +16,6 @@ recall_rater.process_subject(
     recall_dir='output/recall_parsed',
     output_dir='output/recall_rated',
     output_format='excel',
-    model="claude-sonnet-4-20250514",
+    model=recall_rater.MODEL_NAME,
     delay=1.0
 )

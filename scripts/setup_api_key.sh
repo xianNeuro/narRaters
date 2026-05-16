@@ -1,5 +1,5 @@
 #!/bin/bash
-# Interactive script to set up API keys for Anthropic (Claude) and OpenAI (GPT)
+# Interactive script to set up API keys for Anthropic and OpenAI (GPT)
 
 echo "=========================================="
 echo "API Key Setup for narRater"
@@ -45,9 +45,9 @@ setup_key() {
     echo ""
 }
 
-setup_key "Anthropic (Claude)" "ANTHROPIC_API_KEY" "https://console.anthropic.com/"
+setup_key "Anthropic" "ANTHROPIC_API_KEY" "https://console.anthropic.com/"
 setup_key "OpenAI (GPT)" "OPENAI_API_KEY" "https://platform.openai.com/api-keys"
 
 echo "=========================================="
-echo "Done. See developer/SETUP_API.md for more details."
+echo "Done. See SETUP_API.md in the repository root for more details."
 echo "=========================================="

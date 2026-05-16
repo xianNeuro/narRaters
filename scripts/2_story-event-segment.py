@@ -40,12 +40,14 @@ import pandas as pd
 import json
 import time
 
+from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_SEGMENT_MODEL
+
 
 # ==============================
 # SETTINGS
 # ==============================
 
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = DEFAULT_ANTHROPIC_SEGMENT_MODEL
 MAX_TOKENS = 4000
 TEMPERATURE = 0
 
@@ -54,11 +56,7 @@ You must not rewrite, paraphrase, or modify any story text.
 Copy the story word-for-word and segment it into events by starting a new line whenever one event ends and another begins."""
 
 SUPPORTED_MODELS = {
-    'claude-opus-4-7': {'provider': 'anthropic', 'label': 'Claude Opus 4.7'},
-    'claude-sonnet-4-6': {'provider': 'anthropic', 'label': 'Claude Sonnet 4.6'},
-    'claude-haiku-4-5-20251001': {'provider': 'anthropic', 'label': 'Claude Haiku 4.5'},
-    'claude-sonnet-4-5-20250929': {'provider': 'anthropic', 'label': 'Claude Sonnet 4.5'},
-    'claude-haiku-3-5-20241022': {'provider': 'anthropic', 'label': 'Claude Haiku 3.5'},
+    **ANTHROPIC_SUPPORTED_MODELS,
     'gpt-4o': {'provider': 'openai', 'label': 'GPT-4o'},
     'gpt-4o-mini': {'provider': 'openai', 'label': 'GPT-4o Mini'},
     'gemma4-e4b-ollama': {

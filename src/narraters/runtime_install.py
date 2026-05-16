@@ -221,7 +221,7 @@ def prepare_cli_match(args: Any, extra: list[str]) -> None:
     if method == "rmatch":
         ensure_rmatch_stack()
         return
-    if method in ("api", "claude", "anthropic", "openai"):
+    if method in ("api", "anthropic", "openai"):
         ensure_api_clients()
         return
 

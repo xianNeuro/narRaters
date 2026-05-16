@@ -1355,7 +1355,7 @@
                 defaultOutput: 'data/3_story_events',
                 function: 'Segments story transcript into discrete events based on semantic boundaries and narrative structure',
                 inputs: 'Story transcript files (.txt) from the input directory. Each file should contain the full story transcript text.',
-                parameters: 'Rule-based methods (clause / fine / coarse): local segmentation compositional hierarchy. API path: Claude Sonnet/Haiku, GPT-4o/Mini, Gemma 4 E4B via Ollama, or Llama Ollama presets — prompts from scripts/prompt/event_segment*.txt; keys required only for Anthropic/OpenAI.',
+                parameters: 'Rule-based methods (clause / fine / coarse): local segmentation compositional hierarchy. API path: Anthropic Sonnet/Haiku tiers, GPT-4o/Mini, Gemma 4 E4B via Ollama, or Llama Ollama presets — prompts from scripts/prompt/event_segment*.txt; keys required only for Anthropic/OpenAI.',
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_events.xlsx. Contains columns: event (event number), story_texts (story text for this event), and optionally old_seg, scenes. Each row represents one discrete story event.',
                 implementation: 'Script: scripts/2_story-event-segment.py. Rule-based methods use pattern matching and linguistic rules. API method supports Anthropic, OpenAI, and Ollama-backed models (Gemma 4 E4B, Llama presets) with prompts under scripts/prompt/. Preserves original text verbatim where required.'
             },
@@ -1385,9 +1385,9 @@
                 defaultOutput: 'output/recall_rated',
                 function: 'Matches each recall segment to corresponding story event(s) using semantic similarity',
                 inputs: 'Excel files (.xlsx) from input directory containing parsed recall segments. Also requires story events from data/3_story_events/. Input format: {subj_id}_parsed.xlsx with column recall_in_temporal_order.',
-                parameters: 'Methods: 1) Test Mode (default): keyword matching. 2) API (Claude Sonnet): Claude Sonnet 4.5 via scripts/5_recall-rater.py (ANTHROPIC_API_KEY). 3) Manual: empty matches for hand-labeling. 4) Gemma E4B (Ollama): same batch JSON prompt as the API path, answered locally (RECALL_RATING_BACKEND=ollama; default model gemma4:e4b).',
+                parameters: 'Methods: 1) Test Mode (default): keyword matching. 2) API (Anthropic): balanced Sonnet tier via scripts/5_recall-rater.py (ANTHROPIC_API_KEY). 3) Manual: empty matches for hand-labeling. 4) Gemma E4B (Ollama): same batch JSON prompt as the API path, answered locally (RECALL_RATING_BACKEND=ollama; default model gemma4:e4b).',
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_rate-recall.xlsx. Contains columns: recall_in_temporal_order (recall segment text), recalled_events (matched story event number(s), comma-separated if multiple). Also generates comparison matrices and performance metrics.',
-                implementation: 'Script: scripts/5_recall-rater.py. API uses Claude Sonnet with one batch prompt + JSON. Gemma E4B (Ollama) uses the same batch prompt via local HTTP. Outputs method-tagged rated files (e.g. _rate-recall-api_*.xlsx, _rate-recall-ollama_*.xlsx).'
+                implementation: 'Script: scripts/5_recall-rater.py. API uses Anthropic Messages API with one batch prompt + JSON. Gemma E4B (Ollama) uses the same batch prompt via local HTTP. Outputs method-tagged rated files (e.g. _rate-recall-api_*.xlsx, _rate-recall-ollama_*.xlsx).'
             },
             'causal-rate-events': {
                 name: 'Causal Rate Event Pairs',
@@ -1395,7 +1395,7 @@
                 defaultOutput: 'output/causal_rated',
                 function: 'Rates causal relationships between all pairs of story events',
                 inputs: 'Event-segmented story files (.xlsx) from the input directory. Each file must contain columns: event (event number) and story_texts (event text).',
-                parameters: 'Three methods available: 1) Linguistic (default): Rule-based scoring using causal connectives, entity continuity, action-consequence verb patterns, and content overlap. No API key required. Uses spaCy if installed. 2) API (LLM Call): Uses Claude Sonnet 4.5, Haiku 3.5, GPT-4o, or GPT-4o Mini with prompt from scripts/prompt/causal_rating*.txt. Requires API key. 3) Manual: Enter causal ratings via the N×N event matrix in the inspection page. Ratings: 0=none, 1=slightly causal, 2=causally related, 3=extremely causal.',
+                parameters: 'Three methods available: 1) Linguistic (default): Rule-based scoring using causal connectives, entity continuity, action-consequence verb patterns, and content overlap. No API key required. Uses spaCy if installed. 2) API (LLM Call): Uses Anthropic Sonnet/Haiku tiers, GPT-4o, or GPT-4o Mini with prompt from scripts/prompt/causal_rating*.txt. Requires API key. 3) Manual: Enter causal ratings via the N×N event matrix in the inspection page. Ratings: 0=none, 1=slightly causal, 2=causally related, 3=extremely causal.',
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {story_name}_causal-{method}.xlsx. Contains columns: event_A_number, event_B_number, rating, reasoning.',
                 implementation: 'Script: scripts/6_causal-rater.py. Linguistic method uses causal connective lexicon (from CREST/BECauSE literature), entity overlap, action-consequence verb patterns, and optional spaCy dependency parsing. API method sends events to LLM for full narrative causal reasoning. Manual method provides an interactive N×N matrix for direct human annotation.'
             }

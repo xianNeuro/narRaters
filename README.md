@@ -1,16 +1,16 @@
 # narRaters
 
-**AI-assisted narrative processing with human screening.**
+**AI-assisted narrative processing with human-screening.**
 
-**narRaters** is a local research tool that walks **audio or text narratives** through a fixed pipeline: **transcribe → segment story → spell/grammar fix → parse recall → match recall to events → rate causal links between events**. Each step can use **lightweight defaults** (rules, heuristics) or optional **models/APIs**; every step produces **plain, inspectable files** (text, Excel) that you can **open in the browser, edit, and version** before analysis.
+**narRaters** is for **human cognitive studies** and **LLM-oriented research** whenever the data are **long passages of natural language**—in other words, **narratives** (listened to or read as text). It **automates and visualizes** a single, repeatable pipeline for **audio- and text-based narratives**: **transcription**, **segmentation**, **light text cleanup**, **parsing**, **event alignment** (mapping recall to story events), and **causal scoring**. You can assign the heavy lifting to **rules or models**; **human-screening** at every step means raters can **review, edit, and sign off** on outputs before they enter analysis. The web UI and versioned files also make it practical to run **human vs. LLM** comparisons on the same inputs and prompts.
 
 There are no accounts or passwords. You run a small web server on your machine; a **rater name** on the setup page only labels exported hand-edited files (for example `subject_YourName-edit.xlsx`).
 
 ### Typical uses
 
-- **Structured recall studies** — participants encode a story, then recall it; you optionally transcribe audio, clean and segment recalls, align segments with story events, and build causal ratings between events.
-- **Narrative QA and NLP workflows** — same pipeline when you want **human screening**, method choices, and auditable artifacts instead of a single end-to-end model pass.
-- **Teaching or pilots** — defaults avoid large downloads; add `[audio]`, `[api]`, `[match]`, and similar **only when you need them** ([Installation](#installation)).
+- **Structured recall and memory experiments** — encode a narrative, collect recalls (audio or text), then clean, segment, align with story events, and score causal relations with auditable intermediate files.
+- **LLM evaluation and NLP workflows** — benchmark models against rules or human edits on the same pipeline, with explicit **human-screening** rather than a single opaque pass over the text.
+- **Teaching or pilots** — defaults stay small; add `[audio]`, `[api]`, `[match]`, and similar extras **only when you need them** ([Installation](#installation)).
 
 ---
 
@@ -48,7 +48,7 @@ There are no accounts or passwords. You run a small web server on your machine; 
 
 ## Pipeline overview
 
-The table below is the **route map**: steps **1–2** are **story**-side; **3–5** run per **subject recall**; **6** scores the **story event list**. Text-only projects can **skip step 1**. Every step runs from the **GUI or** `narraters …` **CLI**, ships with a **minimal default method**, and can be **hand-edited** afterward.
+The table below is the **route map**: steps **1-2** are **story**-side; **3-5** run per **subject recall**; **6** scores the **story event list**. Text-only projects can **skip step 1**. Every step runs from the **GUI** or **`narraters` CLI**, ships with a **minimal default method**, and can be **hand-edited** afterward.
 
 | # | Step | What it does | Terminal command | Default in / out |
 |---|------|--------------|------------------|------------------|
@@ -59,11 +59,13 @@ The table below is the **route map**: steps **1–2** are **story**-side; **3–
 | 5 | **Match** | Recall segments ↔ story events | `narraters match` | `output/recall_parsed/` + `data/3_story_events/` → `output/recall_rated/` |
 | 6 | **Rate** | Causal strength of every story-event pair | `narraters rate` | `data/3_story_events/` → `output/causal_rated/` |
 
-Steps 1 and 2 operate on the *story*; steps 3–5 on each *subject's recall*; step 6 on the *story event list*. A text-only project can skip Step 1 entirely. Per-step options are detailed under **Command-line pipeline** below.
+For each step, the GUI runs the same backends as the CLI. **Flags, methods, and examples** are documented under **[Command-line pipeline](#command-line-pipeline)** below.
 
 ---
 
 ## Installation
+
+This section goes beyond the minimal path in **[Getting started](#getting-started)**—use it when you add **optional methods** (Whisper, APIs, local LLMs), set **API keys**, or build **macOS installers / `.app` bundles**.
 
 **Prerequisite:** [Python 3.10+](https://www.python.org/downloads/) on your PATH (or the Microsoft Store / Homebrew equivalent). The installers below do **not** bundle Python.
 
@@ -110,7 +112,7 @@ pip install -e ".[match]"     # Step 5 — rmatch
 pip install -e ".[all]"       # api + match
 ```
 
-> ⚠️ Heavy methods run a **disk/RAM preflight** before downloads — see *Heavy-method warning* under [Launching the GUI](#launching-the-gui).
+> ⚠️ Heavy methods run a **disk/RAM preflight** before downloads — see [Heavy local models](#heavy-local-models) under [Using the web interface](#using-the-web-interface).
 
 ### Ollama (local Gemma, no cloud billing)
 
@@ -119,10 +121,10 @@ Install [Ollama](https://ollama.com), then e.g. `ollama pull gemma4:e4b` for the
 ### API keys
 
 ```bash
-cp developer/.env.example .env   # then edit for ANTHROPIC_API_KEY, OPENAI_API_KEY, HF_TOKEN, …
+cp .env.example .env   # then edit for ANTHROPIC_API_KEY, OPENAI_API_KEY, HF_TOKEN, …
 ```
 
-Full provider list: [`developer/SETUP_API.md`](developer/SETUP_API.md).
+Full provider list: [`SETUP_API.md`](SETUP_API.md).
 
 ### Optional: macOS `narRater.app` (GUI launcher)
 
@@ -141,7 +143,7 @@ CI: `.github/workflows/build-installer-dmg.yml` (artifact on manual runs; attach
 
 ## Where to put your data
 
-Drop input files into these directories before launching (paths are relative to the project root, and every step's input/output directory can also be remapped on the configuration page):
+After [installation](#installation), place files so the paths match what you configured on the **pipeline** page (defaults below are relative to the **project root**). You can **remap** any step’s input/output folders there without moving data.
 
 | You have… | Put it in… | Format / naming |
 |---|---|---|
@@ -157,46 +159,58 @@ Outputs are written under `output/` — one subdirectory per step (`output/recal
 
 ---
 
-## Launching the GUI
+## Using the web interface
 
-Same entry point as in [How to open narRaters](#how-to-open-narRaters); from a terminal in the project root:
+The app is a **local Flask site** (default **`http://127.0.0.1:5000`**). Start it from the project directory in any of these ways:
 
-```bash
-narraters serve
-```
+| How | What to do |
+|-----|-------------|
+| **Terminal** (macOS, Linux, Windows) | `narraters serve` — usually opens your browser automatically. |
+| **macOS — script** | Double-click **`server/START_HERE.command`** (can install missing deps on first run). |
+| **macOS — app bundle** | Build once: `bash packaging/macos/build_app_bundle.sh`, then double-click **`narRater.app`**. Not committed to Git; the icon below is used when you build locally. |
 
-The command starts the Flask web server, auto-opens your default browser to `http://localhost:5000`, and lands on the **pipeline configuration page** (or the dashboard, if a pipeline is already configured).
+<p align="center">
+  <img src="static/app-icon.png" alt="narRater macOS app icon" width="128" height="128">
+  <br>
+  <em><code>narRater.app</code> uses this icon after <code>packaging/macos/build_app_bundle.sh</code>.</em>
+</p>
 
-Common options:
+On first visit you see **pipeline configuration** unless a pipeline was already saved, in which case you land on the **dashboard**.
+
+### `narraters serve` options
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--port` | `5000` | Bind to a different port (e.g. if `5000` is already in use) |
-| `--host` | `127.0.0.1` | Bind to a specific interface. Use `0.0.0.0` to allow access from other machines on your network (only on a trusted network — the UI runs subprocesses on your behalf) |
-| `--no-browser` | off | Don't auto-open the browser — useful when running headless or over SSH |
-| `--debug` | off | Enable Flask debug mode (auto-reload on code changes) |
+| `--port` | `5000` | Another port if `5000` is busy |
+| `--host` | `127.0.0.1` | Bind address; use `0.0.0.0` only on a **trusted** network (the UI runs subprocesses on your machine) |
+| `--no-browser` | off | Do not open a browser tab (SSH, headless) |
+| `--debug` | off | Flask debug / auto-reload while hacking on the server |
 
 ```bash
 narraters serve --port 8080 --no-browser
 ```
 
-### Using the web UI — the three pages
+### Navigating the three main screens
 
-1. **Pipeline configuration** (`/pipeline-config`) — the first screen. Drag steps from the **Available Steps** palette into the **Pipeline Flow** canvas in the middle to build your pipeline; configure each step's input/output paths. At the top of the Pipeline Flow panel, enter a **Rater name** (or click the 🎲 dice for a random one) — this labels any files you export. The **Continue** button stays greyed out until you have both a rater name *and* at least one step; clicking it saves the pipeline and opens the dashboard.
+Use this table as a mental map; URLs are for bookmarking or support.
 
-2. **Dashboard** (`/`) — one panel per pipeline chain, a row per subject/story, a column per step. Each cell shows that step's status; click a cell to **auto-process** that step for that item. Steps with multiple methods open a small dialog where you choose the **method**, **model**, **prompt version**, and **input variant** before running. Batch buttons run a step across all items. "Change Rater" (top-right) returns you to the configuration page.
+| Screen | Route | What you do there |
+|--------|--------|-------------------|
+| **Pipeline setup** | `/pipeline-config` | Drag steps from **Available Steps** into **Pipeline Flow**, set per-step **folders**, enter a **rater name** (or 🎲). **Continue** unlocks only when there is a **name** and **at least one step**; it saves config and opens the dashboard. |
+| **Dashboard** | `/` | Grid: **rows** = subjects or stories, **columns** = steps. **Click a cell** to run that step for that row (pick **method / model / prompt / variant** if the step offers them). **Batch** actions run one step across all rows. **Change rater** returns to setup. |
+| **Detail view** | `/subject/…` or `/story/…` | **Tabs** per pipeline step for **one** row. Read outputs, use the **version** dropdown to compare the latest automated file vs your **`{id}_{ratername}-edit`** saves, **edit**, **save**. Use **`-edit`** files for downstream analysis. |
 
-3. **Subject / story detail** (`/subject/<id>`, `/story/<name>`) — a tabbed view of every step's output for one item. Inspect the text/table, switch between automated and `-edit` versions via the dropdown, **edit by hand**, and **save** — your edits become a `{id}_{ratername}-edit` file ready for export.
+**Flow:** setup → dashboard (bulk status + runs) → open a row when you need to **inspect, hand-correct, or compare versions**. You can return to setup anytime to add steps or change paths.
 
-### Heavy-method warning
+### Heavy local models
 
-Before launching a step that loads a heavy local model (Gemma-4 via Ollama, the rMatch embedding matcher, local Transformers, or Whisper), the app runs a resource preflight (RAM + free disk + model availability). If the method is likely too heavy for your device, a **popup** appears explaining why and offering a one-click switch to a lighter method (e.g. `rules`, keyword `test`, `clause`). It never downloads or starts a model to make this decision, so the check itself can't crash your machine. On a capable machine with the model installed, no popup appears.
+Before a step that would load **Whisper**, **Gemma via Ollama**, **rMatch** embeddings, or **local Transformers**, the app runs a **RAM / disk / model** preflight. If the run is likely unsafe for your machine, a **popup** explains why and can **switch you to a lighter method** (for example `rules`, `test`, `clause`). The check does **not** download or start a model just to decide, so it should not wedge the system. Capable machines with models already installed often see no popup.
 
 ---
 
 ## Command-line pipeline
 
-Every step is also exposed as a subcommand for scripted / batch use. The general shape is:
+Everything the dashboard runs is available as a **`narraters`** subcommand—use this for **scripts**, **clusters**, or **reproducible** one-off commands. General shape:
 
 ```
 narraters <step> [--method METHOD] [--model MODEL] [-i INPUT] [-o OUTPUT] [--prompt-version VERSION] ...
@@ -237,14 +251,15 @@ Requires `pip install -e ".[audio]"`. (Text-only projects can skip Step 1 entire
 
 ```bash
 narraters segment --method clause
-narraters segment --method api --model claude-sonnet-4-6 --prompt-version event_segment
+narraters segment --method api --model <anthropic-model-id> --prompt-version event_segment
 narraters segment --method fine --input data/2_story_transcript/my_story.txt
 ```
+Run `narraters segment --list-models` for the exact `--model` strings (Anthropic, OpenAI, and Ollama-backed presets).
 
 | Option | Choices | Notes |
 |---|---|---|
 | `--method` | `clause`, `fine`, `coarse`, `api` | `clause` needs no model; `fine`/`coarse` use spaCy if installed; `api` calls an LLM |
-| `--model` | e.g. `claude-sonnet-4-6`, `gpt-4o`, `gemma4-e4b-ollama` | Only used with `--method api` |
+| `--model` | see `narraters segment --list-models` | Only used with `--method api` (Anthropic, OpenAI, or Ollama preset keys) |
 | `--prompt-version` | see `--list-prompts` | Selects a template from `scripts/prompt/event_segment*.txt` |
 | `-i, --input` | path | Single transcript file or a directory (else processes all) |
 | `-o, --output` | path | Output directory (default: `data/3_story_events/`) |
@@ -304,14 +319,15 @@ narraters match --method rmatch                   # embedding matcher (requires 
 
 ```bash
 narraters rate --method linguistic
-narraters rate --method api --model claude-sonnet-4-6 --prompt-version causal_rating
+narraters rate --method api --model <anthropic-or-openai-model-id> --prompt-version causal_rating
 narraters rate --method manual                    # write an empty matrix for hand rating
 ```
+Use `narraters rate --help` and the Step 6 model dropdown in the web UI for supported `--model` values when using `--method api`.
 
 | Option | Choices | Notes |
 |---|---|---|
 | `--method` | `linguistic`, `api`, `manual` | `linguistic` is rule-based (no model); `manual` scaffolds an N×N matrix to fill in by hand |
-| `--model` | e.g. `claude-sonnet-4-6`, `gpt-4o` | Only used with `--method api` |
+| `--model` | see web UI / provider docs | Only used with `--method api` |
 | `--prompt-version` | see `scripts/prompt/causal_rating*.txt` | Prompt template name |
 | `-i, --input` | path | Input file/directory |
 | `-o, --output` | path | Output directory |
@@ -320,7 +336,7 @@ narraters rate --method manual                    # write an empty matrix for ha
 
 ## Prompt templates
 
-LLM-based methods load prompts from `scripts/prompt/`. The current templates are:
+LLM-backed methods load text from **`scripts/prompt/`** (you can add versions or override paths; see [`scripts/prompt/README.md`](scripts/prompt/README.md)). Bundled templates:
 
 | File | Step | Used by |
 |---|---|---|
@@ -337,13 +353,11 @@ You can:
 - **Override the file directly** for Step 3 with `--prompt-file path/to/prompt.txt`
 - **Add your own** by dropping a new `.txt` into `scripts/prompt/` — it's picked up automatically
 
-See [`scripts/prompt/README.md`](scripts/prompt/README.md) for the conventions each template follows.
-
 ---
 
 ## Validation / testing
 
-There is no pytest suite; validation is done via helper scripts:
+There is no bundled **pytest** suite. Use the **helper scripts** under `helpers/` for smoke checks and regression-style runs, for example:
 
 ```bash
 python helpers/test_recall_rater_single_subject.py
@@ -352,11 +366,34 @@ python helpers/test_recall_rater_all_stories.py
 python helpers/test_bar_metrics_all_rated.py
 ```
 
+### Research background (by pipeline step)
+
+The steps below follow the **same numbering as the pipeline overview**. Citations motivate or validate **automated** approaches similar to optional narRaters methods; your study still needs design-appropriate evaluation.
+
+**Step 1 — Transcribe**  
+No paper cited here; validation is Whisper/WhisperX accuracy on your audio and manual spot checks. See [Installation](#installation) (`[audio]` extra) and the helper scripts above.
+
+**Step 2 — Segment (story transcript to events)**  
+Michelmann, Kumar, **Norman**, & Toneva, *Large language models can segment narrative events similarly to humans*: GPT-3 zero-shot boundaries correlate with human segmentations and approximate crowd consensus on continuous text—useful precedent for LLM-based story segmentation in narRaters. [arXiv:2301.10297](https://arxiv.org/abs/2301.10297), [Behavior Research Methods (2025)](https://doi.org/10.3758/s13428-024-02569-z), [companion code](https://github.com/s-michelmann/GPT_event_segmentation).
+
+**Step 3 — Correct**  
+No external benchmark listed; the package enforces minimal, non-paraphrasing edits. Exercise the recall-correction helpers if you change rules or prompts.
+
+**Step 4 — Parse**  
+No paper cited here; clause-level structure is checked against the same independent-clause logic as segmentation (see Step 2 above and the web UI tooltips).
+
+**Step 5 — Match (recall segments to story events)**  
+- **Norman lab / Computational Memory (Princeton)** — Toneva et al., *Memory for long narratives* (presentation materials, 2021; includes **K. A. Norman**): long-form novel recall scored by aligning recalled events to chapter events with GPT-2 representations, toward scalable scoring without fully manual coding. [PDF (Princeton Computational Memory Lab)](https://compmem.princeton.edu/wp/wp-content/uploads/2022/05/memory-for-long-narratives.pdf).  
+- **rMatch** — Kressin Palacios & Arekar: embedding-based recall-to-event matching with human-data validation. [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch).
+
+**Step 6 — Rate (pairwise causal strength between story events)**  
+Li et al., *Agency personalizes episodic memories* (PsyArXiv, 2024): behavioral work with **choose-your-own-adventure** narratives and controlled choice, examining how agency shapes memory for branching, choice-contingent event sequences—aligned with rich **event-wise** materials for which pairwise **causal** ratings are meaningful. [DOI:10.31234/osf.io/7evwj](https://doi.org/10.31234/osf.io/7evwj).
+
 ---
 
 ## Performance notes
 
-The dashboard caches each output directory's listing per request, so building the status grid no longer re-scans the filesystem once per (item × step). On datasets with many subjects/steps this turns thousands of redundant directory scans into one scan per directory, making the dashboard load fast.
+The dashboard **caches each output directory's listing once per page request** and reuses it for every cell in the status grid, instead of scanning the disk again for each subject and step separately. On large studies that difference is very noticeable.
 
 ---
 
@@ -374,7 +411,7 @@ Direct per-step imports are planned for a future release; for now, programmatic 
 ## Project layout
 
 ```
-narrative-processor/
+narRaters/
 ├── pyproject.toml                # package metadata, deps, console scripts
 ├── requirements.txt              # minimal runtime deps (extras commented)
 ├── src/narraters/                # the installed package
@@ -392,19 +429,21 @@ narrative-processor/
 ├── output/                       # pipeline outputs (one subdir per step)
 ├── demo/                         # runnable demo dataset
 ├── packaging/macos/              # build script for the `.app` bundle
-└── developer/                    # full handbook and design docs
+├── SETUP_API.md                  # user-facing API key and provider setup
+└── .env.example                  # template for local API keys (copy to `.env`)
 ```
 
 ---
 
 ## Further reading
 
-- **[`developer/README.md`](developer/README.md)** — handbook covering each pipeline step, I/O contracts, editing workflows, and design principles. Read this before changing pipeline logic.
-- **[`developer/SETUP_API.md`](developer/SETUP_API.md)** — API key setup for Anthropic, OpenAI, HuggingFace
-- **[`developer/server.md`](developer/server.md)** — web server internals
-- **[`developer/helpers.md`](developer/helpers.md)** — helper / test scripts reference
-- **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions
+**`narRater_Tutorial.pdf`** (repo root) is an illustrated, click-by-click tour of the web UI—good next step after [Getting started](#getting-started).
+
+- **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which keys.
+- **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
 - **`narRater_Tutorial.pdf`** — illustrated end-to-end walkthrough. To rebuild it: refresh the screenshots with the running app (`python tutorial_screenshots/capture_screenshots.py`, see that file's header for the shot list), then `python generate_tutorial_pdf.py` after `pip install -e ".[pdf]"`.
+
+Maintainer-only design notes and internal handbooks are **not** published in this repository; keep those materials private to your team.
 
 ---
 
@@ -418,11 +457,13 @@ narrative-processor/
 
 - **Janice Chen** for brainstorming the causal-rating step interface and for help testing and improving package functionality.
 - **Gabi Kressin Palacios** and **Dhruva Arekar** for an additional method for the recall-matching step (matching human recall text to story events). See [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch) for human-data–validated AI-assisted recall rating.
-- **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (Claude Sonnet 4.5 and Opus 4.6 were close to human raters).
+- **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (commercial LLM APIs were close to human raters).
 
 ---
 
 ## License
+
+**In short:** free for **research, education, and other non-commercial** use; **commercial or for-profit** use needs **prior written permission** from the copyright holder (contact below).
 
 The Software is licensed under the **NarRaters Research and Non-Commercial
 License** (see [`LICENSE`](LICENSE)): free use for research, education, and

@@ -67,7 +67,7 @@ narraters = "narraters.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/xianl-cogneuro/narrative-processor"
-Documentation = "https://github.com/xianl-cogneuro/narrative-processor/blob/main/developer/README.md"
+Documentation = "https://github.com/xianNeuro/narRaters/blob/main/README.md"
 
 [build-system]
 requires = ["hatchling"]
@@ -95,5 +95,7 @@ include = [
     "helpers",
     "README.md",
     "LICENSE",
+    "SETUP_API.md",
+    ".env.example",
     "pyproject.toml",
 ]

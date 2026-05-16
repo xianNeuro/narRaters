@@ -27,12 +27,18 @@ Columns: event_A_number, event_B_number, rating, reasoning
 """
 
 import os
+import sys
 from pathlib import Path
 
 
 def _software_package_root() -> Path:
     d = Path(__file__).resolve().parent
     return d.parent if d.name == "scripts" else d
+
+
+_pr = _software_package_root()
+if str(_pr) not in sys.path:
+    sys.path.insert(0, str(_pr))
 
 
 import re
@@ -42,12 +48,14 @@ import time
 from typing import List, Dict, Optional
 from itertools import combinations
 
+from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_CAUSAL_MODEL
+
 
 # ==============================
 # SETTINGS
 # ==============================
 
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = DEFAULT_ANTHROPIC_CAUSAL_MODEL
 MAX_TOKENS = 8000
 TEMPERATURE = 0
 RATING_THRESHOLD = 4
@@ -55,11 +63,7 @@ RATING_THRESHOLD = 4
 VALID_METHODS = ['linguistic', 'api', 'manual']
 
 SUPPORTED_MODELS = {
-    'claude-opus-4-7': {'provider': 'anthropic', 'label': 'Claude Opus 4.7'},
-    'claude-sonnet-4-6': {'provider': 'anthropic', 'label': 'Claude Sonnet 4.6'},
-    'claude-haiku-4-5-20251001': {'provider': 'anthropic', 'label': 'Claude Haiku 4.5'},
-    'claude-sonnet-4-5-20250929': {'provider': 'anthropic', 'label': 'Claude Sonnet 4.5'},
-    'claude-haiku-3-5-20241022': {'provider': 'anthropic', 'label': 'Claude Haiku 3.5'},
+    **ANTHROPIC_SUPPORTED_MODELS,
     'gpt-4o': {'provider': 'openai', 'label': 'GPT-4o'},
     'gpt-4o-mini': {'provider': 'openai', 'label': 'GPT-4o Mini'},
 }

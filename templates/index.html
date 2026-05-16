@@ -2084,7 +2084,7 @@
                             <option value="openai">OpenAI</option>
                         </select>
                         <label class="method-input-label" for="rmatch-model-input">Model name <span style="font-weight:normal;color:var(--t3,#888);">(optional)</span></label>
-                        <input type="text" id="rmatch-model-input" class="method-input-field" placeholder="Defaults: Claude opus / gpt-4.1 / google/gemma-4-E4B-it">
+                        <input type="text" id="rmatch-model-input" class="method-input-field" placeholder="Defaults: Anthropic opus tier / gpt-4.1 / google/gemma-4-E4B-it">
                         <label class="method-input-label" for="rmatch-prompt-select">Prompt preset</label>
                         <select id="rmatch-prompt-select" class="method-input-field" style="cursor:pointer;">
                             <option value="">primary (default)</option>
@@ -3740,7 +3740,7 @@
                     {
                         id: 'api',
                         label: 'API (LLM Call)',
-                        description: 'Uses an Anthropic Claude model for matching. Select model below. Requires ANTHROPIC_API_KEY.',
+                        description: 'Uses an Anthropic Messages API model for matching. Select model below. Requires ANTHROPIC_API_KEY.',
                         requiresApiKey: true,
                         requiresModelPrompt: true
                     },
@@ -3753,7 +3753,7 @@
                     {
                         id: 'gemma-ollama',
                         label: 'Gemma 4 E4B (Ollama, local)',
-                        description: 'Same batch JSON prompt as Claude API (scripts/prompt/recall_rating.txt), answered by your local Ollama model (default gemma4:e4b). Optional tag in the Ollama field below. No Anthropic key required.',
+                        description: 'Same batch JSON prompt as the cloud API path (scripts/prompt/recall_rating.txt), answered by your local Ollama model (default gemma4:e4b). Optional tag in the Ollama field below. No Anthropic key required.',
                         requiresApiKey: false,
                         requiresRmatchOptions: false
                     },

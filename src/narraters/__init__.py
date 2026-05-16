@@ -14,7 +14,7 @@ Quick start
 
     # Run individual pipeline steps:
     narraters segment --method fine --input data/2_story_transcript/foo.txt
-    narraters match --method api --model claude-sonnet-4-6
+    narraters match --method api --model <anthropic-model-id>
 
 Library use
 -----------

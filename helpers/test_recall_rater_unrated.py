@@ -18,6 +18,11 @@ import json
 import re
 import numpy as np
 
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+
 # Import core recall rater functions (project root for pipeline scripts)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from importlib import import_module
@@ -43,7 +48,7 @@ from utils_recall_data import load_human_rating, load_event_file
 TEMPERATURE = 0
 PROMPT_VERSION = "recall_rating_v1"  # Use prompt_v1
 
-MODEL_NAME = "claude-sonnet-4-5-20250929"
+MODEL_NAME = DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
 MAX_TOKENS = 2000
 
 STORY_DIR = Path("data/3_story_events")

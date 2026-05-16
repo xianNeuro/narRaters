@@ -181,7 +181,7 @@ def cmd_match(args: argparse.Namespace, extra: list[str]) -> int:
             env["RECALL_RATING_BACKEND"] = "ollama"
         elif m == "rmatch":
             env["RECALL_RATING_BACKEND"] = "rmatch"
-        elif m in ("api", "claude", "anthropic", "openai"):
+        elif m in ("api", "anthropic", "openai"):
             env["RECALL_RATING_BACKEND"] = "api"
     if args.input:
         env["BATCH_INPUT_DIR"] = args.input
@@ -349,7 +349,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_m.add_argument(
         "--method",
         choices=["api", "gemma-ollama", "rmatch", "test"],
-        help="Matching backend (api=Anthropic Claude, gemma-ollama=local Gemma, rmatch=embedding match, test=simulated/no API).",
+        help="Matching backend (api=Anthropic Messages API, gemma-ollama=local Gemma, rmatch=embedding match, test=simulated/no API).",
     )
     _add_common_io_args(p_m, include_method=False, include_model=False)
     p_m.add_argument("--story-events", help="Directory containing story event Excel files (default: data/3_story_events).")

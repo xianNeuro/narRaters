@@ -44,7 +44,10 @@ ENV/
 *.swp
 *.swo
 
-# Claude / Cursor — agent-only developer context (keep local; do not publish)
+# Private maintainer / internal documentation (not published on GitHub)
+developer/
+
+# Coding-agent context (keep local; do not publish)
 /CLAUDE.md
 CLAUDE.local.md
 

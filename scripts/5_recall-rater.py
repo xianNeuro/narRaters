@@ -2,9 +2,9 @@
 """
 Script to match recall segments to story events using an LLM batch prompt.
 
-Default backend: Anthropic Claude Sonnet 4.5 (``ANTHROPIC_API_KEY``).
+Default backend: Anthropic Messages API, balanced Sonnet tier (``ANTHROPIC_API_KEY``).
 
-Alternative: local Gemma 4 E4B via Ollama — same batch JSON prompt as Claude, no rMatch.
+Alternative: local Gemma 4 E4B via Ollama — same batch JSON prompt as the cloud API path, no rMatch.
 Set ``RECALL_RATING_BACKEND=ollama`` and optionally ``RECALL_RATING_OLLAMA_MODEL=gemma4:e4b``.
 
 Reads story events from data/3_story_events/ and parsed recall workbooks from output/recall_parsed/
@@ -40,23 +40,19 @@ _pr = _software_package_root()
 if str(_pr) not in sys.path:
     sys.path.insert(0, str(_pr))
 
+from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+
 
 # ==============================
 # SETTINGS
 # ==============================
 
-MODEL_NAME = "claude-sonnet-4-5-20250929"
+MODEL_NAME = DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
 MAX_TOKENS = 2000
 TEMPERATURE = 0
 
 # Models exposed in the UI for method='api'. Keep aligned with steps 2 and 6.
-SUPPORTED_MODELS = {
-    'claude-opus-4-7': {'provider': 'anthropic', 'label': 'Claude Opus 4.7'},
-    'claude-sonnet-4-6': {'provider': 'anthropic', 'label': 'Claude Sonnet 4.6'},
-    'claude-haiku-4-5-20251001': {'provider': 'anthropic', 'label': 'Claude Haiku 4.5'},
-    'claude-sonnet-4-5-20250929': {'provider': 'anthropic', 'label': 'Claude Sonnet 4.5'},
-    'claude-haiku-3-5-20241022': {'provider': 'anthropic', 'label': 'Claude Haiku 3.5'},
-}
+SUPPORTED_MODELS = {**ANTHROPIC_SUPPORTED_MODELS}
 
 
 def _resolve_recall_rating_model() -> str:
@@ -183,7 +179,7 @@ def _normalize_recall_rating_json_rows(parsed, n_rows: int) -> list:
 
 
 def parse_recall_rating_batch_json(output_text: str, n_rows: int) -> List[str]:
-    """Parse model JSON array into per-row matched_events strings (same contract as Claude path)."""
+    """Parse model JSON array into per-row matched_events strings (same contract as cloud API path)."""
     if n_rows <= 0:
         return []
     try:
@@ -285,7 +281,7 @@ def rate_recall_batch(
         client: Anthropic API client
         recall_segments: List of recall segment texts
         story_events: List of dicts with 'event' (int) and 'story_texts' (str) keys
-        model: Claude model to use
+        model: Anthropic Messages API model id to use
         
     Returns:
         List of matched events strings (e.g., "1,2" or "" for no match)
@@ -307,7 +303,7 @@ def rate_recall_batch(
     )
     
     try:
-        # Call Claude API
+        # Call Anthropic Messages API
         response = client.messages.create(
             model=model,
             system=SYSTEM_PROMPT,
@@ -324,7 +320,7 @@ def rate_recall_batch(
         return parse_recall_rating_batch_json(output_text, len(recall_segments))
 
     except Exception as e:
-        print(f"  Error calling Claude API: {e}")
+        print(f"  Error calling Anthropic API: {e}")
         # Fallback: return empty matches
         return [""] * len(recall_segments)
 
@@ -526,7 +522,7 @@ def match_recall_to_events_sonnet(
     model: str = MODEL_NAME
 ) -> List[int]:
     """
-    Use Claude Sonnet to match a recall segment to story events.
+    Use the configured Anthropic model to match a recall segment to story events.
     
     This function is kept for backward compatibility with the web interface.
     For efficiency, consider using rate_recall_batch() instead.
@@ -535,7 +531,7 @@ def match_recall_to_events_sonnet(
         client: Anthropic API client
         recall_segment: Text of the recall segment to match
         story_events: List of dicts with 'event' (int) and 'story_texts' (str) keys
-        model: Claude model to use
+        model: Anthropic Messages API model id to use
         
     Returns:
         List of event numbers (integers) that match, empty list if no matches
@@ -913,7 +909,7 @@ def process_subject(
     recall_source: Optional[Path] = None,
 ):
     """
-    Process a single subject's recall file and match it to story events using Claude Sonnet 4.5.
+    Process a single subject's recall file and match it to story events using the Anthropic API path.
     
     Args:
         subj_id: Subject ID (e.g., 'subN_XXXX')
@@ -921,7 +917,7 @@ def process_subject(
         recall_dir: Directory containing parsed recall files
         output_dir: Directory to save rated recall files
         output_format: Output format ('excel' or 'csv')
-        model: Claude model to use
+        model: Anthropic Messages API model id to use
         delay: Delay between API calls (seconds) to avoid rate limits (not used in batch mode)
         test_mode: If True, use test mode matching instead of API
         use_batch: If True, use batch processing (more efficient)
@@ -1062,7 +1058,7 @@ def process_subject(
             print(f"  Warning: {w}")
         d = report.get("details") or {}
         print(f"  Ollama OK (base={d.get('base', '?')}, model_tag={d.get('model_tag', '?')})")
-        print(f"    Ollama batch (same JSON prompt as Claude) model={tag!r}...")
+        print(f"    Ollama batch (same JSON prompt as cloud API path) model={tag!r}...")
         results = rate_recall_batch_ollama(recall_segments, story_events, model_tag=tag)
         matched_events_list, matched_count = _matched_events_list_from_rating_strings(
             results, story_events
@@ -1283,14 +1279,14 @@ def process_all_subjects(
     use_batch: bool = True
 ):
     """
-    Process all subjects' recall files and match them to story events using Claude Sonnet 4.5.
+    Process all subjects' recall files and match them to story events using the Anthropic API path.
     
     Args:
         story_dir: Directory containing story event files
         recall_dir: Directory containing parsed recall files
         output_dir: Directory to save rated recall files
         output_format: Output format ('excel' or 'csv')
-        model: Claude model to use
+        model: Anthropic Messages API model id to use
         delay: Delay between API calls (seconds) to avoid rate limits (not used in batch mode)
         test_mode: If True, use test mode matching instead of API
         use_batch: If True, use batch processing (more efficient)
@@ -1360,7 +1356,7 @@ def process_all_subjects(
     print(f"Output directory: {output_dir}")
     if _recall_rating_use_ollama():
         print(
-            "Mode: Ollama batch (RECALL_RATING_BACKEND, same JSON prompt as Claude API; "
+            "Mode: Ollama batch (RECALL_RATING_BACKEND, same JSON prompt as Anthropic API; "
             f"model={_recall_ollama_model_tag()!r})"
         )
     elif _recall_rating_use_rmatch():
@@ -1421,7 +1417,7 @@ if __name__ == "__main__":
     use_ollama_main = _recall_rating_use_ollama()
     use_rmatch_main = _recall_rating_use_rmatch()
 
-    # If no API key and not explicitly in test mode, try test mode (Claude API only).
+    # If no API key and not explicitly in test mode, try test mode (Anthropic API path only).
     if not use_ollama_main and not use_rmatch_main and not test_mode and not os.getenv('ANTHROPIC_API_KEY'):
         print("="*70)
         print("NOTE: ANTHROPIC_API_KEY not set")

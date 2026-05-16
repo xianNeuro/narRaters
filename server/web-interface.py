@@ -44,6 +44,8 @@ _root = str(PROJECT_ROOT)
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
+from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+
 # Change to project root directory
 os.chdir(str(PROJECT_ROOT))
 
@@ -678,7 +680,7 @@ def get_subject_id_from_filename(filename):
     name = filename
     for ext in ('.txt', '.xlsx') + SUPPORTED_AUDIO_EXTENSIONS:
         name = name.replace(ext, '')
-    # Remove common suffixes including method-suffixed variants (e.g., _events-api_claude-sonnet-4-5-20250929)
+    # Remove common suffixes including method-suffixed variants (e.g., _events-api_<model-id>)
     name = re.sub(r'_rate-recall(-[a-zA-Z0-9_.-]+)?', '', name)
     name = re.sub(r'_events(-[a-zA-Z0-9_.-]+)?', '', name)
     name = name.replace('_parsed', '').replace('_rated', '')
@@ -713,7 +715,7 @@ def get_story_name_from_filename(filename):
         name = name.replace(ext, '')
     # Remove any user-edit suffix (e.g., _human-edit, _username-edit)
     name = re.sub(r'_\w+-edit', '', name)
-    # Remove _events suffix with optional method suffix (e.g., _events-api_claude-sonnet-4-5-20250929)
+    # Remove _events suffix with optional method suffix (e.g., _events-api_<model-id>)
     name = re.sub(r'_events(-[a-zA-Z0-9_.-]+)?', '', name)
     return name
 
@@ -2377,7 +2379,7 @@ def list_subject_rated_recall_source_files(output_dir, subj_id):
 
 
 def extract_recall_rated_method_slug(rated_path, item_id):
-    """Method / processor tag after _rate-recall (e.g. api_claude -> api-claude)."""
+    """Method / processor tag after _rate-recall (e.g. api_<vendor> -> api-<vendor>)."""
     if not rated_path:
         return 'manual'
     name = rated_path.name
@@ -3987,7 +3989,7 @@ def save_corrected_text(subj_id):
                                 matching_events = match_recall_to_events_test_mode_func(recall_segment, story_events)
                             else:
                                 matching_events = match_recall_to_events_sonnet_func(
-                                    client, recall_segment, story_events, "claude-sonnet-4-5-20250929"
+                                    client, recall_segment, story_events, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
                                 )
                                 import time
                                 time.sleep(0.5)  # Rate limiting
@@ -4462,7 +4464,7 @@ def save_parsed_segments(subj_id):
                         matching_events = match_recall_to_events_test_mode_func(recall_segment, story_events)
                     else:
                         matching_events = match_recall_to_events_sonnet_func(
-                            client, recall_segment, story_events, "claude-sonnet-4-5-20250929"
+                            client, recall_segment, story_events, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
                         )
                         import time
                         time.sleep(0.5)  # Rate limiting

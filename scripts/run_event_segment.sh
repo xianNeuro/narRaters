@@ -10,10 +10,10 @@ if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
     echo "ERROR: No API key found"
     echo ""
     echo "Set at least one of the following:"
-    echo "  export ANTHROPIC_API_KEY='your-api-key-here'   (for Claude models)"
+    echo "  export ANTHROPIC_API_KEY='your-api-key-here'   (for Anthropic models)"
     echo "  export OPENAI_API_KEY='your-api-key-here'      (for GPT models)"
     echo ""
-    echo "See developer/SETUP_API.md for details."
+    echo "See SETUP_API.md in the repository root for details."
     exit 1
 fi
 

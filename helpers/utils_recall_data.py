@@ -11,6 +11,8 @@ Functions:
 import pandas as pd
 from pathlib import Path
 
+from helpers.anthropic_ids import anthropic_api_filename_token
+
 
 def load_human_rating(subj_id, base_dir=None):
     """
@@ -65,7 +67,7 @@ def load_model_ratings(subj_id, model_dir, pattern=None, temperature=None):
             files = sorted(model_dir.glob(pattern))
         else:
             # Try story pattern
-            pattern1 = f"story_{subj_id}_claude_sonnet_4.5_run_*.xlsx"
+            pattern1 = f"story_{subj_id}_{anthropic_api_filename_token()}_run_*.xlsx"
             pattern2 = f"sub*_{subj_id}_rate-recall_temp*_trial*.xlsx"
             files = sorted(list(model_dir.glob(pattern1)) + list(model_dir.glob(pattern2)))
     else:
