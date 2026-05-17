@@ -43,24 +43,45 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 You need **[Python 3.10+](https://www.python.org/downloads/)** installed (Windows: check **“Add python.exe to PATH”** during the installer).
 
-1. **Get the project folder.** Either:
-   - **Download ZIP:** [https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip), then unzip — or
-   - **Clone:** `git clone https://github.com/xianNeuro/narRaters.git`
-2. **Run the installer** in that folder:
-   - **Mac:** double-click **`install_narRater.command`**  *(first time: Control-click → Open → Open)*
-   - **Windows:** double-click **`narRaters_installer.bat`**
-   - **Linux / Terminal:** `cd narRaters && bash install.sh`
-3. Your browser opens **`http://127.0.0.1:5000/pipeline-config`**. Enter a **rater name**, drag the steps you need, **Continue**, and run from the **dashboard**.
+### macOS / Linux — open Terminal and paste:
 
-That's it. Your data goes in **`data/`** inside the project folder — see [Where to put your data](#where-to-put-your-data). Bundled examples (`pieman_edited`, `the_siren`) are already in `data/` so you can try the pipeline before adding your own files.
+```bash
+cd ~ && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && bash install.sh
+```
+
+That's it — clones the project to `~/narRaters/`, sets up a `.venv/`, installs everything, and opens the web UI in your browser.
+
+### Windows — open Command Prompt and paste:
+
+```bat
+cd %USERPROFILE% && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && narRaters_installer.bat
+```
+
+(No git? Download the [project ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip), unzip, then double-click `narRaters_installer.bat`.)
+
+### After install
+
+The browser opens **`http://127.0.0.1:5000/pipeline-config`**. Enter a **rater name**, drag the steps you need, **Continue**, and run from the **dashboard**. Your data goes in **`data/`** inside the project folder — see [Where to put your data](#where-to-put-your-data). Bundled examples (`pieman_edited`, `the_siren`) are already there so you can try the pipeline before adding your own files.
+
+### To restart later
+
+```bash
+cd ~/narRaters && bash install.sh    # Mac / Linux
+```
+
+```bat
+cd %USERPROFILE%\narRaters && narRaters_installer.bat
+```
+
+> **Why Terminal?** macOS Gatekeeper blocks unsigned `.app` and `.command` files downloaded from the internet — sometimes with a “malicious software” popup that won’t let you click *Open* at all. Running `bash install.sh` from Terminal completely bypasses that. The same install steps work; you just kick them off from a shell.
 
 ---
 
 ## Getting started
 
-1. **[Install](#installation)** — get the project folder (clone or download ZIP) and double-click the installer for your OS. Bundled examples live in `data/`.
+1. **[Install](#installation)** — clone the repo and run `bash install.sh` (Mac/Linux) or `narRaters_installer.bat` (Windows). Bundled examples live in `data/`.
 2. **[Add inputs](#where-to-put-your-data)** under `data/` — the repo includes **bundled examples** (`pieman_edited`, `the_siren`) you can inspect or run as-is; see that section for paths. Smaller **`demo/data/`** samples are also available.
-3. **[Start the web UI](#using-the-web-interface)** — the installer starts it for you. To restart later: double-click the installer again, or `bash install.sh` (Mac/Linux) / `narRaters_installer.bat` (Windows). PyPI users: `narraters serve` from any folder.
+3. **[Start the web UI](#using-the-web-interface)** — the installer starts it for you. To restart later: re-run `bash install.sh` (Mac/Linux) / `narRaters_installer.bat` (Windows). PyPI users: `narraters serve` from any folder.
 4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
 
@@ -88,44 +109,75 @@ For each step, the GUI runs the same backends as the CLI. **Available methods, f
 > **Prerequisite:** [Python 3.10 or newer](https://www.python.org/downloads/). On Windows, tick **“Add python.exe to PATH”** in the installer.  
 > **You’re done when** your browser shows the **pipeline setup** page (`…/pipeline-config`).
 
-### Recommended — clone or download the project, then run the installer
+### Recommended — Terminal one-liner (works on every macOS, Linux, Windows)
 
-This is the easiest way for everyone. You get the full project folder (including the `data/` folder for your inputs and `output/` for results).
+This is the most reliable path. It clones the project, creates a virtual environment, installs everything, and starts the web UI — no double-clicks, no Gatekeeper popups.
 
-**Step 1 — Get the project folder**
+**macOS / Linux** — open **Terminal** and paste:
 
-Pick one:
+```bash
+cd ~ && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && bash install.sh
+```
 
-| Method | How |
-|--------|-----|
-| **Download ZIP** (no git needed) | [github.com/xianNeuro/narRaters → main.zip](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip) → unzip → rename folder to `narRaters` (optional) |
-| **Git clone** (recommended; no Gatekeeper warnings) | `git clone https://github.com/xianNeuro/narRaters.git` |
+**Windows** — open **Command Prompt** and paste:
 
-**Step 2 — Run the installer**
+```bat
+cd %USERPROFILE% && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && narRaters_installer.bat
+```
 
-Open the `narRaters` folder in Finder / File Explorer and:
+Result on every platform: a `narRaters/` folder in your home directory, a `.venv/` inside it, and the web UI running at **`http://127.0.0.1:5000/pipeline-config`**.
 
-| Platform | Double-click | What it does |
-|----------|--------------|--------------|
-| **macOS** | **`narRater.app`** *or* **`install_narRater.command`** | Creates `.venv/`, installs narRaters into it, starts the web UI, opens your browser |
-| **Windows** | **`narRaters_installer.bat`** | Same, on Windows |
-| **Linux / Terminal** | run `bash install.sh` | Same, in Terminal |
+**Restart later:**
 
-The installer is **safe to run multiple times** — re-running just re-launches the app.
+```bash
+cd ~/narRaters && bash install.sh                   # macOS / Linux
+```
 
-> **macOS:** prefer **`narRater.app`** for the proper Dock icon and Finder appearance. Both files do the same thing — they call `install.sh`, which creates the venv, installs deps, and starts the server. **`narRater.app` must stay inside the project folder** (it looks for `install.sh` next to itself).
+```bat
+cd %USERPROFILE%\narRaters && narRaters_installer.bat
+```
 
-**macOS — first launch warning:** if Finder says “*Apple cannot verify…*”, **Control-click** (or right-click) **`install_narRater.command`** → **Open** → **Open** in the dialog. You only need to do this once. (`git clone` avoids this; the warning only appears for files extracted from a downloaded ZIP.)
-
-**Next time:** double-click the same installer file. Or open Terminal/Command Prompt in the folder and run `bash install.sh` (Mac/Linux) / `narRaters_installer.bat` (Windows).
+The installer is **idempotent** — re-running just re-launches the app (skips already-installed deps).
 
 | Problem | Fix |
 |---------|-----|
-| “Apple cannot verify…” / “malicious software” | Control-click → **Open** (Mac), or `cd narRaters && bash install.sh` in Terminal. |
-| `Python 3.10+ required` | Install from [python.org/downloads](https://www.python.org/downloads/), restart Terminal, run again. |
-| Blank browser page | Turn off **AirPlay Receiver** (macOS: System Settings → General → AirDrop & Handoff) — it claims port 5000. |
-| Port already in use | The installer auto-tries `5001`-`5010`. Use the URL printed in Terminal. |
-| Need sample data | Already in `data/` (`pieman_edited`, `the_siren`). |
+| `git: command not found` | Install Xcode Command Line Tools (`xcode-select --install`) on macOS, or [Git for Windows](https://git-scm.com/download/win). |
+| `Python 3.10+ required` | Install from [python.org/downloads](https://www.python.org/downloads/), close and reopen Terminal, run again. |
+| Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead. macOS sometimes resolves `localhost` over IPv6 while Flask binds IPv4. |
+| Port already in use (often **AirPlay Receiver** on macOS) | The installer auto-tries `5001`–`5010`. Use the URL printed in Terminal. To free port 5000: System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
+| Need the bundled `data/` examples | Already in `data/` after `git clone` (`pieman_edited`, `the_siren`). |
+
+---
+
+### No git? — download a ZIP, install from Terminal
+
+```bash
+curl -L https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip -o ~/narRaters.zip
+cd ~ && unzip narRaters.zip && mv narRaters-main narRaters && cd narRaters
+xattr -dr com.apple.quarantine .          # macOS only — clears download quarantine
+bash install.sh
+```
+
+Windows: download the ZIP from [github.com/xianNeuro/narRaters → Code → Download ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip), unzip, open Command Prompt in the folder, run `narRaters_installer.bat`.
+
+---
+
+### Double-click installers (only if Terminal isn't an option)
+
+> ⚠️ **macOS users — read this first.** macOS Gatekeeper blocks unsigned, un-notarized installers downloaded from the internet. The “*macOS cannot verify the developer / malicious software*” popup may not even let you click *Open*. We are not paying $99/year for an Apple Developer ID, so the items below **only work reliably after `git clone`** (which doesn't add quarantine attributes), or after running the `xattr -dr com.apple.quarantine .` command above on a downloaded ZIP. **The Terminal one-liner is strictly more reliable** — use it if at all possible.
+
+In a project folder where Gatekeeper is satisfied:
+
+| Platform | Double-click | What it does |
+|----------|--------------|--------------|
+| **macOS** | **`narRater.app`** | Calls `install.sh` and opens the web UI; shows the proper Dock icon |
+| **macOS** | **`install_narRater.command`** | Same flow, plain Terminal window |
+| **Windows** | **`narRaters_installer.bat`** | Creates `.venv\`, installs narRaters, opens browser |
+
+If macOS blocks any of the macOS items above:
+
+1. **Try the Terminal one-liner instead** (top of this section).
+2. Or, if you really want the click flow, drop quarantine on the project folder once: `xattr -dr com.apple.quarantine ~/narRaters` and double-click again.
 
 ---
 
@@ -231,19 +283,17 @@ Build a local **`narRater.app`** for icon/Dock testing: `bash packaging/macos/bu
 
 ---
 
-### Advanced — macOS DMG (unsigned, may be blocked)
+### Advanced — macOS DMG (unsigned, often blocked by Gatekeeper)
 
-> macOS Gatekeeper blocks unsigned `.app` and `.command` files downloaded from the internet (we are not paying for an Apple Developer ID). The recommended path above (`install_narRater.command` from a `git clone`) avoids this entirely. The DMG is provided for users who want the `.app` icon in `~/narRaters/`.
+The `narRaters-macos-installer.dmg` produced by `bash packaging/macos/build_installer_dmg.sh` exists for distribution channels that need a single-file artifact. **It is unsigned and un-notarized**, so most users will hit the same Gatekeeper block as `.command` and `.app` files. The Terminal one-liner is recommended instead.
 
-If the DMG is blocked with “*malicious software*”, use the recommended path instead. Workaround if you really want the app bundle:
+If you really want to use the DMG:
 
 ```bash
 xattr -dr com.apple.quarantine ~/Downloads/narRaters-macos-installer.dmg
 open ~/Downloads/narRaters-macos-installer.dmg
 xattr -dr com.apple.quarantine /Volumes/narRaters
 ```
-
-Maintainer rebuild: `bash packaging/macos/build_installer_dmg.sh`.
 
 ---
 
