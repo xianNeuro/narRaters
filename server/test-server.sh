@@ -31,7 +31,8 @@ if python3 -c "import flask" 2>/dev/null; then
     echo "   ✓ Flask installed: $FLASK_VERSION"
 else
     echo "   ✗ Flask not installed!"
-    echo "   Run: pip install -r $PROJECT_ROOT/requirements.txt"
+    echo "   Run: cd $PROJECT_ROOT && bash install.sh"
+    echo "   (or: python3 -m pip install -e $PROJECT_ROOT)"
     exit 1
 fi
 

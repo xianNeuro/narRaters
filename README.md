@@ -469,8 +469,16 @@ Direct per-step imports are planned for a future release; for now, programmatic 
 
 ```
 narRaters/
+├── README.md                     # this file
+├── LICENSE                       # MIT
+├── narRater.app                  # macOS double-click launcher (calls install.sh)
+├── narRaters_installer.bat       # Windows double-click launcher
+├── install.sh                    # macOS / Linux command-line installer
+├── narRater_Tutorial.pdf         # end-user tutorial
+├── data/                         # inputs (bundled pieman_edited + the_siren examples; your files stay local)
+├── output/                       # pipeline outputs (sample outputs for the same examples)
+├── demo/                         # smaller demo dataset (lighthouse)
 ├── pyproject.toml                # package metadata, deps, console scripts
-├── requirements.txt              # minimal runtime deps (extras commented)
 ├── src/narraters/                # the installed package
 │   ├── cli.py                    # argparse entry point (`narraters` command)
 │   └── paths.py                  # repo-root resolution
@@ -482,11 +490,8 @@ narRaters/
 ├── helpers/                      # paths, Ollama/disk/RAM preflight, plotting, tests
 │   ├── disk_space.py             # free-disk preflight for local models
 │   └── resource_preflight.py     # heavy-method (RAM/disk) assessment
-├── data/                         # inputs (bundled pieman_edited + the_siren examples; your files stay local)
-├── output/                       # pipeline outputs (sample outputs for the same examples)
-├── demo/                         # smaller demo dataset (lighthouse)
-├── packaging/macos/              # build script for the `.app` bundle
-├── SETUP_API.md                  # user-facing API key and provider setup
+├── packaging/macos/              # build scripts for the `.app` bundle
+├── SETUP_API.md                  # API key and provider setup
 └── .env.example                  # template for local API keys (copy to `.env`)
 ```
 
