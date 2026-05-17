@@ -41,7 +41,8 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 ## Quick start
 
 1. **[Download the ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip)** from this repo (green **Code ▾** → **Download ZIP**) and unzip it.
-2. **Double-click** **`narRater.app`** (macOS) or **`narRaters_installer.bat`** (Windows). Linux: open Terminal in the folder and run `bash install.sh`.
+2. **Open the launcher:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
+   - **macOS backup** if double-click is blocked: **right-click** **`narRater.app`** → **Open** → in the dialog, click **Open** again (first launch only; see [Installation](#installation) for more).
 3. **A browser tab opens at `http://127.0.0.1:5000`** with bundled examples already loaded — start clicking.
 
 > Needs **[Python 3.10+](https://www.python.org/downloads/)**. If anything fails, jump to [Installation](#installation) for the full walkthrough and troubleshooting.
