@@ -42,7 +42,10 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 1. **[Download the ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip)** from this repo (green **Code ▾** → **Download ZIP**) and unzip it.
 2. **Open the launcher:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
-   - **macOS backup** if double-click is blocked: **right-click** **`narRater.app`** → **Open** → in the dialog, click **Open** again (first launch only; see [Installation](#installation) for more).
+   - **macOS** if Gatekeeper blocks you:
+     - Try **Finder** → **control-click** **`narRater.app`** → **Open** → **Open** in the warning dialog (when those choices exist).
+     - If there is **no Open** entry or launching still fails: **System Settings** → **Privacy & Security** → scroll to **Security**. After macOS rejects the app once, look for **`narRater` was blocked…** (wording varies) and click **Allow Anyway** or **Open Anyway**, authenticate, then open **`narRater.app`** again (that control may disappear after ~an hour — try launching once more to refresh it).
+     - More (including stripping quarantine from a downloaded ZIP): [Installation](#installation).
 3. **A browser tab opens at `http://127.0.0.1:5000`** with bundled examples already loaded — start clicking.
 
 > Needs **[Python 3.10+](https://www.python.org/downloads/)**. If anything fails, jump to [Installation](#installation) for the full walkthrough and troubleshooting.
@@ -90,7 +93,7 @@ For each step, the GUI runs the same backends as the CLI. **Available methods, f
 |--------------|--------|
 | `Python 3.10+ required` | Install [Python 3.10+](https://www.python.org/downloads/), close and reopen any Terminal, run again. |
 | Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead (IPv6/IPv4 quirk on some Macs). |
-| **macOS:** “*Apple cannot check **`narRater.app`** for malicious software*” | Right-click **`narRater.app`** → **Open** → confirm **Open**. Or in Terminal: `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main` (adjust path), then double-click again. macOS Gatekeeper blocks unsigned downloads on first launch only. |
+| **macOS:** Gatekeeper / “cannot check for malicious software” / no **Open** in the right-click menu | **1.** In **Finder**, try **control-click** **`narRater.app`** → **Open**, then confirm **Open** if the dialog offers it — [Apple’s Gatekeeper overrides](https://support.apple.com/guide/mac-help/mh40617/mac). **2.** If that path is missing or still blocks: **System Settings** → **Privacy & Security** → scroll to **Security** — after a failed launch, macOS often shows **`narRater` was blocked** (wording varies) with **Allow Anyway** or **Open Anyway**; click it, enter your password, then launch **`narRater.app`** again (that button may only appear for a limited time after the block). **3.** Downloaded folder still quarantined: in Terminal, `xattr -dr com.apple.quarantine /path/to/narRaters-main`, then try **1** or **2** again. |
 | **macOS:** “narRater couldn't find the narRaters project folder” | macOS **App Translocation** ran the app from a temp copy. Run `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main` (adjust path) and double-click again, or use the [command-line install](#alternate-install-command-line) below. |
 | **Windows:** SmartScreen warns about `narRaters_installer.bat` | Click **More info** → **Run anyway**. |
 | Port 5000 already in use | The installer auto-tries 5001–5010 and prints the URL. To free 5000: macOS → System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
