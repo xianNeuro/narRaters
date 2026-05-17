@@ -21,7 +21,6 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 ## Table of contents
 
 - [Quick start](#quick-start)
-- [Getting started](#getting-started)
 - [Pipeline overview](#pipeline-overview)
 - [Installation](#installation)
 - [Where to put your data](#where-to-put-your-data)
@@ -41,25 +40,11 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ## Quick start
 
-1. **Install [Python 3.10+](https://www.python.org/downloads/)** (Windows: tick **“Add python.exe to PATH”**).
-2. **Download the project** — on this page, click the green **Code ▾** button → **Download ZIP**, then unzip (you'll get a folder called `narRaters-main` or `narRaters`).
-3. **Open the project and launch the app:**
-   - **macOS**: double-click **`narRater.app`** inside the unzipped folder.
-   - **Windows**: double-click **`narRaters_installer.bat`**.
-   - **Linux / command line**: open Terminal in the folder and run `bash install.sh`.
-4. **Open the browser tab that pops up.** Type a **rater name**, drag the pipeline steps you need, click **Continue**, and run from the **dashboard**.
+1. **[Download the ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip)** from this repo (green **Code ▾** → **Download ZIP**) and unzip it.
+2. **Double-click** **`narRater.app`** (macOS) or **`narRaters_installer.bat`** (Windows). Linux: open Terminal in the folder and run `bash install.sh`.
+3. **A browser tab opens at `http://127.0.0.1:5000`** with bundled examples already loaded — start clicking.
 
-Your data goes in the **`data/`** folder inside the project. Bundled examples (`pieman_edited`, `the_siren`) are already there so you can try the pipeline before adding your own files.
-
----
-
-## Getting started
-
-1. **[Install](#installation)** — download the ZIP from GitHub, unzip, and double-click **`narRater.app`** (macOS) or **`narRaters_installer.bat`** (Windows). Bundled examples live in `data/`.
-2. **[Add inputs](#where-to-put-your-data)** under `data/` — the repo includes **bundled examples** (`pieman_edited`, `the_siren`) you can inspect or run as-is; see that section for paths. Smaller **`demo/data/`** samples are also available.
-3. **[Start the web UI](#using-the-web-interface)** — the installer starts it for you. To restart later: just double-click the same file again. PyPI users: `narraters serve` from any folder.
-4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
-5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
+> Needs **[Python 3.10+](https://www.python.org/downloads/)**. If anything fails, jump to [Installation](#installation) for the full walkthrough and troubleshooting.
 
 ---
 
