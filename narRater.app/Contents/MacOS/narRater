@@ -1,23 +1,69 @@
 #!/bin/bash
 set -e
 
-# Resolve the actual repo root: parent of the .app, following symlinks.
-APP_PATH="$(cd "$(dirname "$0")/../.." && pwd)"
-REPO_ROOT="$(cd "$APP_PATH/.." && pwd)"
+is_narraters_root() {
+  [[ -d "$1" && -f "$1/install.sh" && -f "$1/pyproject.toml" ]]
+}
 
-# If install.sh is missing, the user moved the .app outside the project folder.
-if [[ ! -f "$REPO_ROOT/install.sh" ]]; then
-  /usr/bin/osascript <<APPLESCRIPT
-display dialog "narRater.app must stay inside the narRaters project folder.
+# 1. Try the .app's actual parent directory (works after `git clone`).
+APP_BUNDLE="$(cd "$(dirname "$0")/../.." && pwd)"
+PARENT_DIR="$(cd "$APP_BUNDLE/.." && pwd)"
 
-It looks for install.sh in its parent directory. Move narRater.app back next to install.sh, or run:
-    bash install.sh
-in Terminal from the project folder." buttons {"OK"} default button "OK" with icon stop
+REPO_ROOT=""
+if is_narraters_root "$PARENT_DIR"; then
+  REPO_ROOT="$PARENT_DIR"
+fi
+
+# 2. If launched from a translocated copy, $PARENT_DIR is a sandbox path.
+#    Search the most common places people unzip / clone projects to.
+if [[ -z "$REPO_ROOT" ]]; then
+  for candidate in \
+      "$HOME/narRaters" \
+      "$HOME/narRaters-main" \
+      "$HOME/Downloads/narRaters" \
+      "$HOME/Downloads/narRaters-main" \
+      "$HOME/Desktop/narRaters" \
+      "$HOME/Desktop/narRaters-main" \
+      "$HOME/Documents/narRaters" \
+      "$HOME/Documents/narRaters-main"; do
+    if is_narraters_root "$candidate"; then
+      REPO_ROOT="$candidate"
+      break
+    fi
+  done
+fi
+
+# 3. Still not found — show a helpful dialog with copy-paste commands.
+if [[ -z "$REPO_ROOT" ]]; then
+  /usr/bin/osascript <<'APPLESCRIPT'
+display dialog "narRater couldn't find the narRaters project folder.
+
+This usually means one of these is true:
+
+  1. macOS App Translocation: you opened narRater.app from a downloaded
+     ZIP/DMG, so macOS is running it from a temporary copy and can't
+     see the real project files next to it.
+
+  2. You moved narRater.app away from its project folder.
+
+Easiest fix — open Terminal and paste ONE of these (depending on
+where the unzipped folder is):
+
+    cd ~/Downloads/narRaters-main && bash install.sh
+    cd ~/Desktop/narRaters-main && bash install.sh
+    cd ~/narRaters && bash install.sh
+
+Or remove macOS quarantine on the unzipped folder, then try again:
+
+    xattr -dr com.apple.quarantine ~/Downloads/narRaters-main
+
+The most reliable install path is the Terminal one-liner from the
+README — it skips Gatekeeper entirely." buttons {"OK"} default button "OK" with icon stop
 APPLESCRIPT
   exit 1
 fi
 
-# Strip download quarantine on the project folder so future double-clicks work.
+# Strip download quarantine on the project folder so future clicks work.
 /usr/bin/xattr -dr com.apple.quarantine "$REPO_ROOT" 2>/dev/null || true
 
 # Open Terminal and run install.sh in the project folder.

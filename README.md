@@ -102,6 +102,7 @@ cd %USERPROFILE% && git clone https://github.com/xianNeuro/narRaters.git && cd n
 | `git: command not found` | macOS: `xcode-select --install`. Windows: install [Git for Windows](https://git-scm.com/download/win). |
 | Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead. |
 | “*malicious software*” popup on **`narRater.app`** / `.command` / `.dmg` | Use Terminal — that's why **Step 2 is a Terminal command**. macOS Gatekeeper blocks unsigned downloads but cannot block scripts you launch from a shell. |
+| “narRater couldn't find the narRaters project folder” after double-clicking the app from a ZIP | macOS **App Translocation** ran the app from a temp copy. Easiest: just use the Step 2 Terminal command. Or remove quarantine on the unzipped folder and try again: `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main`. |
 | Port 5000 already in use | The installer auto-tries 5001–5010 and prints the URL. To free 5000: macOS → System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
 
 ### Other ways to install
@@ -154,7 +155,14 @@ After running the Step 2 command above (which uses `git clone`), the project fol
 | macOS | **`install_narRater.command`** | Same flow, plain Terminal window |
 | Windows | **`narRaters_installer.bat`** | Creates `.venv\`, installs, opens browser |
 
-If you instead downloaded a ZIP and macOS blocks the click: `xattr -dr com.apple.quarantine ~/narRaters` once. The DMG (`narRaters-macos-installer.dmg`) is unsigned and is generally **not recommended** — Gatekeeper blocks it; the Terminal install is more reliable.
+**ZIP download caveat (macOS):** if you downloaded a ZIP from GitHub instead of using `git clone`, macOS quarantines the folder and may run **`narRater.app`** through *App Translocation* — a temporary read-only copy. The launcher tries common locations (`~/narRaters`, `~/Downloads/narRaters-main`, `~/Desktop/narRaters-main`, …) as a fallback, but the cleanest fix is one of:
+
+```bash
+xattr -dr com.apple.quarantine ~/Downloads/narRaters-main   # then double-click again
+# or just use the Step 2 Terminal command above (recommended)
+```
+
+The DMG (`narRaters-macos-installer.dmg`) is unsigned and is generally **not recommended** — Gatekeeper blocks it; the Terminal install is more reliable.
 </details>
 
 <details>
