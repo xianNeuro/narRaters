@@ -131,32 +131,41 @@ The installer is **safe to run multiple times** — re-running just re-launches 
 
 For users who already have a working Python environment and don't need the bundled example data.
 
-**Requires Python 3.10 or newer.** Check first — this is the most common cause of failure:
+> ⚠️ **Always use `python3 -m pip`, not bare `pip`.**  On macOS, `pip` often points at an old Python (e.g. system 3.9), which makes PyPI report **`No matching distribution found for narraters`** even though the package exists. `python3 -m pip` runs pip through the same Python you'd use to run the app.
+
+**Step 1 — Check Python (must be ≥ 3.10):**
 
 ```bash
 python3 --version    # must show 3.10, 3.11, 3.12, or 3.13
 ```
 
-If 3.9 or older: install Python from [python.org/downloads](https://www.python.org/downloads/), then **restart Terminal** before continuing.
+If 3.9 or older, install Python from [python.org/downloads](https://www.python.org/downloads/), then **restart Terminal** before continuing.
+
+**Step 2 — Install into a venv:**
 
 ```bash
 python3 -m venv ~/narRaters-venv
-source ~/narRaters-venv/bin/activate
+source ~/narRaters-venv/bin/activate     # Windows: ~\narRaters-venv\Scripts\activate
 python3 -m pip install --upgrade pip
 python3 -m pip install narraters
 narraters serve
 ```
 
-**Windows** uses `~\narRaters-venv\Scripts\activate` for the second line, then the rest is the same with `python` instead of `python3`.
+The browser auto-opens **`http://127.0.0.1:5000/pipeline-config`**. If you see a blank page on `localhost:5000`, manually visit **`http://127.0.0.1:5000/pipeline-config`** instead — `localhost` resolves to IPv6 (`::1`) on some macOS setups while Flask binds to IPv4 (`127.0.0.1`). Fixed in **0.1.1+** (auto-rewrites to `127.0.0.1`).
 
-**Exact package name:** `narraters` (all lowercase) — [`pypi.org/project/narraters`](https://pypi.org/project/narraters/).  Pin a version: `python3 -m pip install narraters==0.1.0`.
+**Exact package name:** `narraters` (all lowercase) — [`pypi.org/project/narraters`](https://pypi.org/project/narraters/).  Pin a version: `python3 -m pip install narraters==0.1.1`.
+
+**Next time:** `source ~/narRaters-venv/bin/activate && narraters serve`.
 
 | Problem | Fix |
 |---------|-----|
-| **`No matching distribution found for narraters`** | Your Python is **too old**. Run `python3 --version` — must be ≥ 3.10. Install [Python 3.10+](https://www.python.org/downloads/), open a **new** Terminal, recreate the venv, retry. Don’t use system `pip` on macOS without checking the version. |
-| `python3 -m pip` works but `narraters` command not found | Activate the venv first: `source ~/narRaters-venv/bin/activate`. |
-| `Could not find a version` / offline | Check your internet connection and try `python3 -m pip install narraters -i https://pypi.org/simple`. |
-| You need bundled `data/` examples | Use the **clone or download** path above instead — PyPI installs the app only. |
+| **`No matching distribution found for narraters`** when running `pip install narraters` | Use `python3 -m pip install narraters` instead. Bare `pip` likely points at Python < 3.10. (Verify with `python3 --version`.) |
+| Same error even with `python3 -m pip` | `python3 --version` must be ≥ 3.10. Install [Python 3.10+](https://www.python.org/downloads/), open a **new** Terminal, recreate the venv, retry. |
+| `narraters: command not found` | Activate the venv: `source ~/narRaters-venv/bin/activate`. |
+| Browser opens **`localhost:5000`** but page is blank | Visit **`http://127.0.0.1:5000/pipeline-config`** instead, or upgrade: `python3 -m pip install --upgrade narraters`. |
+| Port 5000 in use (macOS AirPlay Receiver) | `narraters serve --port 5001`, or System Settings → General → AirDrop & Handoff → turn off AirPlay Receiver. |
+| `Could not find a version` / offline | `python3 -m pip install narraters -i https://pypi.org/simple` |
+| You need bundled `data/` examples | Use the **clone or download** path above — PyPI installs the app only. |
 
 PyPI installs the app **only**. To get the `data/` folder structure with bundled examples, also clone the repo or use the recommended path above.
 
@@ -185,16 +194,16 @@ PyPI installs the app **only**. To get the `data/` folder structure with bundled
 Add only what you need — **after** the base install. From inside a clone, with the venv activated:
 
 ```bash
-pip install -e ".[audio]"     # transcription (Whisper)
-pip install -e ".[api]"       # cloud LLM steps (Anthropic / OpenAI)
-pip install -e ".[nlp]"       # finer segmentation (spaCy)
-pip install -e ".[grammar]"   # grammar checker
-pip install -e ".[local-llm]" # local Gemma (large)
-pip install -e ".[match]"     # rmatch
-pip install -e ".[all]"       # api + match
+python3 -m pip install -e ".[audio]"     # transcription (Whisper)
+python3 -m pip install -e ".[api]"       # cloud LLM steps (Anthropic / OpenAI)
+python3 -m pip install -e ".[nlp]"       # finer segmentation (spaCy)
+python3 -m pip install -e ".[grammar]"   # grammar checker
+python3 -m pip install -e ".[local-llm]" # local Gemma (large)
+python3 -m pip install -e ".[match]"     # rmatch
+python3 -m pip install -e ".[all]"       # api + match
 ```
 
-If you installed from PyPI: `pip install "narraters[audio]"`, etc.
+If you installed from PyPI: `python3 -m pip install "narraters[audio]"`, etc.
 
 Heavy downloads show a **RAM/disk warning** first — see [Heavy local models](#heavy-local-models).
 
@@ -213,7 +222,7 @@ git clone https://github.com/xianNeuro/narRaters.git
 cd narRaters
 bash install.sh         # creates .venv, installs editable, starts server
 # or, manual:
-python3 -m venv .venv && source .venv/bin/activate && pip install -e .
+python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -e .
 ```
 
 Build a local **`narRater.app`** for icon/Dock testing: `bash packaging/macos/build_app_bundle.sh`.
