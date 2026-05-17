@@ -75,11 +75,13 @@ CLAUDE.local.md
 Thumbs.db
 
 # Built artifacts — regenerate on demand
-# narRater.app (rebuild: bash packaging/macos/build_app_bundle.sh)
 # narRater_Tutorial.pdf and tutorial_screenshots/ (rebuild via developer/ scripts; not published)
 tutorial_screenshots/
-narRater.app/
 narRaters_installer.app/
 # Old DMG filename (replaced by narRaters-macos-installer.dmg at repo root)
 /narRaters_installer.dmg
 narRater_Tutorial.pdf
+
+# Note: /narRater.app at repo root IS committed — it's the slim launcher built
+# by packaging/macos/build_repo_app.sh. The full bundled .app built by
+# packaging/macos/build_app_bundle.sh is much larger and lives elsewhere.

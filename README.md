@@ -107,11 +107,13 @@ Open the `narRaters` folder in Finder / File Explorer and:
 
 | Platform | Double-click | What it does |
 |----------|--------------|--------------|
-| **macOS** | **`install_narRater.command`** | Creates `.venv/`, installs narRaters into it, starts the web UI, opens your browser |
+| **macOS** | **`narRater.app`** *or* **`install_narRater.command`** | Creates `.venv/`, installs narRaters into it, starts the web UI, opens your browser |
 | **Windows** | **`narRaters_installer.bat`** | Same, on Windows |
 | **Linux / Terminal** | run `bash install.sh` | Same, in Terminal |
 
 The installer is **safe to run multiple times** — re-running just re-launches the app.
+
+> **macOS:** prefer **`narRater.app`** for the proper Dock icon and Finder appearance. Both files do the same thing — they call `install.sh`, which creates the venv, installs deps, and starts the server. **`narRater.app` must stay inside the project folder** (it looks for `install.sh` next to itself).
 
 **macOS — first launch warning:** if Finder says “*Apple cannot verify…*”, **Control-click** (or right-click) **`install_narRater.command`** → **Open** → **Open** in the dialog. You only need to do this once. (`git clone` avoids this; the warning only appears for files extracted from a downloaded ZIP.)
 

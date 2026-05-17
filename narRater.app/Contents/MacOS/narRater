@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+# Resolve the actual repo root: parent of the .app, following symlinks.
+APP_PATH="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$APP_PATH/.." && pwd)"
+
+# If install.sh is missing, the user moved the .app outside the project folder.
+if [[ ! -f "$REPO_ROOT/install.sh" ]]; then
+  /usr/bin/osascript <<APPLESCRIPT
+display dialog "narRater.app must stay inside the narRaters project folder.
+
+It looks for install.sh in its parent directory. Move narRater.app back next to install.sh, or run:
+    bash install.sh
+in Terminal from the project folder." buttons {"OK"} default button "OK" with icon stop
+APPLESCRIPT
+  exit 1
+fi
+
+# Strip download quarantine on the project folder so future double-clicks work.
+/usr/bin/xattr -dr com.apple.quarantine "$REPO_ROOT" 2>/dev/null || true
+
+# Open Terminal and run install.sh in the project folder.
+/usr/bin/osascript <<APPLESCRIPT
+tell application "Terminal"
+  activate
+  do script "clear && cd " & quoted form of "$REPO_ROOT" & " && bash ./install.sh"
+end tell
+APPLESCRIPT
