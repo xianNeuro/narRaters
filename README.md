@@ -20,6 +20,7 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ## Table of contents
 
+- [Quick start](#quick-start)
 - [Getting started](#getting-started)
 - [Pipeline overview](#pipeline-overview)
 - [Installation](#installation)
@@ -38,15 +39,23 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ---
 
+## Quick start
+
+1. **[Install](#installation)** — pick **Mac**, **Windows**, or **pip** (step-by-step, no long read).
+2. In the browser: **rater name** → drag steps → **Continue** → run from the **dashboard**.
+3. **Try one subject** before batching (e.g. **`sentenceCorrect` → `textParsing` → `textMatching`** if you have recall `.txt` files).
+
+**Fastest pip install** (Python **3.10+**): `python3 -m pip install narraters` then `narraters serve` — details under [pip — any OS](#pip--any-os-recommended).
+
+---
+
 ## Getting started
 
-1. **[Install](#installation)** — macOS: open **`narRaters-macos-installer.dmg`**, drag **`narRater.app`** to **Applications**. Windows: double-click **`narRaters_installer.bat`** in the project folder. Developers can use `pip install -e .` instead.
+1. **[Install](#installation)** — [pick Mac, Windows, or pip](#1--pick-your-computer) (numbered steps).
 2. **[Add inputs](#where-to-put-your-data)** under `data/` — the repo includes **bundled examples** (`pieman_edited`, `the_siren`) you can inspect or run as-is; see that section for paths. Smaller **`demo/data/`** samples are also available.
-3. **[Start the web UI](#using-the-web-interface)** — open **`narRater`** from Applications (macOS) or run **`narRaters_installer.bat`** again (Windows). Developers: `.venv/bin/narraters serve` or `server/START_HERE.command`.
+3. **[Start the web UI](#using-the-web-interface)** — `narraters serve`, **`narRater.app`** (macOS), **`narRaters_installer.bat`** (Windows), or **`server/START_HERE.command`**.
 4. **Configure your workflow** — on the first screen, enter a **rater name** (any label you like), **drag in only the steps you need**, set each step’s paths and (when you run) its **method**, then **Continue**. You need a name and **at least one step** before **Continue** enables.
 5. **Run and review** — use the **dashboard** grid to run steps per cell; **open a subject or story** to see tabs for each step, switch **versions** in the dropdown (automated vs `*-edit`), **edit**, **save**, and export **`-edit`** files for analysis.
-
-**First-session tip:** build a short chain (for example **`sentenceCorrect` → `textParsing` → `textMatching`** if you already have recall `.txt` files), run **one subject**, open its detail view, and tab through outputs before batching the whole dataset. The same steps are available from the **[command line](#command-line-pipeline)** for scripts and HPC.
 
 ---
 
@@ -69,80 +78,165 @@ For each step, the GUI runs the same backends as the CLI. **Available methods, f
 
 ## Installation
 
-This section goes beyond the minimal path in **[Getting started](#getting-started)**—use it when you add **optional methods** (Whisper, APIs, local LLMs), set **API keys**, or build **macOS installers / `.app` bundles**.
+> **You need [Python 3.10+](https://www.python.org/downloads/)** for every path below except “macOS disk image” (the app installs Python packages for you on first launch).  
+> **You’re done when** your browser shows the **pipeline setup** page (`…/pipeline-config`).
 
-**Prerequisite:** [Python 3.10+](https://www.python.org/downloads/) on your PATH (or the Microsoft Store / Homebrew equivalent). The installers below do **not** bundle Python.
+### 1 — Pick your computer
 
-### Quick install (double-click)
+| Your computer | Jump to |
+|---------------|---------|
+| **Mac** (easiest: no typing) | [macOS — disk image](#macos--disk-image-no-terminal) |
+| **Windows** | [Windows — one file](#windows--one-file) |
+| **Mac / Windows / Linux** (Terminal OK) | [pip — any OS](#pip--any-os-recommended) |
+| **Hacking on the source code** | [Developers](#developers) |
 
-| Platform | Installer | Everyday launch |
-|----------|-----------|-----------------|
-| **macOS** | **`narRaters-macos-installer.dmg`** (repo root) | Drag **`narRater.app`** to **Applications**, then open from Launchpad. First launch installs Python deps into `~/Library/Application Support/narRaters/`. |
-| **Windows** | **`narRaters_installer.bat`** (repo root) | Same file: sets up **`.venv\`** on first run, then starts the web UI and opens your browser. |
+---
 
-**macOS (standard):** Open the disk image → drag **`narRater.app`** onto the **Applications** alias → open **narRater** from Applications. If Gatekeeper blocks the first open, **right-click → Open**.
+### macOS — disk image (no Terminal)
 
-**Windows:** Clone or unzip the repo → double-click **`narRaters_installer.bat`** (creates `.venv\` if needed, then launches).
+1. **Download** [`narRaters-macos-installer.dmg`](https://github.com/xianNeuro/narRaters/releases) from **Releases** (Assets).
+2. **Open** the `.dmg` (double-click it).
+3. **Double-click** **`Install narRater.command`** on the disk window.  
+   - Copies **`narRater.app`** to **`~/narRaters/`** and starts the app.  
+   - **No drag to Applications.**
 
-Rebuild the DMG: **`bash packaging/macos/build_installer_dmg.sh`**.
+**Next time:** open **`narRater`** from **`~/narRaters/`** in Finder.
 
-The default dependency set is **minimal** (no multi-GB ML stacks). Default methods per step:
+| Problem | Fix |
+|---------|-----|
+| “can’t be opened” / blocked | **Control-click** the `.command` → **Open** → confirm **once**. Or try **`Open narRater.command`** on the disk. |
+| Blank browser page | Turn off **AirPlay Receiver** (System Settings → General → AirDrop & Handoff). |
+| Python missing | Install from [python.org](https://www.python.org/downloads/), then run **Install** again. |
+| Want it in **Applications** instead | On the disk: Terminal → `bash install_narRater.sh /Applications` |
 
-| Step | Default method |
-|------|----------------|
-| 2 — segment | `clause` (heuristic) |
-| 3 — correct | `rules` (spell-checker) |
-| 4 — parse | `rules` (regex) |
-| 5 — match | `test` (keyword) |
-| 6 — rate | `linguistic` (regex; spaCy if installed) |
+First launch opens **Terminal** and may take **several minutes** (one-time Python setup). Use the **`http://127.0.0.1:…`** link it prints (**not** `localhost`).
 
-### Developers: clone + editable install
+---
+
+### Windows — one file
+
+1. **Get the project:** [Download ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip) or `git clone https://github.com/xianNeuro/narRaters.git`
+2. **Double-click** **`narRaters_installer.bat`** in the folder (top level of the repo).
+3. Wait — your **browser** should open when the app is ready (first run creates `.venv\` and installs packages).
+
+**Next time:** double-click the same **`narRaters_installer.bat`**.
+
+| Problem | Fix |
+|---------|-----|
+| Python missing | Install [Python 3.10+](https://www.python.org/downloads/) and check **“Add python.exe to PATH”**, then run the `.bat` again. |
+| Window closes instantly | Open **Command Prompt** in the repo folder, run `narRaters_installer.bat`, read the error text. |
+
+---
+
+### pip — any OS (recommended)
+
+**Requires Python 3.10 or newer.** Check first:
+
+```bash
+python3 --version
+```
+
+You need `3.10`, `3.11`, `3.12`, or `3.13`. If you see `3.9` or older, install Python from [python.org](https://www.python.org/downloads/) (Mac: run the installer, then use `python3` from `/usr/local/bin` or `/Library/Frameworks/...`).
+
+Copy-paste (use **`python3 -m pip`**, not bare `pip` — on Mac, `pip` often points at the wrong Python):
+
+```bash
+python3 -m venv ~/narRaters-venv
+source ~/narRaters-venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install narraters
+narraters serve
+```
+
+**Exact package name:** `narraters` (all lowercase) — [`pypi.org/project/narraters`](https://pypi.org/project/narraters/)
+
+**Windows** — activate with:
+
+```bat
+~\narRaters-venv\Scripts\activate
+```
+
+then `python -m pip install narraters` and `narraters serve`.
+
+**Next time:** activate the venv, then run `narraters serve`.
+
+| Problem | Fix |
+|---------|-----|
+| **`No matching distribution found for narraters`** | Your Python is **too old** (`python3 --version` must be ≥ 3.10). Install [Python 3.10+](https://www.python.org/downloads/), create a **new** venv, run `python3 -m pip install narraters` again. Do **not** use system `pip` on macOS without checking the version. |
+| `python3` not found | Install [Python 3.10+](https://www.python.org/downloads/) or try `py -3` instead of `python3` on Windows. |
+| `Could not find a version` / offline | Check internet; try `python3 -m pip install narraters -i https://pypi.org/simple` |
+| Port in use | `narraters serve --port 5001` |
+| Need sample data files | [Clone the repo](https://github.com/xianNeuro/narRaters) — PyPI installs the app only. |
+
+Pin a release: `python3 -m pip install narraters==0.1.0`
+
+---
+
+### After install (every path)
+
+1. Browser opens **`http://127.0.0.1:5000/pipeline-config`** (port may differ — use what Terminal shows).
+2. Type a **rater name** (any label).
+3. **Drag** the steps you need → **Continue** → use the **dashboard**.
+
+Sample data: see [Where to put your data](#where-to-put-your-data) (bundled examples if you cloned the repo).
+
+**Default methods** (work offline, no huge downloads):
+
+| Step | Default |
+|------|---------|
+| segment | `clause` |
+| correct | `rules` |
+| parse | `rules` |
+| match | `test` |
+| rate | `linguistic` |
+
+---
+
+### Optional extras (Whisper, APIs, big models)
+
+Only if you need them — add **after** the base install:
+
+```bash
+pip install "narraters[audio]"       # transcription (Whisper)
+pip install "narraters[api]"         # cloud LLM steps
+pip install "narraters[nlp]"         # finer segmentation
+pip install "narraters[grammar]"   # grammar checker
+pip install "narraters[local-llm]" # local Gemma (large)
+pip install "narraters[match]"       # rmatch
+pip install "narraters[all]"         # api + match
+```
+
+From a git clone: `pip install -e ".[audio]"`, etc.  
+Heavy downloads show a **RAM/disk warning** first — see [Heavy local models](#heavy-local-models).
+
+**Ollama (local Gemma):** install [Ollama](https://ollama.com), then `ollama pull gemma4:e4b`.
+
+**API keys (cloud):** in a clone, `cp .env.example .env` and add keys — see [`SETUP_API.md`](SETUP_API.md).
+
+---
+
+### Developers
 
 ```bash
 git clone https://github.com/xianNeuro/narRaters.git
 cd narRaters
 bash scripts/setup_project_venv.sh .
-source .venv/bin/activate              # Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -e .
+narraters serve
 ```
 
-On Homebrew macOS, use the venv (PEP 668) instead of `pip install -e .` on system Python. Optional: **`bash packaging/macos/build_app_bundle.sh`** builds **`narRater.app`** next to `server/` for local testing.
+Includes bundled `data/` examples. Build a local **`narRater.app`:** `bash packaging/macos/build_app_bundle.sh`.
 
-### Optional extras (heavier methods)
+---
 
-Install only what you need (`[audio]`, `[local-llm]`, and `[match]` pull **torch**, multi-GB):
+### Maintainers
 
 ```bash
-pip install -e ".[api]"        # Step 5/6 --method api
-pip install -e ".[audio]"     # Step 1 — Whisper / WhisperX
-pip install -e ".[nlp]"       # Step 2 — spaCy + benepar
-pip install -e ".[grammar]"   # Step 3 — language-tool-python
-pip install -e ".[local-llm]" # local Gemma (HF)
-pip install -e ".[match]"     # Step 5 — rmatch
-pip install -e ".[all]"       # api + match
+bash packaging/macos/build_installer_dmg.sh   # → narRaters-macos-installer.dmg
 ```
 
-> ⚠️ Heavy methods run a **disk/RAM preflight** before downloads — see [Heavy local models](#heavy-local-models) under [Using the web interface](#using-the-web-interface).
-
-### Ollama (local Gemma, no cloud billing)
-
-Install [Ollama](https://ollama.com), then e.g. `ollama pull gemma4:e4b` for the `gemma-ollama` methods (Steps 3–5). The app checks free disk before suggesting large pulls.
-
-### API keys
-
-```bash
-cp .env.example .env   # then edit for ANTHROPIC_API_KEY, OPENAI_API_KEY, HF_TOKEN, …
-```
-
-Full provider list: [`SETUP_API.md`](SETUP_API.md).
-
-### Maintainers: rebuild macOS DMG
-
-```bash
-bash packaging/macos/build_installer_dmg.sh   # narRaters-macos-installer.dmg at repo root
-bash packaging/macos/build_app_bundle.sh      # narRater.app at repo root (same bundle as inside the DMG)
-```
-
-CI: `.github/workflows/build-installer-dmg.yml` (artifact on manual runs; attaches the DMG to GitHub Releases). Commit **`narRaters-macos-installer.dmg`** at the repo root when you want a direct in-tree download link.
+CI attaches the DMG and publishes **`narraters`** to PyPI on each [GitHub Release](https://github.com/xianNeuro/narRaters/releases).
 
 ---
 
@@ -266,7 +360,7 @@ narraters transcribe --filter sub-01                         # one item only
 | `-o, --output` | path | Output directory (overrides the `--kind` default) |
 | `--filter` | substring | Only transcribe files whose name matches this item id |
 
-Requires `pip install -e ".[audio]"`. (Text-only projects can skip Step 1 entirely.)
+Requires `pip install "narraters[audio]"` (or `pip install -e ".[audio]"` from a clone). Text-only projects can skip Step 1 entirely.
 
 ### Step 2 — `segment` (story → events)
 
@@ -330,7 +424,7 @@ narraters match --method rmatch                   # embedding matcher (requires 
 
 | Option | Choices | Notes |
 |---|---|---|
-| `--method` | `test`, `api`, `gemma-ollama`, `rmatch` | `test` is keyword-based, free, and always available; `rmatch` needs `pip install -e ".[match]"` |
+| `--method` | `test`, `api`, `gemma-ollama`, `rmatch` | `test` is keyword-based, free, and always available; `rmatch` needs `pip install "narraters[match]"` |
 | `--story-events` | path | Directory of `{story}_events.xlsx` (default: `data/3_story_events`) |
 | `-i, --input` | path | Recall-parsed input directory (default: `output/recall_parsed/`) |
 | `-o, --output` | path | Output directory (default: `output/recall_rated/`) |

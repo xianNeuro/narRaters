@@ -4,7 +4,7 @@ Web-based interface to visually view subjects' raw recall texts, corrected texts
 parsed texts, and recall ratings.
 
 Run with: python web-interface.py
-Then open browser to: http://localhost:5000
+Then open browser to: http://127.0.0.1:5000/pipeline-config
 """
 
 # Defer pandas import (saves ~15s startup). Module __getattr__ does not run for `pd` inside
@@ -6919,16 +6919,12 @@ if __name__ == '__main__':
     if _debug:
         print("narRater - Web Viewer")
         print(f"Project root: {PROJECT_ROOT}")
-    pipeline_file = PROJECT_ROOT / 'pipeline_config.json'
-    if pipeline_file.exists():
-        if _debug:
-            print("Open browser to: http://localhost:5000")
-    else:
-        if _debug:
-            print("Open browser to: http://localhost:5000/pipeline-config")
     # Default to loopback. The web UI has open file-write and subprocess-spawn
     # endpoints; binding to 0.0.0.0 would expose them to the local network.
     # Override with NARRATERS_HOST=0.0.0.0 if LAN access is intentionally needed.
     _host = _os.environ.get('NARRATERS_HOST', '127.0.0.1')
-    app.run(debug=_debug, host=_host, port=5000, use_reloader=False)
+    _port = int(_os.environ.get('NARRATERS_PORT', '5000'))
+    _browse = '127.0.0.1' if _host in ('127.0.0.1', 'localhost', '::1') else _host
+    print(f"narRaters ready — open http://{_browse}:{_port}/pipeline-config")
+    app.run(debug=_debug, host=_host, port=_port, use_reloader=False)
 

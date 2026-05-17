@@ -47,7 +47,7 @@ if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
     echo "WARNING: Port 5000 is already in use!"
     osascript -e 'display dialog "Port 5000 is already in use. Another server may be running. Please stop it first or check the Terminal window." buttons {"OK"} default button "OK" with icon caution'
     # Try to open browser anyway
-    open "http://localhost:5000/pipeline-config" 2>/dev/null || open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null
+    open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null || open "http://localhost:5000/pipeline-config" 2>/dev/null
     exit 0
 fi
 
@@ -78,7 +78,7 @@ sleep 1
 # Check if server is ready (try up to 15 times with longer waits)
 SERVER_READY=false
 for i in {1..15}; do
-    if curl -s http://localhost:5000 > /dev/null 2>&1; then
+    if curl -s http://127.0.0.1:5000/pipeline-config 2>/dev/null | grep -q 'Narrative Processing Pipeline'; then
         echo "✓ Server is ready!"
         SERVER_READY=true
         break
@@ -96,7 +96,7 @@ fi
 
 # Try to open browser to pipeline-config page directly
 echo "Opening browser..."
-open "http://localhost:5000/pipeline-config" 2>/dev/null || open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null
+open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null || open "http://localhost:5000/pipeline-config" 2>/dev/null
 
 echo ""
 echo "=========================================="

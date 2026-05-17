@@ -258,9 +258,17 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
     if not args.no_browser:
         _open_browser_when_ready(host, port)
 
-    print(f"narRaters web UI starting on http://localhost:{port}")
+    browse_host = _loopback_browser_host(host)
+    print(f"narRaters web UI starting on http://{browse_host}:{port}/pipeline-config")
     module.app.run(host=host, port=port, debug=debug, use_reloader=False)
     return 0
+
+
+def _loopback_browser_host(host: str) -> str:
+    """Use IPv4 loopback in URLs when the server binds to loopback (avoids localhost → ::1 on macOS)."""
+    if host in ("127.0.0.1", "localhost", "::1"):
+        return "127.0.0.1"
+    return host
 
 
 def _open_browser_when_ready(host: str, port: int) -> None:
@@ -271,7 +279,7 @@ def _open_browser_when_ready(host: str, port: int) -> None:
 
     def opener() -> None:
         time.sleep(1.0)
-        url = f"http://localhost:{port}"
+        url = f"http://{_loopback_browser_host(host)}:{port}/pipeline-config"
         try:
             webbrowser.open(url)
         except Exception:

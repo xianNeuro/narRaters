@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build narRater.app with the full project bundled for drag-to-Applications install.
+# Build narRater.app with the full project bundled (DMG, ~/narRaters, or /Applications).
 # Runtime copies to ~/Library/Application Support/narRaters/ on first launch (writable).
 set -euo pipefail
 
@@ -65,6 +65,23 @@ STAMP="$APP_SUPPORT/.bundle_version"
 VERSION="$(cat "$BUNDLE_ROOT/.bundle_version" 2>/dev/null || echo 0)"
 
 mkdir -p "$APP_SUPPORT" "$RUNTIME_ROOT/data" "$RUNTIME_ROOT/output"
+PORT_FILE="$APP_SUPPORT/listen_port"
+
+pick_listen_port() {
+  local p
+  for p in 5000 5001 5002; do
+    if ! lsof -Pi :"$p" -sTCP:LISTEN -t >/dev/null 2>&1; then
+      echo "$p" >"$PORT_FILE"
+      echo "$p"
+      return 0
+    fi
+  done
+  osascript -e 'display dialog "Ports 5000–5002 are already in use (often macOS AirPlay Receiver on 5000). Turn off AirPlay Receiver in System Settings → General → AirDrop & Handoff, or quit the other app, then open narRater again." buttons {"OK"} default button "OK" with icon caution'
+  exit 1
+}
+
+PORT="$(pick_listen_port)"
+export NARRATERS_PORT="$PORT"
 
 sync_runtime() {
   rsync -a \
@@ -98,9 +115,10 @@ if [[ ! -x "$PY" ]] || ! "$PY" -c "import flask" 2>/dev/null; then
   "$PY" -m pip install -e "$RUNTIME_ROOT"
 fi
 
-# Refresh UI templates and server entrypoint from the bundle on every launch.
+# Refresh UI assets from the bundle on every launch.
 if [[ -d "$BUNDLE_ROOT/templates" ]]; then
   rsync -a "$BUNDLE_ROOT/templates/" "$RUNTIME_ROOT/templates/"
+  rsync -a "$BUNDLE_ROOT/static/" "$RUNTIME_ROOT/static/"
   rsync -a "$BUNDLE_ROOT/server/web-interface.py" "$RUNTIME_ROOT/server/web-interface.py"
 fi
 
@@ -108,7 +126,7 @@ export NARRATERS_PROJECT_ROOT="$RUNTIME_ROOT"
 cd "$RUNTIME_ROOT/server"
 export PYTHONUNBUFFERED=1
 echo "narRaters — $RUNTIME_ROOT"
-echo "http://127.0.0.1:5000 (Ctrl+C to stop)"
+echo "http://127.0.0.1:${PORT} (Ctrl+C to stop)"
 exec "$PY" web-interface.py
 EOF
 chmod +x "$START_SH"
@@ -117,7 +135,22 @@ LAUNCHER="$OUT_APP/Contents/MacOS/narRater"
 cat >"$LAUNCHER" <<'LAUNCHER_EOF'
 #!/bin/bash
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
-START_SH="$(cd "$(dirname "$0")" && pwd)/start_server.sh"
+
+# After the first successful launch, strip Gatekeeper quarantine from the whole
+# bundle so normal double-click works (Control-click → Open alone often is not enough).
+MACOS_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_ROOT="$(cd "$MACOS_DIR/.." && pwd)"
+xattr -dr com.apple.quarantine "$APP_ROOT" 2>/dev/null || true
+
+START_SH="$MACOS_DIR/start_server.sh"
+APP_SUPPORT="$HOME/Library/Application Support/narRaters"
+PORT_FILE="$APP_SUPPORT/listen_port"
+
+_narraters_ready() {
+  local port="$1"
+  curl -sf --connect-timeout 2 "http://127.0.0.1:${port}/pipeline-config" 2>/dev/null \
+    | grep -q 'Narrative Processing Pipeline'
+}
 
 osascript <<OSA
 tell application "Terminal"
@@ -126,15 +159,19 @@ tell application "Terminal"
 end tell
 OSA
 
-for _ in $(seq 1 90); do
-  if curl -sf --connect-timeout 1 "http://127.0.0.1:5000/pipeline-config" >/dev/null 2>&1 \
-     || curl -sf --connect-timeout 1 "http://127.0.0.1:5000/" >/dev/null 2>&1; then
-    open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null || true
+PORT=5000
+for _ in $(seq 1 600); do
+  if [[ -f "$PORT_FILE" ]]; then
+    PORT="$(tr -d '[:space:]' <"$PORT_FILE")"
+  fi
+  if _narraters_ready "$PORT"; then
+    open "http://127.0.0.1:${PORT}/pipeline-config" 2>/dev/null || true
     exit 0
   fi
-  sleep 0.5
+  sleep 1
 done
-open "http://127.0.0.1:5000/pipeline-config" 2>/dev/null || true
+
+osascript -e 'display dialog "narRaters is still starting or failed to start. Check the Terminal window for errors (first launch can take several minutes while Python packages install). When you see \"Running on http://127.0.0.1\", open the URL shown there in your browser." buttons {"OK"} default button "OK" with icon caution'
 LAUNCHER_EOF
 chmod +x "$LAUNCHER"
 
@@ -164,5 +201,11 @@ cat >"$OUT_APP/Contents/Info.plist" <<EOF
 </dict>
 </plist>
 EOF
+
+# Ad-hoc sign so the bundle is intact for Gatekeeper (not notarized — users may still
+# need install_narRater.sh or one Control-click → Open on first download).
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --deep --sign - "$OUT_APP" 2>/dev/null || true
+fi
 
 echo "Built standalone app: $OUT_APP (version $VERSION)"
