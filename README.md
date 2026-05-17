@@ -41,39 +41,11 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ## Quick start
 
-You need **[Python 3.10+](https://www.python.org/downloads/)** installed (Windows: check **“Add python.exe to PATH”** during the installer).
+1. **Install [Python 3.10+](https://www.python.org/downloads/)** (Windows: tick **“Add python.exe to PATH”**).
+2. **Open Terminal / Command Prompt and paste one line.** See [Installation](#installation) — there's exactly one command per OS.
+3. **Open the browser tab that pops up.** Type a **rater name**, drag the pipeline steps you need, click **Continue**, and run from the **dashboard**.
 
-### macOS / Linux — open Terminal and paste:
-
-```bash
-cd ~ && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && bash install.sh
-```
-
-That's it — clones the project to `~/narRaters/`, sets up a `.venv/`, installs everything, and opens the web UI in your browser.
-
-### Windows — open Command Prompt and paste:
-
-```bat
-cd %USERPROFILE% && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && narRaters_installer.bat
-```
-
-(No git? Download the [project ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip), unzip, then double-click `narRaters_installer.bat`.)
-
-### After install
-
-The browser opens **`http://127.0.0.1:5000/pipeline-config`**. Enter a **rater name**, drag the steps you need, **Continue**, and run from the **dashboard**. Your data goes in **`data/`** inside the project folder — see [Where to put your data](#where-to-put-your-data). Bundled examples (`pieman_edited`, `the_siren`) are already there so you can try the pipeline before adding your own files.
-
-### To restart later
-
-```bash
-cd ~/narRaters && bash install.sh    # Mac / Linux
-```
-
-```bat
-cd %USERPROFILE%\narRaters && narRaters_installer.bat
-```
-
-> **Why Terminal?** macOS Gatekeeper blocks unsigned `.app` and `.command` files downloaded from the internet — sometimes with a “malicious software” popup that won’t let you click *Open* at all. Running `bash install.sh` from Terminal completely bypasses that. The same install steps work; you just kick them off from a shell.
+Your data goes in the **`data/`** folder inside the new `narRaters/` project. Bundled examples (`pieman_edited`, `the_siren`) are already there so you can try the pipeline before adding your own files.
 
 ---
 
@@ -106,98 +78,41 @@ For each step, the GUI runs the same backends as the CLI. **Available methods, f
 
 ## Installation
 
-> **Prerequisite:** [Python 3.10 or newer](https://www.python.org/downloads/). On Windows, tick **“Add python.exe to PATH”** in the installer.  
-> **You’re done when** your browser shows the **pipeline setup** page (`…/pipeline-config`).
+**Step 1 — Install [Python 3.10 or newer](https://www.python.org/downloads/).**  Windows: check **“Add python.exe to PATH”** in the Python installer.
 
-### Recommended — Terminal one-liner (works on every macOS, Linux, Windows)
-
-This is the most reliable path. It clones the project, creates a virtual environment, installs everything, and starts the web UI — no double-clicks, no Gatekeeper popups.
-
-**macOS / Linux** — open **Terminal** and paste:
+**Step 2 — Open Terminal (macOS / Linux) or Command Prompt (Windows). Paste one line:**
 
 ```bash
+# macOS / Linux
 cd ~ && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && bash install.sh
 ```
 
-**Windows** — open **Command Prompt** and paste:
-
 ```bat
+:: Windows
 cd %USERPROFILE% && git clone https://github.com/xianNeuro/narRaters.git && cd narRaters && narRaters_installer.bat
 ```
 
-Result on every platform: a `narRaters/` folder in your home directory, a `.venv/` inside it, and the web UI running at **`http://127.0.0.1:5000/pipeline-config`**.
+**Step 3 — Done.** Your browser opens **`http://127.0.0.1:5000/pipeline-config`**. Put your data in **`data/`** inside the new `narRaters/` folder (bundled examples are already there). Restart later by re-running the same line.
 
-**Restart later:**
+### Troubleshooting
 
-```bash
-cd ~/narRaters && bash install.sh                   # macOS / Linux
-```
+| If you see… | Do this |
+|--------------|--------|
+| `Python 3.10+ required` | Install [Python 3.10+](https://www.python.org/downloads/), close and reopen Terminal, run again. |
+| `git: command not found` | macOS: `xcode-select --install`. Windows: install [Git for Windows](https://git-scm.com/download/win). |
+| Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead. |
+| “*malicious software*” popup on **`narRater.app`** / `.command` / `.dmg` | Use Terminal — that's why **Step 2 is a Terminal command**. macOS Gatekeeper blocks unsigned downloads but cannot block scripts you launch from a shell. |
+| Port 5000 already in use | The installer auto-tries 5001–5010 and prints the URL. To free 5000: macOS → System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
 
-```bat
-cd %USERPROFILE%\narRaters && narRaters_installer.bat
-```
+### Other ways to install
 
-The installer is **idempotent** — re-running just re-launches the app (skips already-installed deps).
+<details>
+<summary><b>From PyPI (no project folder; for users who already have a Python venv)</b></summary>
 
-| Problem | Fix |
-|---------|-----|
-| `git: command not found` | Install Xcode Command Line Tools (`xcode-select --install`) on macOS, or [Git for Windows](https://git-scm.com/download/win). |
-| `Python 3.10+ required` | Install from [python.org/downloads](https://www.python.org/downloads/), close and reopen Terminal, run again. |
-| Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead. macOS sometimes resolves `localhost` over IPv6 while Flask binds IPv4. |
-| Port already in use (often **AirPlay Receiver** on macOS) | The installer auto-tries `5001`–`5010`. Use the URL printed in Terminal. To free port 5000: System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
-| Need the bundled `data/` examples | Already in `data/` after `git clone` (`pieman_edited`, `the_siren`). |
-
----
-
-### No git? — download a ZIP, install from Terminal
+Always use **`python3 -m pip`**, not bare `pip` — on macOS, `pip` often points at an old Python and will say *“no matching distribution”*.
 
 ```bash
-curl -L https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip -o ~/narRaters.zip
-cd ~ && unzip narRaters.zip && mv narRaters-main narRaters && cd narRaters
-xattr -dr com.apple.quarantine .          # macOS only — clears download quarantine
-bash install.sh
-```
-
-Windows: download the ZIP from [github.com/xianNeuro/narRaters → Code → Download ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip), unzip, open Command Prompt in the folder, run `narRaters_installer.bat`.
-
----
-
-### Double-click installers (only if Terminal isn't an option)
-
-> ⚠️ **macOS users — read this first.** macOS Gatekeeper blocks unsigned, un-notarized installers downloaded from the internet. The “*macOS cannot verify the developer / malicious software*” popup may not even let you click *Open*. We are not paying $99/year for an Apple Developer ID, so the items below **only work reliably after `git clone`** (which doesn't add quarantine attributes), or after running the `xattr -dr com.apple.quarantine .` command above on a downloaded ZIP. **The Terminal one-liner is strictly more reliable** — use it if at all possible.
-
-In a project folder where Gatekeeper is satisfied:
-
-| Platform | Double-click | What it does |
-|----------|--------------|--------------|
-| **macOS** | **`narRater.app`** | Calls `install.sh` and opens the web UI; shows the proper Dock icon |
-| **macOS** | **`install_narRater.command`** | Same flow, plain Terminal window |
-| **Windows** | **`narRaters_installer.bat`** | Creates `.venv\`, installs narRaters, opens browser |
-
-If macOS blocks any of the macOS items above:
-
-1. **Try the Terminal one-liner instead** (top of this section).
-2. Or, if you really want the click flow, drop quarantine on the project folder once: `xattr -dr com.apple.quarantine ~/narRaters` and double-click again.
-
----
-
-### Alternate — install from PyPI
-
-For users who already have a working Python environment and don't need the bundled example data.
-
-> ⚠️ **Always use `python3 -m pip`, not bare `pip`.**  On macOS, `pip` often points at an old Python (e.g. system 3.9), which makes PyPI report **`No matching distribution found for narraters`** even though the package exists. `python3 -m pip` runs pip through the same Python you'd use to run the app.
-
-**Step 1 — Check Python (must be ≥ 3.10):**
-
-```bash
-python3 --version    # must show 3.10, 3.11, 3.12, or 3.13
-```
-
-If 3.9 or older, install Python from [python.org/downloads](https://www.python.org/downloads/), then **restart Terminal** before continuing.
-
-**Step 2 — Install into a venv:**
-
-```bash
+python3 --version        # must be 3.10 or newer
 python3 -m venv ~/narRaters-venv
 source ~/narRaters-venv/bin/activate     # Windows: ~\narRaters-venv\Scripts\activate
 python3 -m pip install --upgrade pip
@@ -205,95 +120,56 @@ python3 -m pip install narraters
 narraters serve
 ```
 
-The browser auto-opens **`http://127.0.0.1:5000/pipeline-config`**. If you see a blank page on `localhost:5000`, manually visit **`http://127.0.0.1:5000/pipeline-config`** instead — `localhost` resolves to IPv6 (`::1`) on some macOS setups while Flask binds to IPv4 (`127.0.0.1`). Fixed in **0.1.1+** (auto-rewrites to `127.0.0.1`).
+Package: [`narraters`](https://pypi.org/project/narraters/) (all lowercase). PyPI installs the app **only** — for the bundled `data/` examples, use the main install path above.
+</details>
 
-**Exact package name:** `narraters` (all lowercase) — [`pypi.org/project/narraters`](https://pypi.org/project/narraters/).  Pin a version: `python3 -m pip install narraters==0.1.1`.
+<details>
+<summary><b>Optional extras (Whisper, cloud APIs, local Gemma, etc.)</b></summary>
 
-**Next time:** `source ~/narRaters-venv/bin/activate && narraters serve`.
-
-| Problem | Fix |
-|---------|-----|
-| **`No matching distribution found for narraters`** when running `pip install narraters` | Use `python3 -m pip install narraters` instead. Bare `pip` likely points at Python < 3.10. (Verify with `python3 --version`.) |
-| Same error even with `python3 -m pip` | `python3 --version` must be ≥ 3.10. Install [Python 3.10+](https://www.python.org/downloads/), open a **new** Terminal, recreate the venv, retry. |
-| `narraters: command not found` | Activate the venv: `source ~/narRaters-venv/bin/activate`. |
-| Browser opens **`localhost:5000`** but page is blank | Visit **`http://127.0.0.1:5000/pipeline-config`** instead, or upgrade: `python3 -m pip install --upgrade narraters`. |
-| Port 5000 in use (macOS AirPlay Receiver) | `narraters serve --port 5001`, or System Settings → General → AirDrop & Handoff → turn off AirPlay Receiver. |
-| `Could not find a version` / offline | `python3 -m pip install narraters -i https://pypi.org/simple` |
-| You need bundled `data/` examples | Use the **clone or download** path above — PyPI installs the app only. |
-
-PyPI installs the app **only**. To get the `data/` folder structure with bundled examples, also clone the repo or use the recommended path above.
-
----
-
-### After install (every path)
-
-1. Browser opens **`http://127.0.0.1:5000/pipeline-config`** (port may differ — read the URL printed in the Terminal window).
-2. Type a **rater name** (any label).
-3. **Drag** steps into the pipeline → **Continue** → run from the **dashboard**.
-
-**Default methods** all work offline with no huge downloads:
-
-| Step | Default |
-|------|---------|
-| segment | `clause` |
-| correct | `rules` |
-| parse | `rules` |
-| match | `test` |
-| rate | `linguistic` |
-
----
-
-### Optional extras (Whisper, APIs, big models)
-
-Add only what you need — **after** the base install. From inside a clone, with the venv activated:
+Inside the project folder, with the venv activated:
 
 ```bash
-python3 -m pip install -e ".[audio]"     # transcription (Whisper)
-python3 -m pip install -e ".[api]"       # cloud LLM steps (Anthropic / OpenAI)
-python3 -m pip install -e ".[nlp]"       # finer segmentation (spaCy)
+python3 -m pip install -e ".[audio]"     # Whisper transcription
+python3 -m pip install -e ".[api]"       # Anthropic / OpenAI
+python3 -m pip install -e ".[nlp]"       # spaCy segmentation
 python3 -m pip install -e ".[grammar]"   # grammar checker
-python3 -m pip install -e ".[local-llm]" # local Gemma (large)
+python3 -m pip install -e ".[local-llm]" # local Gemma
 python3 -m pip install -e ".[match]"     # rmatch
 python3 -m pip install -e ".[all]"       # api + match
 ```
 
-If you installed from PyPI: `python3 -m pip install "narraters[audio]"`, etc.
+PyPI users: `python3 -m pip install "narraters[audio]"`, etc.
 
-Heavy downloads show a **RAM/disk warning** first — see [Heavy local models](#heavy-local-models).
+Heavy methods (`audio`, `local-llm`, `match`) pull multi-GB packages — the app shows a RAM/disk preflight before downloading. **Ollama (local Gemma):** install [Ollama](https://ollama.com), then `ollama pull gemma4:e4b`. **API keys:** copy `.env.example` to `.env` and edit (see [`SETUP_API.md`](SETUP_API.md)).
+</details>
 
-**Ollama (local Gemma):** install [Ollama](https://ollama.com), then `ollama pull gemma4:e4b`.
+<details>
+<summary><b>Double-click installers (only after <code>git clone</code>)</b></summary>
 
-**API keys (cloud):** copy `.env.example` to `.env` and fill in the keys — see [`SETUP_API.md`](SETUP_API.md).
+After running the Step 2 command above (which uses `git clone`), the project folder is **not** quarantined and you can also launch the app by double-clicking:
 
----
+| Platform | File | What it does |
+|----------|------|--------------|
+| macOS | **`narRater.app`** | Calls `install.sh`, opens the browser; proper Dock icon |
+| macOS | **`install_narRater.command`** | Same flow, plain Terminal window |
+| Windows | **`narRaters_installer.bat`** | Creates `.venv\`, installs, opens browser |
 
-### Developers
+If you instead downloaded a ZIP and macOS blocks the click: `xattr -dr com.apple.quarantine ~/narRaters` once. The DMG (`narRaters-macos-installer.dmg`) is unsigned and is generally **not recommended** — Gatekeeper blocks it; the Terminal install is more reliable.
+</details>
 
-The `install.sh` script already does an editable install. To work on the codebase:
+<details>
+<summary><b>Developers</b></summary>
+
+`install.sh` already does an editable install. To work on the codebase:
 
 ```bash
 git clone https://github.com/xianNeuro/narRaters.git
 cd narRaters
-bash install.sh         # creates .venv, installs editable, starts server
-# or, manual:
 python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -e .
 ```
 
-Build a local **`narRater.app`** for icon/Dock testing: `bash packaging/macos/build_app_bundle.sh`.
-
----
-
-### Advanced — macOS DMG (unsigned, often blocked by Gatekeeper)
-
-The `narRaters-macos-installer.dmg` produced by `bash packaging/macos/build_installer_dmg.sh` exists for distribution channels that need a single-file artifact. **It is unsigned and un-notarized**, so most users will hit the same Gatekeeper block as `.command` and `.app` files. The Terminal one-liner is recommended instead.
-
-If you really want to use the DMG:
-
-```bash
-xattr -dr com.apple.quarantine ~/Downloads/narRaters-macos-installer.dmg
-open ~/Downloads/narRaters-macos-installer.dmg
-xattr -dr com.apple.quarantine /Volumes/narRaters
-```
+Build the standalone macOS app for icon testing: `bash packaging/macos/build_app_bundle.sh`.  Build the slim repo-root launcher: `bash packaging/macos/build_repo_app.sh`.
+</details>
 
 ---
 
