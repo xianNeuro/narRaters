@@ -13,7 +13,7 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 <p align="center">
   <img src="static/app-icon.png" alt="narRater app icon" width="128" height="128">
   <br>
-  <em>macOS: build <code>narRater.app</code> with <code>packaging/macos/build_app_bundle.sh</code> (uses this icon).</em>
+  <em>The <code>narRater.app</code> double-click launcher (macOS) ships at the repo root.</em>
 </p>
 
 ---
@@ -28,7 +28,7 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 - [Command-line pipeline](#command-line-pipeline)
 - [Prompt templates](#prompt-templates)
 - [Validation / testing](#validation--testing)
-- [Performance notes](#performance-notes)
+- [Research background](#research-background)
 - [Library / Python use](#library--python-use)
 - [Project layout](#project-layout)
 - [Further reading](#further-reading)
@@ -50,7 +50,9 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ## Pipeline overview
 
-**Six steps, your configuration.** narRaters does **not** require all six steps or a fixed order. On the configuration page you **select and chain** only what your study needs; when you run a step you choose its **method** (and model or prompt, if applicable). The table below lists each step’s **ID** (used in the web UI and `pipeline_config.json`), role, CLI command, and default folders. In typical recall work, **`audioTranscribe`** / **`eventSegment`** target the **story**, **`sentenceCorrect`**–**`textMatching`** each **subject recall**, and **`causalRating`** the **story event list**—but text-only projects may skip **`audioTranscribe`**, and you might run only **`eventSegment`** and **`causalRating`**, or **`sentenceCorrect` → `textParsing` → `textMatching`**, and so on. Every included step is available from the **GUI** or **`narraters` CLI**, has a **lightweight default method**, and supports **hand-editing** afterward.
+**Six steps, your configuration.** narRaters does **not** require all six steps or a fixed order. On the configuration page you select only the steps your study needs and chain them in any order; when you run each step you choose its **method** (and model or prompt, if applicable).
+
+In typical recall work, **`audioTranscribe`** / **`eventSegment`** target the **story**, **`sentenceCorrect`**–**`textMatching`** each **subject recall**, and **`causalRating`** the **story event list** — but text-only projects skip Step 1, and you can equally run just **`eventSegment` + `causalRating`** or **`sentenceCorrect` → `textParsing` → `textMatching`**. Every step is available from the **GUI** or **`narraters` CLI**, has a lightweight default method, and supports hand-editing afterward.
 
 | # | Step ID | What it does | Terminal command | Default in / out |
 |---|---------|--------------|------------------|------------------|
@@ -209,15 +211,15 @@ The repository ships **realistic sample inputs and outputs** under `data/` and `
 
 ## Using the web interface
 
-The app is a **local Flask site** (default **`http://127.0.0.1:5000`**). Start it from the project directory in any of these ways:
+The app is a **local Flask site** at **`http://127.0.0.1:5000`**. After the initial install, restart it any time by:
 
-| How | What to do |
-|-----|-------------|
-| **Terminal** (macOS, Linux, Windows) | `narraters serve` — usually opens your browser automatically. |
-| **macOS — script** | Double-click **`server/START_HERE.command`** (can install missing deps on first run). |
-| **macOS — app bundle** | Build once: `bash packaging/macos/build_app_bundle.sh`, then double-click **`narRater.app`**. Not committed to Git; see the icon at the top of this README. |
+| How | Where |
+|-----|-------|
+| Double-click **`narRater.app`** | macOS, repo root |
+| Double-click **`narRaters_installer.bat`** | Windows, repo root |
+| `narraters serve` in Terminal | any OS — opens your browser automatically |
 
-On first visit you see **pipeline configuration** unless a pipeline was already saved, in which case you land on the **dashboard**.
+On first visit you see **pipeline configuration**; if a pipeline was already saved, you land on the **dashboard**.
 
 ### `narraters serve` options
 
@@ -408,34 +410,27 @@ python helpers/test_recall_rater_all_stories.py
 python helpers/test_bar_metrics_all_rated.py
 ```
 
-### Research background (by pipeline step)
-
-The steps below follow the **same numbering as the pipeline overview**. Citations motivate or validate **automated** approaches similar to optional narRaters methods; your study still needs design-appropriate evaluation.
-
-**`audioTranscribe` (step 1)**  
-No paper cited here; validation is Whisper/WhisperX accuracy on your audio and manual spot checks. See [Installation](#installation) (`[audio]` extra) and the helper scripts above.
-
-**`eventSegment` (step 2)**  
-Michelmann, Kumar, **Norman**, & Toneva, *Large language models can segment narrative events similarly to humans*: GPT-3 zero-shot boundaries correlate with human segmentations and approximate crowd consensus on continuous text—useful precedent for LLM-based story segmentation in narRaters. [arXiv:2301.10297](https://arxiv.org/abs/2301.10297), [Behavior Research Methods (2025)](https://doi.org/10.3758/s13428-024-02569-z), [companion code](https://github.com/s-michelmann/GPT_event_segmentation).
-
-**`sentenceCorrect` (step 3)**  
-No external benchmark listed; the package enforces minimal, non-paraphrasing edits. Exercise the recall-correction helpers if you change rules or prompts.
-
-**`textParsing` (step 4)**  
-No paper cited here; clause-level structure is checked against the same independent-clause logic as **`eventSegment`** (see above and the web UI tooltips).
-
-**`textMatching` (step 5)**  
-- **Norman lab / Computational Memory (Princeton)** — Toneva et al., *Memory for long narratives* (presentation materials, 2021; includes **K. A. Norman**): long-form novel recall scored by aligning recalled events to chapter events with GPT-2 representations, toward scalable scoring without fully manual coding. [PDF (Princeton Computational Memory Lab)](https://compmem.princeton.edu/wp/wp-content/uploads/2022/05/memory-for-long-narratives.pdf).  
-- **rMatch** — Kressin Palacios & Arekar: embedding-based recall-to-event matching with human-data validation. [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch).
-
-**`causalRating` (step 6)**  
-Li et al., *Agency personalizes episodic memories* (PsyArXiv, 2024): behavioral work with **choose-your-own-adventure** narratives and controlled choice, examining how agency shapes memory for branching, choice-contingent event sequences—aligned with rich **event-wise** materials for which pairwise **causal** ratings are meaningful. [DOI:10.31234/osf.io/7evwj](https://doi.org/10.31234/osf.io/7evwj).
+The dashboard **caches each output directory's listing once per page request** and reuses it for every cell in the status grid, instead of scanning the disk again for each subject and step separately — noticeable on large studies.
 
 ---
 
-## Performance notes
+## Research background
 
-The dashboard **caches each output directory's listing once per page request** and reuses it for every cell in the status grid, instead of scanning the disk again for each subject and step separately. On large studies that difference is very noticeable.
+Citations below motivate or validate **automated** approaches similar to the optional narRaters methods (numbered to match the [pipeline overview](#pipeline-overview)). Your study still needs design-appropriate evaluation.
+
+**Step 1 — `audioTranscribe`** &nbsp;No paper cited; validation is Whisper/WhisperX accuracy on your audio plus manual spot checks.
+
+**Step 2 — `eventSegment`** &nbsp;Michelmann, Kumar, **Norman**, & Toneva, *Large language models can segment narrative events similarly to humans*: GPT-3 zero-shot boundaries correlate with human segmentations and approximate crowd consensus — useful precedent for LLM-based story segmentation. [arXiv:2301.10297](https://arxiv.org/abs/2301.10297), [Behavior Research Methods (2025)](https://doi.org/10.3758/s13428-024-02569-z), [code](https://github.com/s-michelmann/GPT_event_segmentation).
+
+**Step 3 — `sentenceCorrect`** &nbsp;No external benchmark; the package enforces minimal, non-paraphrasing edits.
+
+**Step 4 — `textParsing`** &nbsp;Clause-level structure is checked against the same independent-clause logic as `eventSegment`.
+
+**Step 5 — `textMatching`**
+- Toneva et al., *Memory for long narratives* (Princeton Computational Memory Lab, 2021; with **K. A. Norman**): long-form novel recall scored by aligning recalled events to chapter events with GPT-2 representations. [PDF](https://compmem.princeton.edu/wp/wp-content/uploads/2022/05/memory-for-long-narratives.pdf).
+- **rMatch** — Kressin Palacios & Arekar: embedding-based recall-to-event matching with human-data validation. [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch).
+
+**Step 6 — `causalRating`** &nbsp;Li et al., *Agency personalizes episodic memories* (PsyArXiv, 2024): behavioral work with choose-your-own-adventure narratives examining how agency shapes memory for branching event sequences — aligned with event-wise materials for which pairwise causal ratings are meaningful. [DOI:10.31234/osf.io/7evwj](https://doi.org/10.31234/osf.io/7evwj).
 
 ---
 
@@ -452,44 +447,47 @@ Direct per-step imports are planned for a future release; for now, programmatic 
 
 ## Project layout
 
-```
-narRaters/
-├── README.md                     # this file
-├── LICENSE                       # MIT
-├── narRater.app                  # macOS double-click launcher (calls install.sh)
-├── narRaters_installer.bat       # Windows double-click launcher
-├── install.sh                    # macOS / Linux command-line installer
-├── narRater_Tutorial.pdf         # end-user tutorial
-├── data/                         # inputs (bundled pieman_edited + the_siren examples; your files stay local)
-├── output/                       # pipeline outputs (sample outputs for the same examples)
-├── demo/                         # smaller demo dataset (lighthouse)
-├── pyproject.toml                # package metadata, deps, console scripts
-├── src/narraters/                # the installed package
-│   ├── cli.py                    # argparse entry point (`narraters` command)
-│   └── paths.py                  # repo-root resolution
-├── scripts/                      # pipeline scripts (delegated to by the CLI)
-│   ├── 1_audio-transcribe.py … 6_causal-rater.py
-│   └── prompt/                   # LLM prompt templates
-├── server/web-interface.py       # Flask web UI (routes, subprocess orchestration)
-├── templates/, static/           # HTML / CSS / JS for the web UI
-├── helpers/                      # paths, Ollama/disk/RAM preflight, plotting, tests
-│   ├── disk_space.py             # free-disk preflight for local models
-│   └── resource_preflight.py     # heavy-method (RAM/disk) assessment
-├── packaging/macos/              # build scripts for the `.app` bundle
-├── SETUP_API.md                  # API key and provider setup
-└── .env.example                  # template for local API keys (copy to `.env`)
-```
+After unzipping, your `narRaters/` folder has three layers:
+
+**1. What you click and read** — at the top of the folder so it's the first thing you see.
+
+| File / folder | Purpose |
+|---|---|
+| `README.md`, `LICENSE` | this file and the license |
+| `narRater_Tutorial.pdf` | illustrated end-user tutorial |
+| `narRater.app` | macOS double-click launcher |
+| `narRaters_installer.bat` | Windows double-click launcher |
+| `install.sh` | macOS / Linux command-line installer |
+| `data/` | your inputs (bundled `pieman_edited` + `the_siren` examples) |
+| `output/` | pipeline outputs (sample outputs for the same examples) |
+
+**2. App machinery** — runs the pipeline; usually no need to open these.
+
+| File / folder | Purpose |
+|---|---|
+| `pyproject.toml` | package metadata, deps, console scripts |
+| `src/narraters/` | installed package (`cli.py` entry point, `paths.py` repo-root resolution) |
+| `scripts/` | the six pipeline scripts (`1_audio-transcribe.py` … `6_causal-rater.py`) and `prompt/` templates |
+| `server/web-interface.py` | Flask web UI (routes, subprocess orchestration) |
+| `templates/`, `static/` | HTML / CSS / JS / icon for the web UI |
+| `helpers/` | shared utilities (disk/RAM preflight, plotting, smoke-test scripts) |
+
+**3. Build & extras** — only relevant if you're packaging or contributing.
+
+| File / folder | Purpose |
+|---|---|
+| `packaging/macos/` | scripts that build `narRater.app` and the DMG |
+| `demo/` | smaller alternate dataset (lighthouse story) |
+| `SETUP_API.md` | API key and provider setup |
+| `.env.example` | template for local API keys (copy to `.env`) |
 
 ---
 
 ## Further reading
 
-**`narRater_Tutorial.pdf`** (repo root) is an illustrated, click-by-click tour of the web UI—good next step after [Getting started](#getting-started).
-
-- **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which keys.
+- **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Quick start](#quick-start).
+- **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
-
-Maintainer-only design notes, tutorial PDF build scripts, and internal handbooks are **not** published in this repository; keep those materials private to your team.
 
 ---
 
@@ -509,18 +507,6 @@ Maintainer-only design notes, tutorial PDF build scripts, and internal handbooks
 
 ## License
 
-**In short:** free for **research, education, and other non-commercial** use; **commercial or for-profit** use needs **prior written permission** from the copyright holder (contact below).
+**narRaters Research and Non-Commercial License** (see [`LICENSE`](LICENSE)) — free for research, education, and other non-commercial use; commercial or for-profit use requires prior written permission. Contact [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com) for commercial licensing.
 
-The Software is licensed under the **NarRaters Research and Non-Commercial
-License** (see [`LICENSE`](LICENSE)): free use for research, education, and
-other non-commercial purposes; **commercial or for-profit use requires prior
-written permission** from the copyright holder. Contact
-[xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com) for commercial
-licensing.
-
-This model is in the same family as widely used **non-commercial / academic
-first** terms (for example the [PolyForm Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/)
-pattern for permitted non-commercial purposes, and **dual-license** or
-**commercial-license-required** approaches similar in spirit to the
-[Prosperity Public License](https://prosperitylicense.com/) model, where
-commercial rights are negotiated separately with the author).
+This is in the same family as common academic-first / dual-license terms (e.g. [PolyForm Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/), [Prosperity Public License](https://prosperitylicense.com/)).
