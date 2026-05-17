@@ -50,5 +50,4 @@ scipy>=1.10.0
 # Additional grammar checking in spell-grammar-correct
 # language-tool-python>=2.7.0
 
-# Tutorial PDF generation — only needed to regenerate narRater_Tutorial.pdf
-# fpdf2>=2.7.0
+# Tutorial PDF generation (developer/ scripts, not published) — fpdf2>=2.7.0

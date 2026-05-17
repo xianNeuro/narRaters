@@ -462,9 +462,8 @@ narRaters/
 
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which keys.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
-- **`narRater_Tutorial.pdf`** — illustrated end-to-end walkthrough. To rebuild it: capture screenshots with the running app (`python helpers/capture_tutorial_screenshots.py`), then `python generate_tutorial_pdf.py` after `pip install -e ".[pdf]"`.
 
-Maintainer-only design notes and internal handbooks are **not** published in this repository; keep those materials private to your team.
+Maintainer-only design notes, tutorial PDF build scripts, and internal handbooks are **not** published in this repository; keep those materials private to your team.
 
 ---
 

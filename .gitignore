@@ -76,8 +76,7 @@ Thumbs.db
 
 # Built artifacts — regenerate on demand
 # narRater.app (rebuild: bash packaging/macos/build_app_bundle.sh)
-# narRater_Tutorial.pdf (rebuild: python generate_tutorial_pdf.py)
-# tutorial_screenshots/ (rebuild: python helpers/capture_tutorial_screenshots.py)
+# narRater_Tutorial.pdf and tutorial_screenshots/ (rebuild via developer/ scripts; not published)
 tutorial_screenshots/
 narRater.app/
 narRaters_installer.app/
