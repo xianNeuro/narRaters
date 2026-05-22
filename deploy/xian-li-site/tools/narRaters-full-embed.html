@@ -1,0 +1,300 @@
+<!-- Google Sites → Tools page → Insert → Embed → Embed code → paste ALL of this.
+     Set width to Full. Matches https://xianneuro.github.io/narRaters/ (images load from github.io).
+     External links open in a new tab so GitHub works inside Google Sites. -->
+<style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6fb;
+      --text: #111827;
+      --muted: #4b5563;
+      --link: #0969da;
+      --card: #ffffff;
+      --border: #d0d7e2;
+      --accent: #6d28d9;
+      --accent-soft: #ede9fe;
+      --green: #059669;
+      --green-soft: #d1fae5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1020;
+        --text: #eef2ff;
+        --muted: #94a3b8;
+        --link: #79c0ff;
+        --card: #121829;
+        --border: #243047;
+        --accent: #a78bfa;
+        --accent-soft: #2e1065;
+        --green: #34d399;
+        --green-soft: #064e3b;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+    main {
+      max-width: 58rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    .hero { text-align: center; margin-bottom: 2.25rem; }
+    .hero img.icon { width: 96px; height: 96px; border-radius: 18%; }
+    h1 { font-size: 2.5rem; line-height: 1.1; margin: 0.75rem 0 0.5rem; }
+    .tagline {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 36rem;
+      margin: 0 auto 1.25rem;
+    }
+    .nav-links {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 0.35rem 0.9rem; font-size: 0.98rem;
+    }
+    .nav-links a { color: var(--link); text-decoration: none; font-weight: 600; }
+    .nav-links a:hover { text-decoration: underline; }
+    .cta-row {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 0.75rem; margin: 1.5rem 0 0.5rem;
+    }
+    .cta {
+      display: inline-block; padding: 0.65rem 1rem;
+      border-radius: 0.6rem; text-decoration: none; font-weight: 700;
+    }
+    .cta.primary { background: var(--accent); color: #fff; }
+    .cta.secondary {
+      background: var(--card); color: var(--link);
+      border: 1px solid var(--border);
+    }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.35rem 1.45rem;
+      margin: 1.25rem 0;
+    }
+    h2 {
+      font-size: 1.35rem;
+      margin: 0 0 0.85rem;
+      line-height: 1.25;
+    }
+    h3 { font-size: 1rem; margin: 0 0 0.35rem; }
+    p { margin: 0 0 0.85rem; }
+    p:last-child { margin-bottom: 0; }
+    .muted { color: var(--muted); }
+    table.use-cases {
+      width: 100%; border-collapse: collapse; font-size: 0.95rem;
+    }
+    .use-cases th, .use-cases td {
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .use-cases th { background: var(--accent-soft); }
+    .diagram {
+      display: block; width: 100%; border-radius: 0.85rem;
+      border: 1px solid var(--border); margin-top: 0.75rem;
+    }
+    .steps {
+      display: grid; gap: 0.85rem;
+    }
+    .step {
+      display: grid; grid-template-columns: 2.5rem 1fr;
+      gap: 0.85rem; align-items: start;
+      padding: 0.85rem 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      background: var(--bg);
+    }
+    .step-num {
+      width: 2.5rem; height: 2.5rem; border-radius: 999px;
+      display: grid; place-items: center;
+      background: var(--accent-soft); color: var(--accent);
+      font-weight: 800;
+    }
+    .demo { margin: 1.5rem 0 0.25rem; text-align: center; }
+    .demo img.hero-shot {
+      width: 100%; max-width: 960px;
+      border: 1px solid var(--border); border-radius: 0.85rem;
+    }
+    .demo figcaption { margin-top: 0.65rem; color: var(--muted); font-size: 0.95rem; }
+    .shots {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem; margin-top: 1rem;
+    }
+    .shot {
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .shot img { display: block; width: 100%; height: auto; }
+    .shot .caption { padding: 0.85rem 0.95rem 1rem; }
+    .shot .label {
+      display: inline-block; font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.03em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 0.35rem;
+    }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    .pill {
+      font-size: 0.82rem; padding: 0.25rem 0.55rem;
+      border-radius: 999px; background: var(--green-soft); color: var(--green);
+      font-weight: 600;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+    footer { margin-top: 2rem; color: var(--muted); font-size: 0.92rem; }
+    footer a { color: var(--link); }
+  </style>
+  <script>
+    // When this page is embedded (e.g. Google Sites Tools), open external links in a
+    // new tab — GitHub/PyPI block iframe navigation and would show a blank embed.
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('a[href^="http"]').forEach(function (a) {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      });
+    });
+  </script>
+
+
+  <main>
+    <div class="hero">
+      <img class="icon" src="https://raw.githubusercontent.com/xianNeuro/narRaters/main/static/app-icon.png" alt="narRaters app icon">
+      <h1>narRaters</h1>
+      <p class="tagline">Turn stories and participant recalls into structured, reviewable data — with a web UI at every step.</p>
+      <p class="muted">Open source on GitHub: <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · PyPI: <a href="https://pypi.org/project/narRaters/">narRaters</a></p>
+      <div class="nav-links">
+        <a href="https://github.com/xianNeuro/narRaters">narRaters on GitHub</a>
+        <a href="https://pypi.org/project/narRaters/">PyPI</a>
+        <a href="https://github.com/xianNeuro/narRaters/blob/main/narRater_Tutorial.pdf">Tutorial (PDF)</a>
+        <a href="https://github.com/xianNeuro/narRaters/issues">Issues</a>
+      </div>
+      <div class="cta-row">
+        <a class="cta primary" href="https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip">Download ZIP</a>
+        <a class="cta secondary" href="https://github.com/xianNeuro/narRaters#quick-start">Quick start guide</a>
+      </div>
+    </div>
+
+    <section>
+      <h2>What is narRaters?</h2>
+      <p>
+        <strong>narRaters</strong> combines <em>narrative</em> and <em>raters</em> — a research tool for coding and reviewing
+        story recalls, not a text-to-speech narrator. The source code lives on GitHub at
+        <a href="https://github.com/xianNeuro/narRaters">xianNeuro/narRaters</a>.
+      </p>
+    </section>
+
+    <section>
+      <h2>What problem does it solve?</h2>
+      <p>
+        In a typical memory study, people listen to a <strong>story</strong> and later <strong>recall</strong> what they remember.
+        Before analysis, you need structured files: numbered story events, cleaned recall text, clause-level segments,
+        matches between recalls and story events, and sometimes causal ratings between events.
+      </p>
+      <p>
+        <strong>narRaters</strong> automates those steps and lets humans <strong>review and edit</strong> every output in the browser before export.
+        Use it for audio or text, cognitive studies, movie annotations, or benchmarking LLMs against human raters.
+      </p>
+      <table class="use-cases">
+        <thead>
+          <tr><th>You have…</th><th>narRaters helps you…</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Story audio or transcript</td><td>Transcribe it and split it into numbered <strong>events</strong></td></tr>
+          <tr><td>Participant recall files</td><td>Fix spelling, parse into <strong>clauses</strong>, and <strong>match</strong> to story events</td></tr>
+          <tr><td>A segmented story</td><td><strong>Rate causal links</strong> between event pairs</td></tr>
+          <tr><td>AI-generated outputs</td><td>Screen, correct, and sign off in the web UI</td></tr>
+        </tbody>
+      </table>
+      <img class="diagram" src="https://xianneuro.github.io/narRaters/diagram-workflow.png" alt="Workflow diagram showing story and recall processing paths">
+    </section>
+
+    <section>
+      <h2>Get started in 3 steps</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div>
+            <h3>Download &amp; open</h3>
+            <p class="muted">Unzip the repo and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Requires Python 3.10+.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div>
+            <h3>Pick your pipeline</h3>
+            <p class="muted">The browser opens to a drag-and-drop builder. Choose only the steps you need. Demo data is preloaded so you can explore right away.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div>
+            <h3>Run, review, export</h3>
+            <p class="muted">On the dashboard, click cells to run processing. Open results with the magnifying-glass icon, edit in place, and export when ready.</p>
+          </div>
+        </div>
+      </div>
+      <div class="pill-row">
+        <span class="pill">No coding required for basic use</span>
+        <span class="pill">CLI available for batch runs</span>
+        <span class="pill">Human edit at every step</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>See the app</h2>
+      <figure class="demo">
+        <img class="hero-shot" src="https://xianneuro.github.io/narRaters/screenshots/workflow.gif" alt="Animated walkthrough of dashboard, recall matching, and causal rating">
+        <figcaption>① Dashboard &nbsp;→&nbsp; ② Recall matching &nbsp;→&nbsp; ③ Causal rating</figcaption>
+      </figure>
+      <div class="shots">
+        <div class="shot">
+          <img src="https://xianneuro.github.io/narRaters/screenshots/dashboard.png" alt="Pipeline dashboard">
+          <div class="caption">
+            <div class="label">Step 1 · Dashboard</div>
+            <strong>Track every subject and story</strong>
+            <p class="muted">Run steps from the grid. Green means completed — click the magnifying glass to inspect and edit outputs.</p>
+          </div>
+        </div>
+        <div class="shot">
+          <img src="https://xianneuro.github.io/narRaters/screenshots/recall-matching.png" alt="Recall matching interface">
+          <div class="caption">
+            <div class="label">Step 2 · Recall matching</div>
+            <strong>Link recalls to story events</strong>
+            <p class="muted">Story events on the left; recall segments on the right. Assign which events each segment refers to.</p>
+          </div>
+        </div>
+        <div class="shot">
+          <img src="https://xianneuro.github.io/narRaters/screenshots/causal-rating.png" alt="Causal rating grid">
+          <div class="caption">
+            <div class="label">Step 3 · Causal rating</div>
+            <strong>Rate cause–effect between events</strong>
+            <p class="muted">Click a cell in the grid to score how strongly one story event led to another (0–3).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Install options</h2>
+      <ul>
+        <li><strong>Easiest:</strong> <a href="https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip">Download ZIP</a> → double-click launcher → browser opens automatically.</li>
+        <li><strong>Python:</strong> <code>pip install narRaters</code> then <code>narraters serve</code></li>
+        <li><strong>Learn more:</strong> <a href="https://github.com/xianNeuro/narRaters/blob/main/narRater_Tutorial.pdf">Tutorial PDF</a> · <a href="https://github.com/xianNeuro/narRaters/blob/main/README.md">Full README</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Author: <a href="mailto:xianl.cogneuro@gmail.com">Xian Li</a> ·
+      <a href="https://github.com/xianNeuro/narRaters/blob/main/LICENSE">License</a></p>
+    </footer>
+  </main>

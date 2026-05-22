@@ -19,11 +19,15 @@ Links:
   Mirror:    https://xianneuro.github.io/narRaters/
 
 
-Embed by URL (Insert → Embed → By URL):
-  https://xianneuro.github.io/narRaters/
-  Note: GitHub links on that page now open in a new tab (required — GitHub blocks iframe loads).
+Full landing page (matches https://xianneuro.github.io/narRaters/):
+  Paste entire file: deploy/xian-li-site/tools/narRaters-full-embed.html
+  (Insert → Embed → Embed code → Full width)
 
-Better for Tools page: use Embed code with deploy/xian-li-site/tools/narRaters-embed.html instead.
+Compact card (smaller, faster to load):
+  Paste entire file: deploy/xian-li-site/tools/narRaters-embed.html
+
+Embed by URL (iframe — links need new-tab fix on github.io):
+  https://xianneuro.github.io/narRaters/
 
 After publishing, request indexing in Search Console:
   https://www.xian-li.com/tools
