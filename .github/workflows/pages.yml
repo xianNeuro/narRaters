@@ -60,4 +60,3 @@ jobs:
           curl -fsS -X POST "https://api.indexnow.org/indexnow" \
             -H "Content-Type: application/json; charset=utf-8" \
             -d "{\"host\":\"xianneuro.github.io\",\"key\":\"${INDEXNOW_KEY}\",\"keyLocation\":\"${KEYLOC}\",\"urlList\":[\"${SITE}\",\"${SITEMAP}\"]}"
-          curl -fsS "https://www.bing.com/ping?sitemap=${SITEMAP}" || true
