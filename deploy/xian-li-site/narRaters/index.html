@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- Deploy: upload this file to your xian-li.com web root as narRaters/index.html
+     so it is served at https://www.xian-li.com/narRaters/
+     Then in Google Search Console (xian-li.com): URL Inspection → request indexing. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -34,7 +37,7 @@
     "sameAs": [
       "https://github.com/xianNeuro/narRaters",
       "https://pypi.org/project/narRaters/",
-      "https://www.xian-li.com/narRaters/"
+      "https://xianneuro.github.io/narRaters/"
     ]
   }
   </script>
@@ -137,9 +140,7 @@
       display: block; width: 100%; border-radius: 0.85rem;
       border: 1px solid var(--border); margin-top: 0.75rem;
     }
-    .steps {
-      display: grid; gap: 0.85rem;
-    }
+    .steps { display: grid; gap: 0.85rem; }
     .step {
       display: grid; grid-template-columns: 2.5rem 1fr;
       gap: 0.85rem; align-items: start;
@@ -242,7 +243,7 @@
           <tr><td>AI-generated outputs</td><td>Screen, correct, and sign off in the web UI</td></tr>
         </tbody>
       </table>
-      <img class="diagram" src="diagram-workflow.png" alt="Workflow diagram showing story and recall processing paths">
+      <img class="diagram" src="https://xianneuro.github.io/narRaters/diagram-workflow.png" alt="Workflow diagram showing story and recall processing paths">
     </section>
 
     <section>
@@ -280,12 +281,12 @@
     <section>
       <h2>See the app</h2>
       <figure class="demo">
-        <img class="hero-shot" src="screenshots/workflow.gif" alt="Animated walkthrough of dashboard, recall matching, and causal rating">
+        <img class="hero-shot" src="https://xianneuro.github.io/narRaters/screenshots/workflow.gif" alt="Animated walkthrough of dashboard, recall matching, and causal rating">
         <figcaption>① Dashboard &nbsp;→&nbsp; ② Recall matching &nbsp;→&nbsp; ③ Causal rating</figcaption>
       </figure>
       <div class="shots">
         <div class="shot">
-          <img src="screenshots/dashboard.png" alt="Pipeline dashboard">
+          <img src="https://xianneuro.github.io/narRaters/screenshots/dashboard.png" alt="Pipeline dashboard">
           <div class="caption">
             <div class="label">Step 1 · Dashboard</div>
             <strong>Track every subject and story</strong>
@@ -293,7 +294,7 @@
           </div>
         </div>
         <div class="shot">
-          <img src="screenshots/recall-matching.png" alt="Recall matching interface">
+          <img src="https://xianneuro.github.io/narRaters/screenshots/recall-matching.png" alt="Recall matching interface">
           <div class="caption">
             <div class="label">Step 2 · Recall matching</div>
             <strong>Link recalls to story events</strong>
@@ -301,7 +302,7 @@
           </div>
         </div>
         <div class="shot">
-          <img src="screenshots/causal-rating.png" alt="Causal rating grid">
+          <img src="https://xianneuro.github.io/narRaters/screenshots/causal-rating.png" alt="Causal rating grid">
           <div class="caption">
             <div class="label">Step 3 · Causal rating</div>
             <strong>Rate cause–effect between events</strong>
@@ -322,7 +323,8 @@
 
     <footer>
       <p>Author: <a href="mailto:xianl.cogneuro@gmail.com">Xian Li</a> ·
-      <a href="https://github.com/xianNeuro/narRaters/blob/main/LICENSE">License</a></p>
+      <a href="https://github.com/xianNeuro/narRaters/blob/main/LICENSE">License</a> ·
+      <a href="https://xianneuro.github.io/narRaters/">Mirror</a></p>
     </footer>
   </main>
 </body>

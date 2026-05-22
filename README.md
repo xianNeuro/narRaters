@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://xianneuro.github.io/narRaters/">🏠 Project home</a>
+  <a href="https://www.xian-li.com/narRaters/">🏠 Project home</a>
   ·
   <a href="https://pypi.org/project/narRaters/">📦 PyPI</a>
   ·
@@ -591,7 +591,7 @@ After unzipping, your `narRaters/` folder has three layers:
 
 ## Further reading
 
-- **[Project home (GitHub Pages)](https://xianneuro.github.io/narRaters/)** — canonical landing page for search and sharing.
+- **[Project home](https://www.xian-li.com/narRaters/)** — canonical landing page for search and sharing (mirror: [GitHub Pages](https://xianneuro.github.io/narRaters/)).
 - **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Quick start](#quick-start).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
