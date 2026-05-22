@@ -6,6 +6,8 @@
 
 <h3 align="center">Turn stories and recalls into structured, reviewable data — with a web UI at every step</h3>
 
+<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narRaters/">narRaters</a></p>
+
 <p align="center">
   <a href="https://pypi.org/project/narRaters/"><img src="https://img.shields.io/pypi/v/narRaters?label=PyPI&color=3775A9" alt="PyPI version"></a>
   <a href="https://github.com/xianNeuro/narRaters"><img src="https://img.shields.io/github/stars/xianNeuro/narRaters?logo=github&color=0969da&style=flat" alt="GitHub stars"></a>
@@ -28,6 +30,8 @@
 <br>
 
 ## What is narRaters?
+
+**narRaters** (*narrative* + *raters*) is an open-source project on [GitHub (xianNeuro/narRaters)](https://github.com/xianNeuro/narRaters) for memory and narrative research — not a speech narrator.
 
 Imagine you ran a memory study: participants listened to a **story**, then **recalled** what they remembered (spoken or typed). Before you can analyze memory, you need structured data — what happened in the story, what each person recalled, and how those pieces connect.
 
