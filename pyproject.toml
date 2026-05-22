@@ -76,7 +76,7 @@ all = [
 narraters = "narraters.cli:main"
 
 [project.urls]
-Homepage = "https://www.xian-li.com/tools"
+Homepage = "https://xianneuro.github.io/narRaters/"
 Documentation = "https://github.com/xianNeuro/narRaters/blob/main/README.md"
 Repository = "https://github.com/xianNeuro/narRaters"
 Issues = "https://github.com/xianNeuro/narRaters/issues"

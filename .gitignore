@@ -75,6 +75,9 @@ developer/*
 /CLAUDE.md
 CLAUDE.local.md
 
+# Personal-site deploy snippets (Google Sites paste helpers — local only)
+deploy/
+
 # OS
 .DS_Store
 Thumbs.db
