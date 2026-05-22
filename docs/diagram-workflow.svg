@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300" role="img" aria-label="narRaters workflow: story and recall inputs through processing steps to rated outputs">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .title { font: 700 18px system-ui, sans-serif; fill: #f8fafc; }
+      .label { font: 600 13px system-ui, sans-serif; fill: #e2e8f0; }
+      .sub { font: 12px system-ui, sans-serif; fill: #94a3b8; }
+      .box { rx: 12; stroke-width: 1.5; }
+      .story { fill: #172554; stroke: #3b82f6; }
+      .recall { fill: #3b0764; stroke: #a855f7; }
+      .step { fill: #052e16; stroke: #22c55e; }
+      .out { fill: #422006; stroke: #f59e0b; }
+      .lane { fill: none; stroke: #334155; stroke-dasharray: 6 6; }
+    </style>
+  </defs>
+  <rect width="920" height="300" fill="url(#bg)" rx="16"/>
+  <text x="24" y="34" class="title">Typical narrative recall workflow</text>
+  <text x="24" y="56" class="sub">Pick only the steps you need  every box can be run, reviewed, and edited in the web UI.</text>
+
+  <rect x="20" y="78" width="880" height="92" class="lane" rx="14"/>
+  <text x="34" y="98" class="sub">STORY SIDE</text>
+  <rect x="34" y="110" width="130" height="48" class="box story"/>
+  <text x="99" y="132" text-anchor="middle" class="label">Story audio</text>
+  <text x="99" y="148" text-anchor="middle" class="sub">or transcript</text>
+
+  <rect x="190" y="110" width="130" height="48" class="box step"/>
+  <text x="255" y="132" text-anchor="middle" class="label">Transcribe</text>
+  <text x="255" y="148" text-anchor="middle" class="sub">optional</text>
+
+  <rect x="346" y="110" width="150" height="48" class="box step"/>
+  <text x="421" y="132" text-anchor="middle" class="label">Segment events</text>
+  <text x="421" y="148" text-anchor="middle" class="sub">numbered story parts</text>
+
+  <rect x="522" y="110" width="150" height="48" class="box out"/>
+  <text x="597" y="132" text-anchor="middle" class="label">Causal rating</text>
+  <text x="597" y="148" text-anchor="middle" class="sub">event ’ event links</text>
+
+  <rect x="20" y="186" width="880" height="92" class="lane" rx="14"/>
+  <text x="34" y="206" class="sub">RECALL SIDE (per participant)</text>
+  <rect x="34" y="218" width="130" height="48" class="box recall"/>
+  <text x="99" y="240" text-anchor="middle" class="label">Recall audio</text>
+  <text x="99" y="256" text-anchor="middle" class="sub">or text file</text>
+
+  <rect x="190" y="218" width="130" height="48" class="box step"/>
+  <text x="255" y="240" text-anchor="middle" class="label">Correct text</text>
+  <text x="255" y="256" text-anchor="middle" class="sub">spelling / grammar</text>
+
+  <rect x="346" y="218" width="130" height="48" class="box step"/>
+  <text x="411" y="240" text-anchor="middle" class="label">Parse clauses</text>
+  <text x="411" y="256" text-anchor="middle" class="sub">smaller units</text>
+
+  <rect x="502" y="218" width="170" height="48" class="box out"/>
+  <text x="587" y="240" text-anchor="middle" class="label">Match to story</text>
+  <text x="587" y="256" text-anchor="middle" class="sub">which events were recalled?</text>
+
+  <line x1="164" y1="134" x2="190" y2="134" stroke="#94a3b8" marker-end="url(#arrow)"/>
+  <line x1="320" y1="134" x2="346" y2="134" stroke="#94a3b8" marker-end="url(#arrow)"/>
+  <line x1="496" y1="134" x2="522" y2="134" stroke="#94a3b8" marker-end="url(#arrow)"/>
+  <line x1="164" y1="242" x2="190" y2="242" stroke="#94a3b8" marker-end="url(#arrow)"/>
+  <line x1="320" y1="242" x2="346" y2="242" stroke="#94a3b8" marker-end="url(#arrow)"/>
+  <line x1="476" y1="242" x2="502" y2="242" stroke="#94a3b8" marker-end="url(#arrow)"/>
+  <line x1="421" y1="158" x2="421" y2="176" stroke="#64748b"/>
+  <line x1="421" y1="176" x2="587" y2="176" stroke="#64748b"/>
+  <line x1="587" y1="176" x2="587" y2="218" stroke="#64748b" marker-end="url(#arrow)"/>
+
+  <rect x="708" y="150" width="174" height="88" fill="#0f172a" stroke="#64748b" rx="12"/>
+  <text x="795" y="176" text-anchor="middle" class="label">Human review</text>
+  <text x="795" y="196" text-anchor="middle" class="sub">Check, edit, and export</text>
+  <text x="795" y="216" text-anchor="middle" class="sub">at every step</text>
+</svg>

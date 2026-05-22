@@ -1,25 +1,109 @@
+<p align="center">
+  <img src="static/app-icon.png" alt="narRaters app icon" width="128" height="128">
+</p>
+
 <h1 align="center">narRaters</h1>
 
+<h3 align="center">Turn stories and recalls into structured, reviewable data — with a web UI at every step</h3>
+
 <p align="center">
-  AI-assisted narrative processing with human-screening.
+  <a href="https://pypi.org/project/narRaters/"><img src="https://img.shields.io/pypi/v/narRaters?label=PyPI&color=3775A9" alt="PyPI version"></a>
+  <a href="https://github.com/xianNeuro/narRaters"><img src="https://img.shields.io/github/stars/xianNeuro/narRaters?logo=github&color=0969da&style=flat" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-research%20%2F%20non--commercial-0969da?style=flat" alt="License"></a>
+  <a href="https://github.com/xianNeuro/narRaters/issues"><img src="https://img.shields.io/github/issues/xianNeuro/narRaters?color=7057ff&label=issues" alt="Issues"></a>
 </p>
 
-**narRaters** supports **human cognitive studies** and **LLM research** on **long, naturalistic language**—**narratives** as audio or text. It is built around **six widely used processing steps** for complex stimuli: **`audioTranscribe`**, **`eventSegment`**, **`sentenceCorrect`**, **`textParsing`**, **`textMatching`**, and **`causalRating`**.
+<p align="center">
+  <a href="https://xianneuro.github.io/narRaters/">🏠 Project home</a>
+  ·
+  <a href="https://pypi.org/project/narRaters/">📦 PyPI</a>
+  ·
+  <a href="narRater_Tutorial.pdf">📖 Tutorial (PDF)</a>
+  ·
+  <a href="https://github.com/xianNeuro/narRaters/issues">🐛 Issues</a>
+  ·
+  <a href="https://github.com/xianNeuro/narRaters/issues/new?template=feedback">💬 Feedback</a>
+</p>
 
-You are not locked into one workflow: **pick only the steps your study needs**, **combine them in the order you want**, and choose among **multiple methods per step** (rules, local models, cloud APIs, and more).
+<br>
 
-The app automates and visualizes those steps; human-screening is facilitated through interface at every step, allowing human raters to review, edit, and sign off on outputs. The same platform supports human vs. LLM comparisons when you want to benchmark summarization, alignment, or causality reasoning on shared materials and prompts.
+## What is narRaters?
+
+Imagine you ran a memory study: participants listened to a **story**, then **recalled** what they remembered (spoken or typed). Before you can analyze memory, you need structured data — what happened in the story, what each person recalled, and how those pieces connect.
+
+**narRaters** helps you get there. It runs common narrative-processing steps (transcribe audio, split a story into events, clean up recall text, parse recalls into clauses, match recalls back to story events, rate causal links between events) and gives you a **web interface to review and fix outputs** before exporting.
+
+Works for **audio or text**, **stories or other long narratives** (including movie annotations), and **human-only or human-vs-LLM** workflows.
+
+| You have… | narRaters helps you… |
+|---|---|
+| Story audio or transcript | Transcribe it and break it into numbered **events** |
+| Participant recall files | Correct spelling, split into **clauses**, and **match** each clause to story events |
+| A segmented story | **Rate causal links** between event pairs (did event A lead to event B?) |
+| Automated or AI outputs | **Screen and edit** them in the browser, then export signed-off files |
 
 <p align="center">
-  <img src="static/app-icon.png" alt="narRater app icon" width="128" height="128">
+  <img src="docs/diagram-workflow.svg" alt="Typical workflow: story side (transcribe, segment, causal rate) and recall side (correct, parse, match to story)" width="920">
+</p>
+
+---
+
+## Get started in 3 steps
+
+<table>
+  <tr>
+    <td width="72" align="center"><strong>1</strong></td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+  </tr>
+  <tr>
+    <td align="center"><strong>2</strong></td>
+    <td><strong>Pick your pipeline</strong><br>Your browser opens to the pipeline builder. Drag in only the steps you need (e.g. segment → match → causal rate). Bundled demo data is already loaded so you can explore immediately.</td>
+  </tr>
+  <tr>
+    <td align="center"><strong>3</strong></td>
+    <td><strong>Run, review, export</strong><br>On the dashboard, click a cell to run a step. Open the magnifying-glass icon to inspect results, edit in the browser, and export when you are satisfied.</td>
+  </tr>
+</table>
+
+> **First time?** Follow the illustrated **[Tutorial PDF](narRater_Tutorial.pdf)** or jump to [Quick start](#quick-start) for install troubleshooting.
+
+---
+
+## See the app
+
+<p align="center">
+  <img src="docs/screenshots/workflow.gif" alt="Animated walkthrough: dashboard, recall matching, causal rating" width="920">
   <br>
-  <em>The <code>narRater.app</code> double-click launcher (macOS) ships at the repo root.</em>
+  <em>① Dashboard &nbsp;→&nbsp; ② Recall matching &nbsp;→&nbsp; ③ Causal rating</em>
 </p>
+
+<table>
+  <tr>
+    <td align="center" width="33%" valign="top">
+      <p><strong>① Pipeline dashboard</strong></p>
+      <img src="docs/screenshots/dashboard.png" alt="Dashboard showing text matching and causal rating status" width="100%"><br>
+      <sub>See every subject/story, run steps, and open results. Green = done; click a cell to process.</sub>
+    </td>
+    <td align="center" width="33%" valign="top">
+      <p><strong>② Recall matching</strong></p>
+      <img src="docs/screenshots/recall-matching.png" alt="Recall matching screen linking recall segments to story events" width="100%"><br>
+      <sub>Story events on the left; recall segments on the right. Assign which events each recall segment refers to.</sub>
+    </td>
+    <td align="center" width="33%" valign="top">
+      <p><strong>③ Causal rating</strong></p>
+      <img src="docs/screenshots/causal-rating.png" alt="Causal rating grid for story events" width="100%"><br>
+      <sub>Click a grid cell to rate how strongly one story event caused another (0–3 scale).</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## Table of contents
 
+- [What is narRaters?](#what-is-narraters)
+- [Get started in 3 steps](#get-started-in-3-steps)
+- [See the app](#see-the-app)
 - [Quick start](#quick-start)
 - [Pipeline overview](#pipeline-overview)
 - [Installation](#installation)
@@ -54,7 +138,19 @@ The app automates and visualizes those steps; human-screening is facilitated thr
 
 ## Pipeline overview
 
-**Six steps, your configuration.** narRaters does **not** require all six steps or a fixed order. On the configuration page you select only the steps your study needs and chain them in any order; when you run each step you choose its **method** (and model or prompt, if applicable).
+**Six optional steps — use any subset, in any order.** Each step can run automatically (rules, local models, or cloud APIs) and then be reviewed in the browser.
+
+| Plain English | Step ID | Input → output (typical) |
+|---|---|---|
+| Transcribe audio | **`audioTranscribe`** | audio file → text transcript |
+| Split story into events | **`eventSegment`** | story transcript → numbered event list |
+| Fix recall spelling/grammar | **`sentenceCorrect`** | raw recall text → corrected text |
+| Split recall into clauses | **`textParsing`** | corrected recall → clause segments |
+| Match recall to story | **`textMatching`** | recall segments + story events → rated matches |
+| Rate event causality | **`causalRating`** | story events → cause–effect ratings |
+
+<details>
+<summary><strong>Full step reference (commands &amp; folders)</strong></summary>
 
 In typical recall work, **`audioTranscribe`** / **`eventSegment`** target the **story**, **`sentenceCorrect`**–**`textMatching`** each **subject recall**, and **`causalRating`** the **story event list** — but text-only projects skip Step 1, and you can equally run just **`eventSegment` + `causalRating`** or **`sentenceCorrect` → `textParsing` → `textMatching`**. Every step is available from the **GUI** or **`narraters` CLI**, has a lightweight default method, and supports hand-editing afterward.
 
@@ -66,6 +162,8 @@ In typical recall work, **`audioTranscribe`** / **`eventSegment`** target the **
 | 4 | **`textParsing`** | Corrected recall → clause-level segments | `narraters parse` | `output/recall_corrected/` → `output/recall_parsed/` |
 | 5 | **`textMatching`** | Recall segments ↔ story events | `narraters match` | `output/recall_parsed/` + `data/3_story_events/` → `output/recall_rated/` |
 | 6 | **`causalRating`** | Causal strength of every story-event pair | `narraters rate` | `data/3_story_events/` → `output/causal_rated/` |
+
+</details>
 
 For each step, the GUI runs the same backends as the CLI. **Available methods, flags, and examples** are under **[Command-line pipeline](#command-line-pipeline)** below.
 
@@ -489,6 +587,7 @@ After unzipping, your `narRaters/` folder has three layers:
 
 ## Further reading
 
+- **[Project home (GitHub Pages)](https://xianneuro.github.io/narRaters/)** — canonical landing page for search and sharing.
 - **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Quick start](#quick-start).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.

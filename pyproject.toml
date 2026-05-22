@@ -8,7 +8,20 @@ license = { file = "LICENSE" }
 authors = [
     { name = "Xian Li", email = "xianl.cogneuro@gmail.com" },
 ]
-keywords = ["narrative", "recall", "cognitive-science", "nlp", "transcription"]
+keywords = [
+    "narrative",
+    "recall",
+    "free-recall",
+    "cognitive-science",
+    "cognitive-neuroscience",
+    "memory",
+    "event-segmentation",
+    "nlp",
+    "transcription",
+    "human-rater",
+    "causal-rating",
+    "narRaters",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -63,7 +76,7 @@ all = [
 narraters = "narraters.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/xianNeuro/narRaters"
+Homepage = "https://xianneuro.github.io/narRaters/"
 Documentation = "https://github.com/xianNeuro/narRaters/blob/main/README.md"
 Repository = "https://github.com/xianNeuro/narRaters"
 Issues = "https://github.com/xianNeuro/narRaters/issues"
