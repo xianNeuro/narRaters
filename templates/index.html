@@ -167,7 +167,14 @@
             margin-top: 30px;
         }
         
-        /* Side-by-side main panels when pipeline has different sources (e.g. story vs recall audio) */
+        /* Responsive panel grid. Each panel declares a minimum width that
+           reflects its step count (more steps → wider minimum), and grows
+           proportionally to fill the available row. ``flex-wrap`` lets the
+           browser break panels onto multiple rows when their combined
+           minimum exceeds the wrapper, so a narrow window stacks them and
+           a wide window packs them side by side without leaving empty
+           horizontal space. ``updatePanelWidths()`` sets these per-panel
+           values from each panel's ``data-step-count``. */
         .dashboard-panels-wrapper {
             display: flex;
             flex-wrap: wrap;
@@ -175,9 +182,9 @@
             align-items: flex-start;
         }
         .dashboard-panel {
-            /* width set by updatePanelWidths() from min first-column + proportional steps */
+            box-sizing: border-box;
             min-width: 0;
-            flex: 0 0 auto;
+            flex: 1 1 auto;
             background: var(--bg2);
             border: 1px solid var(--bdr);
             border-radius: var(--rad);
@@ -2210,45 +2217,61 @@
                 try { localStorage.setItem(STORAGE_KEY, String(w)); } catch (e) {}
                 if (typeof window.updatePanelWidths === 'function') setTimeout(window.updatePanelWidths, 0);
             }
+            // Layout sizing constants. Tweak these and the dashboard
+            // automatically rebalances on next render / window resize.
+            var PANEL_MIN_FIRST_COLUMN = 200;
+            var PANEL_MIN_PER_STEP = 260;
+            var PANEL_GAP = 24;
+            var PANEL_WRAPPER_EXTRA = 80;   // border + padding margin
+            var PANEL_FLOOR_WIDTH = 380;    // never go below this even for a single-step panel
+
+            function _computePanelMinWidths(panels) {
+                return Array.prototype.map.call(panels, function(p) {
+                    var sc = Math.max(1, parseInt(p.getAttribute('data-step-count'), 10) || 1);
+                    return Math.max(PANEL_FLOOR_WIDTH, PANEL_MIN_FIRST_COLUMN + sc * PANEL_MIN_PER_STEP);
+                });
+            }
+
+            // Expand the dashboard wrapper so all panels can fit side-by-side
+            // when the viewport allows. With ``flex-wrap`` and per-panel
+            // ``flex-grow`` proportional to step count, this gives the user
+            // maximum horizontal coverage while still wrapping cleanly on
+            // smaller screens. ``setWidth`` clamps to MIN/MAX, and CSS
+            // ``max-width: 100%`` keeps the wrapper inside the viewport.
             window.autoExpandDashboardWidth = function() {
                 var tc = document.getElementById('table-container');
                 if (!wrapper || !tc) return;
-                var contentWidth = tc.scrollWidth || 0;
-                var extra = 80;
-                var desired = Math.max(MIN_WIDTH, contentWidth + extra);
+                var panels = tc.querySelectorAll('.dashboard-panel');
+                if (!panels.length) return;
+                var mins = _computePanelMinWidths(panels);
+                var idealRowWidth = mins.reduce(function(a, b) { return a + b; }, 0)
+                                  + Math.max(0, panels.length - 1) * PANEL_GAP;
+                var desired = Math.max(MIN_WIDTH, idealRowWidth + PANEL_WRAPPER_EXTRA);
                 setWidth(desired);
             };
             wrapper.style.width = getStoredWidth() + 'px';
-            
+
+            // Per-panel sizing: each panel's flex shorthand declares
+            //   grow=stepCount  shrink=1  basis=panelMinWidth.
+            // ``flex-wrap`` then breaks panels onto a new row whenever the
+            // sum of their basis widths exceeds the wrapper, and within a
+            // row panels with more steps grow proportionally more.
             window.updatePanelWidths = function() {
                 var panelsWrapper = document.querySelector('#table-container .dashboard-panels-wrapper');
                 if (!panelsWrapper) return;
                 var panels = panelsWrapper.querySelectorAll('.dashboard-panel');
                 if (panels.length === 0) return;
-                var containerEl = document.getElementById('table-container');
-                var availableWidth = (containerEl && containerEl.clientWidth) || (wrapper && wrapper.getBoundingClientRect().width - 80) || 1400;
-                var gap = 24;
-                var numPanels = panels.length;
-                var totalGap = (numPanels - 1) * gap;
-                var spaceForPanels = Math.max(0, availableWidth - totalGap);
-                var MIN_FIRST_COLUMN = 220;
-                var stepCounts = Array.from(panels).map(function(p) { return Math.max(1, parseInt(p.getAttribute('data-step-count'), 10) || 1); });
-                var totalSteps = stepCounts.reduce(function(a, b) { return a + b; }, 0);
-                var totalMin = numPanels * MIN_FIRST_COLUMN;
-                if (spaceForPanels >= totalMin) {
-                    var remaining = spaceForPanels - totalMin;
-                    panels.forEach(function(p, i) {
-                        var w = MIN_FIRST_COLUMN + remaining * (stepCounts[i] / totalSteps);
-                        p.style.width = w + 'px';
-                        p.style.flex = '0 0 ' + w + 'px';
-                    });
-                } else {
-                    panels.forEach(function(p, i) {
-                        var w = spaceForPanels * (stepCounts[i] / totalSteps);
-                        p.style.width = w + 'px';
-                        p.style.flex = '0 0 ' + w + 'px';
-                    });
-                }
+                var mins = _computePanelMinWidths(panels);
+                panels.forEach(function(p, i) {
+                    var sc = Math.max(1, parseInt(p.getAttribute('data-step-count'), 10) || 1);
+                    var minW = mins[i];
+                    // Clear any legacy explicit width from earlier code paths.
+                    p.style.width = '';
+                    p.style.maxWidth = '';
+                    p.style.minWidth = minW + 'px';
+                    // grow ∝ stepCount so wider tables get more of the row's slack.
+                    p.style.flex = sc + ' 1 ' + minW + 'px';
+                });
             };
             var dragging = null;
             var startX = 0, startWidth = 0;

@@ -604,6 +604,7 @@
             align-items: stretch;
             gap: 0;
             min-width: 0;
+            position: relative;
         }
 
         .path-input-row input {
@@ -804,6 +805,138 @@
         .folder-picker-btn-up:disabled {
             opacity: 0.4;
             cursor: not-allowed;
+        }
+
+        .folder-picker-dropzone {
+            margin: 10px 18px 6px;
+            padding: 14px 14px;
+            border: 1.5px dashed var(--bdr2);
+            border-radius: 8px;
+            background: var(--bg2);
+            text-align: center;
+            font-size: 12px;
+            color: var(--t2);
+            transition: all var(--tr);
+            cursor: default;
+        }
+
+        .folder-picker-dropzone strong {
+            color: var(--t1);
+        }
+
+        .folder-picker-dropzone.drag-over {
+            border-color: var(--acc);
+            border-style: solid;
+            background: var(--accbg);
+            color: var(--acc2);
+        }
+
+        .folder-picker-typein {
+            display: flex;
+            gap: 6px;
+            margin: 8px 18px 4px;
+        }
+
+        .folder-picker-typein input {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            background: var(--bg);
+            border: 1px solid var(--bdr);
+            border-radius: 6px;
+            color: var(--t0);
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+
+        .folder-picker-typein input:focus {
+            outline: none;
+            border-color: var(--acc);
+            box-shadow: 0 0 0 2px var(--accbg);
+        }
+
+        .folder-picker-typein button {
+            padding: 6px 12px;
+            background: var(--bg3);
+            border: 1px solid var(--bdr);
+            color: var(--t1);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+
+        .folder-picker-typein button:hover {
+            background: var(--accbg);
+            border-color: var(--acc);
+            color: var(--acc2);
+        }
+
+        .folder-picker-shortcuts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 0 18px 6px;
+        }
+
+        .folder-picker-shortcuts button {
+            padding: 4px 10px;
+            background: var(--bg3);
+            border: 1px solid var(--bdr);
+            color: var(--t2);
+            border-radius: 999px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+
+        .folder-picker-shortcuts button:hover {
+            border-color: var(--acc);
+            color: var(--acc2);
+        }
+
+        .path-input-row.drag-over input {
+            border-color: var(--acc);
+            background: var(--accbg);
+        }
+
+        .path-input-row.drag-over .path-folder-btn {
+            border-color: var(--acc);
+            background: var(--accbg);
+            color: var(--acc2);
+        }
+
+        .path-input-row .path-input-dropping {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: var(--accbg);
+            border: 1.5px dashed var(--acc);
+            border-radius: 6px;
+            color: var(--acc2);
+            font-size: 11px;
+            font-weight: 600;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .path-input-row.drag-over .path-input-dropping {
+            display: flex;
+        }
+
+        .path-input-row.drop-warning input,
+        .path-input-row.drop-warning .path-folder-btn {
+            border-color: var(--ylw);
+            background: rgba(245, 158, 11, 0.12);
+            animation: dropWarnPulse 2s ease-in-out 1;
+        }
+
+        @keyframes dropWarnPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+            50%      { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.35); }
         }
         
         .step-actions {
@@ -1403,6 +1536,16 @@
                 <h3 id="folder-picker-title">Choose folder</h3>
                 <button class="settings-modal-close" type="button" onclick="closeFolderPicker()" title="Close">×</button>
             </div>
+            <div class="folder-picker-dropzone" id="folder-picker-dropzone">
+                <strong>Drag a folder here</strong> from Finder / Explorer to use it directly — or browse below.
+            </div>
+            <div class="folder-picker-typein">
+                <input type="text" id="folder-picker-typein-input"
+                       placeholder="Type or paste an absolute path (e.g. /Users/me/recall_data or ~/Desktop/data)"
+                       onkeydown="if (event.key === 'Enter') { event.preventDefault(); folderPickerGoTyped(); }">
+                <button type="button" onclick="folderPickerGoTyped()" title="Go to this path">Go</button>
+            </div>
+            <div class="folder-picker-shortcuts" id="folder-picker-shortcuts"></div>
             <div class="folder-picker-path" id="folder-picker-path"></div>
             <div class="folder-picker-list" id="folder-picker-list"></div>
             <div class="folder-picker-actions">
@@ -1597,6 +1740,14 @@
             if (s.type === 'audioTranscribe' && s.audioScope && String(s.type).indexOf(':') < 0) {
                 s.type = 'audioTranscribe:' + s.audioScope;
             }
+            // The saved-pipeline JSON does not always carry the in-memory ``id``
+            // we use to wire DOM lookups (`step-${id}-inputPath`) and
+            // `pipelineSteps.find(s => s.id === stepId)`. Assign one when
+            // missing so reorder buttons, the folder picker, and the new
+            // drag-drop handlers all resolve to a real step.
+            if (typeof s.id !== 'number' || !Number.isFinite(s.id)) {
+                s.id = (typeof stepCounter === 'number' && Number.isFinite(stepCounter)) ? stepCounter++ : 0;
+            }
             return s;
         }
 
@@ -1692,32 +1843,59 @@
             stepId: null,
             field: null,
             currentPath: '',
-            parentPath: null
+            currentAbsolute: '',
+            parentPath: null,
+            projectRoot: '',
+            home: ''
         };
 
-        function formatFolderPickerLabel(relPath) {
-            if (!relPath) return '(project root)';
+        function formatFolderPickerLabel(relPath, absolutePath) {
+            if (!relPath && !absolutePath) return '(project root)';
+            if (!relPath) return absolutePath || '';
+            // Show absolute path inline so the user can tell when they are
+            // browsing outside the project root.
+            if (absolutePath && absolutePath !== relPath) {
+                return `${relPath}\n${absolutePath}`;
+            }
             return relPath;
         }
 
-        async function loadFolderPicker(path) {
+        async function loadFolderPicker(path, opts) {
             const listEl = document.getElementById('folder-picker-list');
             const pathEl = document.getElementById('folder-picker-path');
             const upBtn = document.getElementById('folder-picker-up');
             listEl.innerHTML = '<div class="folder-picker-empty">Loading…</div>';
             const q = encodeURIComponent(path || '');
-            const response = await fetch(`/api/browse-folders?path=${q}`);
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                listEl.innerHTML = `<div class="folder-picker-empty">${escapeHtml(data.error || 'Could not list folders')}</div>`;
+            const deriveDir = !!(opts && opts.deriveDir);
+            const url = `/api/browse-folders?path=${q}${deriveDir ? '&derive_dir=1' : ''}`;
+            let data;
+            try {
+                const response = await fetch(url);
+                data = await response.json();
+                if (!response.ok || !data.success) {
+                    listEl.innerHTML = `<div class="folder-picker-empty">${escapeHtml((data && data.error) || 'Could not list folders')}</div>`;
+                    return;
+                }
+            } catch (e) {
+                listEl.innerHTML = `<div class="folder-picker-empty">Could not list folders: ${escapeHtml(String(e))}</div>`;
                 return;
             }
             folderPickerState.currentPath = data.current || '';
+            folderPickerState.currentAbsolute = data.currentAbsolute || '';
             folderPickerState.parentPath = data.parent;
+            folderPickerState.projectRoot = data.projectRoot || folderPickerState.projectRoot;
+            folderPickerState.home = data.home || folderPickerState.home;
             folderPickerState.childPaths = (data.folders || []).map(name =>
                 folderPickerState.currentPath ? `${folderPickerState.currentPath}/${name}` : name
             );
-            pathEl.textContent = formatFolderPickerLabel(folderPickerState.currentPath);
+            const label = formatFolderPickerLabel(folderPickerState.currentPath, folderPickerState.currentAbsolute);
+            pathEl.textContent = label;
+            // Reflect the active path in the type-in field, but don't steal focus.
+            const typeInput = document.getElementById('folder-picker-typein-input');
+            if (typeInput && document.activeElement !== typeInput) {
+                typeInput.value = folderPickerState.currentAbsolute || folderPickerState.currentPath || '';
+            }
+            renderFolderPickerShortcuts();
             upBtn.disabled = (folderPickerState.parentPath === null || folderPickerState.parentPath === undefined);
             if (!data.folders.length) {
                 listEl.innerHTML = '<div class="folder-picker-empty">No subfolders — select this folder or go up.</div>';
@@ -1725,6 +1903,22 @@
             }
             listEl.innerHTML = data.folders.map((name, idx) =>
                 `<button type="button" class="folder-picker-item" onclick="folderPickerEnter(${idx})">${FOLDER_ICON_SVG}<span>${escapeHtml(name)}</span></button>`
+            ).join('');
+        }
+
+        function renderFolderPickerShortcuts() {
+            const el = document.getElementById('folder-picker-shortcuts');
+            if (!el) return;
+            const chips = [];
+            chips.push({ label: 'Project root', path: '' });
+            if (folderPickerState.home) {
+                chips.push({ label: 'Home', path: folderPickerState.home });
+                chips.push({ label: 'Desktop', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Desktop' });
+                chips.push({ label: 'Documents', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Documents' });
+                chips.push({ label: 'Downloads', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Downloads' });
+            }
+            el.innerHTML = chips.map(c =>
+                `<button type="button" onclick="loadFolderPicker(${JSON.stringify(c.path)})">${escapeHtml(c.label)}</button>`
             ).join('');
         }
 
@@ -1736,7 +1930,7 @@
             const title = field === 'inputPath' ? 'Choose input folder' : 'Choose output folder';
             document.getElementById('folder-picker-title').textContent = title;
             document.getElementById('folder-picker-modal').classList.add('show');
-            const startPath = (step[field] || '').trim().replace(/\\/g, '/');
+            const startPath = (step[field] || '').trim();
             loadFolderPicker(startPath);
         }
 
@@ -1760,14 +1954,503 @@
             loadFolderPicker(folderPickerState.parentPath);
         }
 
+        function folderPickerGoTyped() {
+            const input = document.getElementById('folder-picker-typein-input');
+            if (!input) return;
+            const value = (input.value || '').trim();
+            loadFolderPicker(value);
+        }
+
         function confirmFolderPicker() {
-            const { stepId, field, currentPath } = folderPickerState;
+            const { stepId, field, currentPath, currentAbsolute } = folderPickerState;
             if (stepId == null || !field) return;
-            updateStepConfig(stepId, field, currentPath);
-            const input = document.getElementById(`step-${stepId}-${field}`);
-            if (input) input.value = currentPath;
+            // Prefer the project-relative path when available (cleaner in saved
+            // configs / UI), otherwise commit the absolute path.
+            const pathToSave = currentPath || currentAbsolute || '';
+            updateStepConfig(stepId, field, pathToSave);
+            const inputEl = document.getElementById(`step-${stepId}-${field}`);
+            if (inputEl) inputEl.value = pathToSave;
             updatePreview();
             closeFolderPicker();
+        }
+
+        // ---------------------------------------------------------------
+        // Drag-and-drop folders (from Finder / File Explorer) into the
+        // folder picker or directly into a step's path input row.
+        //
+        // Browsers don't expose absolute filesystem paths through the
+        // standard `File` API for security reasons. However, when the user
+        // drags a file/folder from the OS file manager, the OS adds a
+        // ``text/uri-list`` payload to the DataTransfer that contains
+        // ``file://`` URIs of the dragged items. We extract the local path
+        // from that URI.
+        // ---------------------------------------------------------------
+
+        // True for any DataTransfer that looks like an OS file/folder drag.
+        // We must be permissive here because the "Files" / "text/uri-list" type
+        // labels are inconsistent across browsers: Safari only advertises
+        // "public.file-url"; some Chrome configurations strip the list entirely
+        // on dragover; Firefox uses "application/x-moz-file". If we miss this,
+        // ``preventDefault`` never runs and the browser's default behaviour
+        // pastes the dragged folder's *name* into the text input.
+        function isFileDragEvent(e) {
+            if (!e || !e.dataTransfer) return false;
+            const dt = e.dataTransfer;
+            const types = dt.types ? Array.from(dt.types) : [];
+            const KNOWN = ['Files', 'text/uri-list', 'text/x-moz-url',
+                           'application/x-moz-file', 'public.file-url'];
+            for (let i = 0; i < types.length; i++) {
+                if (KNOWN.indexOf(types[i]) !== -1) return true;
+            }
+            // Some browsers (notably Safari) leave types[] empty during
+            // dragover but still populate items[] with kind==='file' entries.
+            if (dt.items && dt.items.length) {
+                for (let i = 0; i < dt.items.length; i++) {
+                    if (dt.items[i].kind === 'file') return true;
+                }
+            }
+            // Available during drop in nearly every browser when an OS file is dropped.
+            if (dt.files && dt.files.length) return true;
+            return false;
+        }
+
+        function looksLikeAbsolutePath(p) {
+            if (!p) return false;
+            if (p.startsWith('/') || p.startsWith('~')) return true;
+            if (/^[A-Za-z]:[\\/]/.test(p)) return true;
+            // file:// URIs are absolute by definition.
+            if (p.toLowerCase().startsWith('file://')) return true;
+            return false;
+        }
+
+        function extractFolderPathFromDrop(event) {
+            const dt = event.dataTransfer;
+            if (!dt) return '';
+            const tryReadList = (mime) => {
+                let raw = '';
+                try { raw = dt.getData(mime) || ''; } catch (e) { /* some types throw */ }
+                return raw;
+            };
+            // Look for an absolute path in every MIME type the browser might
+            // populate. Order matters only when multiple types carry real
+            // paths — text/uri-list is the most standardised.
+            const candidates = [
+                tryReadList('text/uri-list'),
+                tryReadList('text/x-moz-url'),
+                tryReadList('public.file-url'),         // Safari macOS UTI
+                tryReadList('application/x-moz-file'),  // Firefox
+                tryReadList('text/plain'),
+            ];
+            for (const raw of candidates) {
+                if (!raw) continue;
+                const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
+                for (const line of lines) {
+                    if (/^file:/i.test(line)) {
+                        try {
+                            const u = new URL(line);
+                            let decoded = decodeURIComponent(u.pathname || '');
+                            // Strip leading slash on Windows ("/C:/...") -> "C:/..."
+                            if (/^\/[A-Za-z]:[\\/]/.test(decoded)) decoded = decoded.slice(1);
+                            if (decoded && looksLikeAbsolutePath(decoded)) return decoded;
+                        } catch (e) { /* try next */ }
+                    } else if (looksLikeAbsolutePath(line)) {
+                        return line;
+                    }
+                }
+            }
+            return '';
+        }
+
+        // Best-effort filename for diagnostic UI when extraction fails.
+        function pickDroppedItemName(event) {
+            const dt = event.dataTransfer;
+            if (!dt) return '';
+            if (dt.files && dt.files.length && dt.files[0].name) return dt.files[0].name;
+            if (dt.items && dt.items.length) {
+                for (const item of dt.items) {
+                    if (item.kind === 'file') {
+                        try {
+                            const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+                            if (entry && entry.name) return entry.name;
+                        } catch (e) {}
+                        try {
+                            const f = item.getAsFile && item.getAsFile();
+                            if (f && f.name) return f.name;
+                        } catch (e) {}
+                    }
+                }
+            }
+            try {
+                const raw = dt.getData('text/plain') || '';
+                return (raw.split(/\r?\n/)[0] || '').trim();
+            } catch (e) {}
+            return '';
+        }
+
+        // Did the user drop a single file (not a directory)?
+        // Returns true if at least one DataTransferItem reports isFile and none
+        // reports isDirectory. Unknown -> false (treat path as a folder).
+        function droppedItemLooksLikeFile(event) {
+            const dt = event.dataTransfer;
+            if (!dt || !dt.items || !dt.items.length) return false;
+            let anyFile = false;
+            let anyDir = false;
+            for (const item of dt.items) {
+                if (item.kind !== 'file') continue;
+                if (typeof item.webkitGetAsEntry !== 'function') continue;
+                let entry = null;
+                try { entry = item.webkitGetAsEntry(); } catch (e) { entry = null; }
+                if (!entry) continue;
+                if (entry.isDirectory) anyDir = true;
+                else if (entry.isFile) anyFile = true;
+            }
+            return anyFile && !anyDir;
+        }
+
+        // Strip a trailing file segment so the user can drop a representative
+        // file from inside a folder and still have us pick the containing dir.
+        function parentDirOfPath(path) {
+            if (!path) return path;
+            const sepIdx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+            if (sepIdx <= 0) return path; // No meaningful parent.
+            return path.slice(0, sepIdx);
+        }
+
+        // Best-effort read of the dropped folder's immediate child names
+        // (via webkitGetAsEntry) so the server can disambiguate when several
+        // candidate folders share the same name.
+        async function readDroppedFolderHints(event, maxEntries) {
+            const dt = event.dataTransfer;
+            if (!dt || !dt.items || !dt.items.length) return [];
+            let entry = null;
+            for (const item of dt.items) {
+                if (item.kind !== 'file' || typeof item.webkitGetAsEntry !== 'function') continue;
+                try {
+                    const e = item.webkitGetAsEntry();
+                    if (e && e.isDirectory) { entry = e; break; }
+                } catch (e) {}
+            }
+            if (!entry || typeof entry.createReader !== 'function') return [];
+            const reader = entry.createReader();
+            const hints = [];
+            const limit = maxEntries || 30;
+            // readEntries() is paginated; iterate until empty or limit reached.
+            for (let i = 0; i < 4 && hints.length < limit; i++) {
+                const batch = await new Promise((resolve) => {
+                    try { reader.readEntries(resolve, () => resolve([])); }
+                    catch (e) { resolve([]); }
+                });
+                if (!batch || !batch.length) break;
+                for (const child of batch) {
+                    if (child && child.name) hints.push(child.name);
+                    if (hints.length >= limit) break;
+                }
+            }
+            return hints;
+        }
+
+        // Server-side folder discovery: when the browser only gave us a name,
+        // ask the server to find that folder in the user's common locations
+        // (Desktop, Documents, Downloads, project root, etc.).
+        async function findFolderByName(name, hints) {
+            if (!name) return [];
+            try {
+                const params = new URLSearchParams({ name });
+                if (hints && hints.length) params.set('hints', hints.join(','));
+                const r = await fetch('/api/find-folder-by-name?' + params.toString());
+                if (!r.ok) return [];
+                const j = await r.json();
+                return (j && j.matches) || [];
+            } catch (e) { return []; }
+        }
+
+        // Inline picker shown when multiple folders share the dropped name.
+        function chooseFolderMatchDialog(name, matches) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'folder-match-overlay';
+                overlay.style.cssText = 'position:fixed;inset:0;background:var(--overlay);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;';
+                const box = document.createElement('div');
+                box.style.cssText = 'background:var(--bg1);border:1px solid var(--bdr);border-radius:8px;width:min(560px,100%);max-height:80vh;display:flex;flex-direction:column;color:var(--t0);box-shadow:var(--shadow-modal);';
+                box.innerHTML =
+                    '<div style="padding:16px 18px;border-bottom:1px solid var(--bdr);">' +
+                        '<h3 style="margin:0;font-size:16px;font-weight:600;">Multiple folders named "' + escapeHtml(name) + '"</h3>' +
+                        '<p style="margin:6px 0 0;color:var(--t2);font-size:12px;">Your browser didn\'t expose the dragged folder\'s path, so we searched your home for matches. Pick the one you meant.</p>' +
+                    '</div>' +
+                    '<div id="folder-match-list" style="overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;">' +
+                        matches.map((m, i) =>
+                            '<button type="button" data-idx="' + i + '" style="text-align:left;padding:10px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;color:var(--t0);font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;line-height:1.4;">' +
+                                '<div style="font-weight:600;color:var(--acc2);">' + escapeHtml(m.label || '') + '</div>' +
+                                '<div>' + escapeHtml(m.path) + '</div>' +
+                            '</button>'
+                        ).join('') +
+                    '</div>' +
+                    '<div style="display:flex;gap:10px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--bdr);">' +
+                        '<button type="button" data-action="cancel" style="padding:8px 16px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;color:var(--t1);font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>' +
+                    '</div>';
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+                const cleanup = () => { try { document.body.removeChild(overlay); } catch (e) {} };
+                box.querySelectorAll('button[data-idx]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+                        cleanup();
+                        resolve(matches[idx] ? matches[idx].path : null);
+                    });
+                    btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--acc)'; });
+                    btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--bdr)'; });
+                });
+                box.querySelector('button[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve(null); });
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } });
+            });
+        }
+
+        // Given a folder NAME the browser exposed (no absolute path), use the
+        // server to discover where that folder really lives. Returns the
+        // chosen absolute path, or '' if discovery failed / was cancelled.
+        async function resolveDroppedNameToPath(event, name) {
+            const hints = await readDroppedFolderHints(event, 30);
+            const matches = await findFolderByName(name, hints);
+            if (!matches.length) return '';
+            if (matches.length === 1) return matches[0].path;
+            // Multiple matches — let the user pick.
+            const chosen = await chooseFolderMatchDialog(name, matches);
+            return chosen || '';
+        }
+
+        // Ask the server to canonicalise a dropped path: if it points at a
+        // file (or a non-existent name under a real directory), the server
+        // returns the closest directory.
+        async function canonicalizeDroppedPath(rawPath) {
+            if (!rawPath) return rawPath;
+            try {
+                const r = await fetch('/api/browse-folders?derive_dir=1&path=' + encodeURIComponent(rawPath));
+                if (r.ok) {
+                    const j = await r.json();
+                    if (j && j.success) {
+                        // Prefer the absolute path so paths outside PROJECT_ROOT survive.
+                        return j.currentAbsolute || j.current || rawPath;
+                    }
+                }
+            } catch (e) { /* network issue — fall back to raw path */ }
+            return rawPath;
+        }
+
+        // Show a non-blocking hint over the row when the browser stripped the
+        // dragged folder's absolute path. The hint is anchored to the row so
+        // it's obvious *which* field needs the user's manual input.
+        function flashPathInputHint(stepId, field, message) {
+            const rowId = `step-${stepId}-${field}`;
+            const inputEl = document.getElementById(rowId);
+            const rowEl = inputEl && inputEl.closest('.path-input-row');
+            // Surface a clear message in an alert (so it's not missed) AND
+            // focus the field so the user can paste immediately.
+            try { window.alert(message); } catch (e) { /* JSDOM / private modes */ }
+            if (inputEl) {
+                inputEl.focus();
+                inputEl.select && inputEl.select();
+            }
+            if (rowEl) {
+                rowEl.classList.add('drop-warning');
+                setTimeout(() => rowEl.classList.remove('drop-warning'), 2000);
+            }
+        }
+
+        // Shared "apply a drag-drop event to a specific step path field" routine.
+        async function applyDroppedFolderToStep(stepId, field, event) {
+            let path = extractFolderPathFromDrop(event);
+            const browserHidThePath = !path || !looksLikeAbsolutePath(path);
+
+            if (browserHidThePath) {
+                const name = pickDroppedItemName(event) || '';
+                if (name) {
+                    // Fallback: ask the server to find this folder in the
+                    // user's usual data locations (Desktop, Documents, etc.).
+                    const resolved = await resolveDroppedNameToPath(event, name);
+                    if (resolved) {
+                        path = resolved;
+                    }
+                }
+                if (!path || !looksLikeAbsolutePath(path)) {
+                    const what = name ? `"${name}"` : 'the dropped folder';
+                    const isMac = navigator && /Mac/i.test(navigator.platform || '');
+                    const macHint = isMac
+                        ? `\n\nQuick way on macOS: in Finder, right-click the folder, hold Option, choose "Copy ${name || 'folder'} as Pathname", then paste here.`
+                        : '';
+                    flashPathInputHint(stepId, field,
+                        `Your browser didn't expose ${what}'s full path, and we couldn't find a folder ` +
+                        `with that name in your usual data locations (home, Desktop, Documents, Downloads, ` +
+                        `Dropbox, iCloud Drive, or the project folder).\n\n` +
+                        `Please paste the absolute path into the input field, or click the folder icon to browse to it.` +
+                        macHint);
+                    return false;
+                }
+            } else if (droppedItemLooksLikeFile(event)) {
+                // If the drop is plainly a file, use its parent directory.
+                path = parentDirOfPath(path);
+            }
+
+            // Server-side canonicalisation (resolves ~, validates the dir).
+            const canonical = await canonicalizeDroppedPath(path);
+            const finalPath = (canonical && looksLikeAbsolutePath(canonical)) ? canonical : path;
+            updateStepConfig(stepId, field, finalPath);
+            const inputEl = document.getElementById(`step-${stepId}-${field}`);
+            if (inputEl) inputEl.value = finalPath;
+            updatePreview();
+            return true;
+        }
+
+        function setupFolderPickerDropzone() {
+            const dz = document.getElementById('folder-picker-dropzone');
+            if (!dz) return;
+            const restoreDz = () => {
+                dz.innerHTML = '<strong>Drag a folder here</strong> from Finder / Explorer to use it directly — or browse below.';
+            };
+            const showDzError = (msg) => {
+                dz.innerHTML = '<strong>' + escapeHtml(msg) + '</strong>';
+                setTimeout(restoreDz, 5000);
+            };
+            const DZ_HANDLED = '__narrDzHandled';
+            const onOver = (e) => {
+                if (!isFileDragEvent(e)) return;
+                if (e[DZ_HANDLED]) return;
+                e[DZ_HANDLED] = true;
+                e.preventDefault(); e.stopPropagation();
+                dz.classList.add('drag-over');
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            };
+            const onLeave = () => { dz.classList.remove('drag-over'); };
+            const onDrop = async (e) => {
+                if (!isFileDragEvent(e)) return;
+                if (e[DZ_HANDLED + 'Drop']) return;
+                e[DZ_HANDLED + 'Drop'] = true;
+                e.preventDefault(); e.stopPropagation();
+                dz.classList.remove('drag-over');
+                let path = extractFolderPathFromDrop(e);
+                if (!path || !looksLikeAbsolutePath(path)) {
+                    const name = pickDroppedItemName(e);
+                    let resolved = '';
+                    if (name) {
+                        // Server-side discovery: look for the folder in common places.
+                        resolved = await resolveDroppedNameToPath(e, name);
+                    }
+                    if (!resolved) {
+                        const what = name ? `"${name}"` : 'the dropped item';
+                        const isMac = navigator && /Mac/i.test(navigator.platform || '');
+                        const macHint = isMac
+                            ? ' On macOS: right-click the folder in Finder, hold Option, choose "Copy as Pathname", then paste below.'
+                            : '';
+                        showDzError(`Couldn't locate ${what} on your system. Type or paste the absolute path below.${macHint}`);
+                        const typeInput = document.getElementById('folder-picker-typein-input');
+                        if (typeInput) {
+                            typeInput.value = '';
+                            typeInput.focus();
+                        }
+                        return;
+                    }
+                    path = resolved;
+                } else if (droppedItemLooksLikeFile(e)) {
+                    path = parentDirOfPath(path);
+                }
+                await loadFolderPicker(path, { deriveDir: true });
+                const typeInput = document.getElementById('folder-picker-typein-input');
+                if (typeInput && document.activeElement !== typeInput) {
+                    typeInput.value = path;
+                }
+            };
+            dz.addEventListener('dragover', onOver, true);
+            dz.addEventListener('dragover', onOver, false);
+            dz.addEventListener('dragenter', onOver, true);
+            dz.addEventListener('dragenter', onOver, false);
+            dz.addEventListener('dragleave', onLeave);
+            dz.addEventListener('drop', onDrop, true);
+            dz.addEventListener('drop', onDrop, false);
+
+            // The modal as a whole must intercept drag/drop so the typein
+            // <input> doesn't silently swallow the dropped filename via its
+            // default browser behaviour.
+            const modal = document.getElementById('folder-picker-modal');
+            if (modal) {
+                const MODAL_HANDLED = '__narrModalHandled';
+                const modalOver = (e) => {
+                    if (!isFileDragEvent(e)) return;
+                    if (e[MODAL_HANDLED]) return;
+                    e[MODAL_HANDLED] = true;
+                    e.preventDefault();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+                };
+                const modalDrop = (e) => {
+                    if (!isFileDragEvent(e)) return;
+                    if (e[MODAL_HANDLED + 'Drop']) return;
+                    e[MODAL_HANDLED + 'Drop'] = true;
+                    // Already handled by the inner drop-zone listener?
+                    if (e[DZ_HANDLED + 'Drop']) return;
+                    if (e.target && e.target.closest && e.target.closest('.folder-picker-dropzone')) return;
+                    onDrop(e);
+                };
+                modal.addEventListener('dragover', modalOver, true);
+                modal.addEventListener('dragover', modalOver, false);
+                modal.addEventListener('dragenter', modalOver, true);
+                modal.addEventListener('drop', modalDrop, true);
+                modal.addEventListener('drop', modalDrop, false);
+            }
+        }
+
+        // Attach drag-and-drop to a step card's input/output path row.
+        function attachPathInputDrop(rowEl, stepId, field) {
+            if (!rowEl || rowEl.dataset.dropBound === '1') return;
+            rowEl.dataset.dropBound = '1';
+            const hint = document.createElement('div');
+            hint.className = 'path-input-dropping';
+            hint.textContent = 'Drop folder to set path';
+            rowEl.appendChild(hint);
+
+            const ROW_HANDLED = '__narrPathRowHandled';
+            const onOver = (e) => {
+                if (!isFileDragEvent(e)) return;
+                if (e[ROW_HANDLED]) return;
+                e[ROW_HANDLED] = true;
+                // preventDefault is *mandatory* here even when we can't read
+                // the path: otherwise the inner <input>'s default behaviour
+                // pastes the dragged folder's name into the field.
+                e.preventDefault(); e.stopPropagation();
+                rowEl.classList.add('drag-over');
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            };
+            const onLeave = (e) => {
+                if (e && e.relatedTarget && rowEl.contains(e.relatedTarget)) return;
+                rowEl.classList.remove('drag-over');
+            };
+            const onDrop = async (e) => {
+                if (!isFileDragEvent(e)) return; // Let other handlers (palette reorder) run.
+                if (e[ROW_HANDLED + 'Drop']) return;
+                e[ROW_HANDLED + 'Drop'] = true;
+                e.preventDefault(); e.stopPropagation();
+                rowEl.classList.remove('drag-over');
+                await applyDroppedFolderToStep(stepId, field, e);
+            };
+            // Capture phase catches events targeted at the inner <input>
+            // *before* the input's default drop handler has a chance to
+            // insert the dragged text. The guard flag prevents the bubble-
+            // phase listener (registered second) from firing twice.
+            rowEl.addEventListener('dragover', onOver, true);
+            rowEl.addEventListener('dragover', onOver, false);
+            rowEl.addEventListener('dragenter', onOver, true);
+            rowEl.addEventListener('dragenter', onOver, false);
+            rowEl.addEventListener('dragleave', onLeave);
+            rowEl.addEventListener('drop', onDrop, true);
+            rowEl.addEventListener('drop', onDrop, false);
+        }
+
+        function attachAllPathInputDrops() {
+            document.querySelectorAll('.path-input-row').forEach(row => {
+                const stepCard = row.closest('.step-card');
+                if (!stepCard) return;
+                const stepId = parseInt(stepCard.getAttribute('data-step-id'), 10);
+                if (isNaN(stepId)) return;
+                const field = row.classList.contains('path-input-row--input') ? 'inputPath' : 'outputPath';
+                attachPathInputDrop(row, stepId, field);
+            });
         }
         
         // Initialize page when DOM is ready
@@ -1793,8 +2476,14 @@
                 const response = await fetch('/api/pipeline/load');
                 const data = await response.json();
                 if (data.success && data.pipeline && data.pipeline.steps && data.pipeline.steps.length > 0) {
+                    // Pre-seed stepCounter from the highest valid id present so
+                    // expandPipelineStep doesn't hand out duplicate ids.
+                    const existingIds = data.pipeline.steps
+                        .map(s => (typeof s.id === 'number' && Number.isFinite(s.id)) ? s.id : -1)
+                        .filter(n => n >= 0);
+                    stepCounter = existingIds.length ? Math.max(...existingIds) + 1 : 0;
                     pipelineSteps = data.pipeline.steps.map(expandPipelineStep);
-                    stepCounter = Math.max(0, ...pipelineSteps.map(s => s.id)) + 1;
+                    stepCounter = Math.max(stepCounter, ...pipelineSteps.map(s => s.id)) + 1;
                     savePipeline();
                     console.log('Loaded existing pipeline with', pipelineSteps.length, 'steps for editing');
                 }
@@ -1817,9 +2506,29 @@
             
             initRaterName();
             initPipelineDropDelegation();
+            setupFolderPickerDropzone();
+            installGlobalFileDropGuard();
             renderPipeline();
             updatePreview();
             console.log('Page initialization complete');
+        }
+
+        // Stop the browser from navigating to (or downloading) a file when
+        // the user drags a folder onto the page but releases outside one of
+        // our intended drop zones. Drop handlers that want to react to the
+        // event still ``preventDefault`` and ``stopPropagation`` themselves,
+        // so this guard only kicks in for unhandled drops.
+        function installGlobalFileDropGuard() {
+            const isFileDrag = (e) => {
+                const types = e.dataTransfer && e.dataTransfer.types;
+                if (!types) return false;
+                for (let i = 0; i < types.length; i++) {
+                    if (types[i] === 'Files' || types[i] === 'text/uri-list') return true;
+                }
+                return false;
+            };
+            window.addEventListener('dragover', (e) => { if (isFileDrag(e)) e.preventDefault(); }, false);
+            window.addEventListener('drop', (e) => { if (isFileDrag(e)) e.preventDefault(); }, false);
         }
 
         // --- Rater name (replaces login) ---------------------------------
@@ -1931,9 +2640,21 @@
             if (!container || pipelineDropDelegationBound) return;
             pipelineDropDelegationBound = true;
 
+            // Treat OS file/folder drags as "not for the empty pipeline slot":
+            // those should land on a step's path-input row, not add a step.
+            const isExternalFileDrag = (e) => {
+                const types = e.dataTransfer && e.dataTransfer.types;
+                if (!types) return false;
+                for (let i = 0; i < types.length; i++) {
+                    if (types[i] === 'Files' || types[i] === 'text/uri-list') return true;
+                }
+                return false;
+            };
+
             container.addEventListener('dragover', (e) => {
                 const zone = e.target.closest('.pipeline-step.empty[data-drop-zone="true"]');
                 if (!zone) return;
+                if (isExternalFileDrag(e)) return;
                 handleDragOver(e);
                 zone.classList.add('drag-over');
             });
@@ -1948,6 +2669,7 @@
             container.addEventListener('drop', (e) => {
                 const zone = e.target.closest('.pipeline-step.empty[data-drop-zone="true"]');
                 if (!zone) return;
+                if (isExternalFileDrag(e)) return;
                 e.preventDefault();
                 e.stopPropagation();
                 zone.classList.remove('drag-over');
@@ -2200,26 +2922,26 @@
                         </div>
                         <div class="step-config">
                             <div class="config-field">
-                                <label>Input Path/Directory:</label>
+                                <label>Input Path/Directory:<span style="font-weight:400;color:var(--t3);font-size:11px;margin-left:6px;">(click the folder icon, drag a folder from Finder/Explorer, or type any absolute path)</span></label>
                                 <div class="path-input-row path-input-row--input">
-                                    <button type="button" class="path-folder-btn" title="Choose input folder" aria-label="Choose input folder"
+                                    <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
                                             onclick="openFolderPicker(${step.id}, 'inputPath')">${FOLDER_ICON_SVG}</button>
                                     <input type="text"
                                            id="step-${step.id}-inputPath"
                                            value="${escapeHtml(step.inputPath)}"
                                            onchange="updateStepConfig(${step.id}, 'inputPath', this.value); updatePreview();"
-                                           placeholder="e.g., data/5_recall_texts">
+                                           placeholder="e.g., data/5_recall_texts or /Users/me/recall_data">
                                 </div>
                             </div>
                             <div class="config-field">
-                                <label>Output Path/Directory:</label>
+                                <label>Output Path/Directory:<span style="font-weight:400;color:var(--t3);font-size:11px;margin-left:6px;">(click the folder icon, drag a folder from Finder/Explorer, or type any absolute path)</span></label>
                                 <div class="path-input-row path-input-row--output">
                                     <input type="text"
                                            id="step-${step.id}-outputPath"
                                            value="${escapeHtml(step.outputPath)}"
                                            onchange="updateStepConfig(${step.id}, 'outputPath', this.value); updatePreview();"
-                                           placeholder="e.g., output/recall_corrected">
-                                    <button type="button" class="path-folder-btn" title="Choose output folder" aria-label="Choose output folder"
+                                           placeholder="e.g., output/recall_corrected or ~/Desktop/runs/recall_corrected">
+                                    <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
                                             onclick="openFolderPicker(${step.id}, 'outputPath')">${FOLDER_ICON_SVG}</button>
                                 </div>
                             </div>
@@ -2269,6 +2991,7 @@
             
             container.innerHTML = html;
             makeSortable();
+            attachAllPathInputDrops();
             updatePreview();
         }
         
@@ -2391,26 +3114,45 @@
                     }
                 });
                 
-                step.addEventListener('drop', (e) => {
+                step.addEventListener('drop', async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     step.style.borderColor = '';
                     step.style.backgroundColor = '';
-                    
+
+                    // External folder/file dragged in from the OS file manager —
+                    // route it to a path input field so the user doesn't lose
+                    // their drop just because they missed the smaller input row.
+                    const types = e.dataTransfer && e.dataTransfer.types ? Array.from(e.dataTransfer.types) : [];
+                    if (types.includes('Files') || types.includes('text/uri-list')) {
+                        const stepId = parseInt(step.getAttribute('data-step-id'), 10);
+                        // Use the row closest to the drop coordinate; default to inputPath.
+                        const rows = step.querySelectorAll('.path-input-row');
+                        let target = null;
+                        let bestDy = Infinity;
+                        rows.forEach(r => {
+                            const rect = r.getBoundingClientRect();
+                            const cy = (rect.top + rect.bottom) / 2;
+                            const dy = Math.abs(e.clientY - cy);
+                            if (dy < bestDy) { bestDy = dy; target = r; }
+                        });
+                        const field = (target && target.classList.contains('path-input-row--output')) ? 'outputPath' : 'inputPath';
+                        await applyDroppedFolderToStep(stepId, field, e);
+                        return;
+                    }
+
                     const draggedStepId = e.dataTransfer.getData('text/plain');
                     const draggedStep = document.querySelector(`.step-card[data-step-id="${draggedStepId}"]`);
-                    
+
                     if (draggedStep && draggedStep !== step) {
                         const draggedId = parseInt(draggedStepId);
                         const targetId = parseInt(step.getAttribute('data-step-id'));
-                        
+
                         const draggedIndex = pipelineSteps.findIndex(s => s.id === draggedId);
                         const targetIndex = pipelineSteps.findIndex(s => s.id === targetId);
-                        
+
                         if (draggedIndex !== -1 && targetIndex !== -1) {
-                            // Remove from current position
                             const stepToMove = pipelineSteps.splice(draggedIndex, 1)[0];
-                            // Insert at target position
                             const insertIndex = draggedIndex < targetIndex ? targetIndex : targetIndex;
                             pipelineSteps.splice(insertIndex, 0, stepToMove);
                             savePipeline();

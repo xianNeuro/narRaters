@@ -621,17 +621,35 @@ STEP_TYPE_DEFAULT_OUTPUT = {
 
 
 def _resolve_path_from_config(path_str):
-    """Convert path string from pipeline config to absolute Path."""
+    """Convert path string from pipeline config to absolute Path.
+
+    Supports POSIX absolute paths (``/Users/...``), Windows absolute paths
+    (``C:\\Users\\...``), tilde expansion (``~/Desktop/...``), and project-
+    relative paths (resolved against ``PROJECT_ROOT``).
+    """
     if not path_str or not path_str.strip():
         return None
-    p = path_str.strip().rstrip('/')
+    p = path_str.strip().rstrip('/').rstrip('\\')
     if not p:
         return None
-    if p.startswith('data/') or p.startswith('output/'):
-        return PROJECT_ROOT / p
-    if p.startswith('/'):
-        return Path(p)
+    p_obj = Path(p).expanduser()
+    if p_obj.is_absolute():
+        return p_obj
     return PROJECT_ROOT / p
+
+
+def _path_for_client(p):
+    """Render a file/directory path as a string for the web client.
+
+    Returns a project-relative POSIX path when ``p`` lives under ``PROJECT_ROOT``;
+    otherwise returns the absolute path so externally-located input/output
+    folders (e.g. ones the user drag-dropped from Finder/Explorer) survive
+    round-tripping through the UI.
+    """
+    try:
+        return str(Path(p).relative_to(PROJECT_ROOT))
+    except (ValueError, TypeError):
+        return str(p)
 
 
 def get_output_dir_for_step_type(step_type):
@@ -1051,15 +1069,16 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
     """
     items = set()
     
-    # Normalize path - remove trailing slashes
+    # Normalize path - resolve absolute (POSIX/Windows/tilde) vs project-relative.
     if isinstance(path, str):
-        path = path.rstrip('/')
-        if path.startswith('data/') or path.startswith('output/'):
-            dir_path = PROJECT_ROOT / path
-        elif path.startswith('/'):
-            dir_path = Path(path)
+        stripped = path.strip().rstrip('/').rstrip('\\')
+        p_obj = Path(stripped).expanduser() if stripped else None
+        if p_obj is None or not stripped:
+            dir_path = PROJECT_ROOT
+        elif p_obj.is_absolute():
+            dir_path = p_obj
         else:
-            dir_path = PROJECT_ROOT / path
+            dir_path = PROJECT_ROOT / stripped
     else:
         dir_path = path
     
@@ -1446,13 +1465,8 @@ def get_dashboard_panels():
 def check_story_audio_transcription(item_id, step_config, is_story=False):
     """Check if story audio transcription exists for a subject or story."""
     output_path = step_config.get('outputPath', 'output/story_audio-transcribed')
-    # Handle both relative and absolute paths
-    if output_path.startswith('output/'):
-        output_dir = PROJECT_ROOT / output_path
-    elif output_path.startswith('/'):
-        output_dir = Path(output_path)
-    else:
-        output_dir = PROJECT_ROOT / 'output' / output_path
+    # Handle both relative and absolute paths (POSIX, Windows, ~).
+    output_dir = _resolve_path_from_config(output_path) or (PROJECT_ROOT / 'output' / output_path)
     
     if not _dir_exists_cached(output_dir):
         return False
@@ -1491,26 +1505,8 @@ def check_step_status(item_id, step_config, is_story=False):
     output_path = step_config.get('outputPath', '')
     input_path = step_config.get('inputPath', '')
     
-    # Handle output path - normalize to absolute path
-    if not output_path:
-        output_dir = None
-    elif output_path.startswith('output/') or output_path.startswith('data/'):
-        output_dir = PROJECT_ROOT / output_path.rstrip('/')
-    elif output_path.startswith('/'):
-        output_dir = Path(output_path)
-    else:
-        # Assume it's relative to project root
-        output_dir = PROJECT_ROOT / output_path.rstrip('/')
-    
-    # Handle input path - normalize to absolute path
-    input_dir = None
-    if input_path:
-        if input_path.startswith('output/') or input_path.startswith('data/'):
-            input_dir = PROJECT_ROOT / input_path.rstrip('/')
-        elif input_path.startswith('/'):
-            input_dir = Path(input_path)
-        else:
-            input_dir = PROJECT_ROOT / input_path.rstrip('/')
+    output_dir = _resolve_path_from_config(output_path)
+    input_dir = _resolve_path_from_config(input_path)
     
     if step_type == 'audioTranscribe:story':
         # For story audio, check transcription output
@@ -3095,21 +3091,43 @@ def get_all_event_granularities(item_id):
 
 
 def _resolve_and_validate_output_path(path_str):
-    """Resolve user-provided output path and ensure it's within project.
-    path_str can be relative to PROJECT_ROOT (e.g. 'output/recall_corrected/file.txt').
-    Returns Path or None if invalid."""
+    """Resolve user-provided output path and accept paths inside any
+    configured pipeline I/O directory.
+
+    Accepts:
+      * project-relative paths (resolved against ``PROJECT_ROOT``);
+      * absolute paths under ``PROJECT_ROOT``;
+      * absolute paths under any input/output directory currently configured
+        in the pipeline (so a user-chosen, drag-dropped folder outside the
+        project root is still trusted for save operations).
+
+    Returns Path or None if invalid.
+    """
     if not path_str or not str(path_str).strip():
         return None
-    s = path_str.strip()
-    # If relative, resolve against PROJECT_ROOT
+    s = str(path_str).strip()
     root = PROJECT_ROOT.resolve()
-    p = (root / s) if not Path(s).is_absolute() else Path(s)
-    p = p.resolve()
+    p_in = Path(s).expanduser()
+    p = (p_in if p_in.is_absolute() else (root / s)).resolve()
     try:
         p.relative_to(root)
         return p
     except ValueError:
-        return None
+        pass
+
+    # Allow paths that fall within any user-configured pipeline directory.
+    config = get_pipeline_config() or {}
+    for step in (config.get('steps') or []):
+        for key in ('inputPath', 'outputPath'):
+            cfg_dir = _resolve_path_from_config(step.get(key, ''))
+            if cfg_dir is None:
+                continue
+            try:
+                p.relative_to(cfg_dir.resolve())
+                return p
+            except (ValueError, OSError):
+                continue
+    return None
 
 
 def get_default_export_path(
@@ -3132,7 +3150,7 @@ def get_default_export_path(
 
     def _rel(p):
         try:
-            return str(p.relative_to(PROJECT_ROOT))
+            return _path_for_client(p)
         except ValueError:
             return str(p)
 
@@ -3215,7 +3233,7 @@ def get_audio_file(item_id, is_story=False):
     for pattern in patterns:
         files = list(audio_dir.glob(pattern))
         if files:
-            return str(files[0].relative_to(PROJECT_ROOT))
+            return _path_for_client(files[0])
     
     return None
 
@@ -4642,7 +4660,7 @@ def save_causal_matrix(story_name):
             if file_path is None and '/' not in output_path_str and '\\' not in output_path_str:
                 causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
                 try:
-                    rel = str(causal_dir.relative_to(PROJECT_ROOT))
+                    rel = _path_for_client(causal_dir)
                 except ValueError:
                     rel = 'output/causal_rated'
                 file_path = _resolve_and_validate_output_path(f"{rel}/{output_path_str}".replace('//', '/'))
@@ -4652,11 +4670,19 @@ def save_causal_matrix(story_name):
                 filename = Path(output_path_str).name
                 if filename and (filename.endswith('.xlsx') or filename.endswith('.csv')):
                     candidate = causal_dir / filename
+                    # Accept candidates that resolve under PROJECT_ROOT, OR under the
+                    # user-configured causal output dir (which may itself be absolute
+                    # and outside PROJECT_ROOT — e.g. ~/Desktop/runs/...).
+                    causal_dir_resolved = causal_dir.resolve()
                     try:
-                        candidate.relative_to(PROJECT_ROOT)
+                        candidate.resolve().relative_to(PROJECT_ROOT)
                         file_path = candidate
                     except ValueError:
-                        pass
+                        try:
+                            candidate.resolve().relative_to(causal_dir_resolved)
+                            file_path = candidate
+                        except ValueError:
+                            pass
             if file_path is None and output_path_str:
                 print(f"save_causal_matrix: REJECTED output_path={output_path_str!r}")
                 return jsonify({'error': f'Invalid output path (must be under project root): {output_path_str[:80]}'}), 400
@@ -4731,7 +4757,7 @@ def save_causal_matrix(story_name):
                 if int(float(r.get('fine_rating') or 0)) > 0
             )
             try:
-                rel_path = str(file_path.relative_to(PROJECT_ROOT))
+                rel_path = _path_for_client(file_path)
             except ValueError:
                 rel_path = str(file_path)
             print(f"Saved nested combined causal sheet to {rel_path} ({len(norm)} rows, {n_nonzero} fine pairs)")
@@ -4791,7 +4817,7 @@ def save_causal_matrix(story_name):
 
         n_nonzero = len(rows)
         try:
-            rel_path = str(file_path.relative_to(PROJECT_ROOT))
+            rel_path = _path_for_client(file_path)
         except ValueError:
             rel_path = str(file_path)
         print(f"Saved {n_nonzero} causal pairs to {rel_path} (requested: {repr(output_path_str) if output_path_str else 'default'})")
@@ -4883,54 +4909,310 @@ def save_audio_transcription(subj_id):
         return jsonify({'error': str(e)}), 500
 
 
-def _safe_project_dir(rel_path: str) -> Path | None:
-    """Resolve a relative directory under PROJECT_ROOT, or None if invalid."""
+def _safe_browse_dir(path_str: str, *, walk_up_to_dir: bool = False) -> Path | None:
+    """Resolve a path string to a real directory for the folder picker.
+
+    Accepts project-relative paths, POSIX/Windows absolute paths, and tilde
+    expansion. Returns ``None`` if the path cannot be resolved to an
+    existing directory.
+
+    The picker is intentionally permissive about paths outside the project
+    root because, after ``pip install``, ``PROJECT_ROOT`` may be inside
+    ``site-packages`` and the user's actual data lives elsewhere on the
+    filesystem.
+
+    When ``walk_up_to_dir`` is true, if the resolved path points at a file
+    (or doesn't exist), walk up its parent chain until a real directory is
+    found. This makes drag-and-drop forgiving: if the user drops a file
+    from inside a folder, we use the folder.
+    """
     root = PROJECT_ROOT.resolve()
-    rel = (rel_path or '').strip().replace('\\', '/').strip('/')
-    target = (root / rel).resolve() if rel else root
-    try:
-        target.relative_to(root)
-    except ValueError:
+    raw = (path_str or '').strip()
+    if not raw:
+        return root if root.is_dir() else None
+    p_obj = Path(raw).expanduser()
+    if p_obj.is_absolute():
+        try:
+            target = p_obj.resolve()
+        except OSError:
+            return None
+    else:
+        rel = raw.replace('\\', '/').strip('/')
+        target = (root / rel).resolve() if rel else root
+
+    if target.is_dir():
+        return target
+    if not walk_up_to_dir:
         return None
-    if not target.is_dir():
-        return None
-    return target
+    # Walk up parent chain looking for the nearest existing directory.
+    cur = target
+    for _ in range(64):  # paranoia cap; filesystem trees are not infinite
+        parent = cur.parent
+        if parent == cur:
+            return None
+        if parent.is_dir():
+            return parent
+        cur = parent
+    return None
+
+
+# Backwards-compatible alias for older callers.
+_safe_project_dir = _safe_browse_dir
 
 
 def _relative_project_path(directory: Path) -> str:
+    """Render a folder path for the picker UI.
+
+    Returns a project-relative POSIX path when ``directory`` is under
+    ``PROJECT_ROOT`` (so the common case stays clean); otherwise returns the
+    absolute path so external folders survive a round trip through the UI.
+    """
     root = PROJECT_ROOT.resolve()
-    directory = directory.resolve()
+    try:
+        directory = directory.resolve()
+    except OSError:
+        return str(directory)
     if directory == root:
         return ''
-    return directory.relative_to(root).as_posix()
+    try:
+        return directory.relative_to(root).as_posix()
+    except ValueError:
+        return directory.as_posix()
 
 
 @app.route('/api/browse-folders', methods=['GET'])
 def browse_folders():
-    """List subdirectories under the project root for pipeline path pickers."""
+    """List subdirectories for the pipeline folder picker.
+
+    Accepts a ``path`` query parameter that may be project-relative, an
+    absolute POSIX/Windows path, or use ``~`` for the user's home directory.
+    """
     try:
         rel = request.args.get('path', '')
-        target = _safe_project_dir(rel)
+        # Drag-and-drop senders set ?derive_dir=1 so a dropped file (or a
+        # slightly-off path) auto-resolves to its closest existing parent.
+        derive = request.args.get('derive_dir', '').lower() in ('1', 'true', 'yes')
+        target = _safe_browse_dir(rel, walk_up_to_dir=derive)
         if target is None:
             return jsonify({'success': False, 'error': 'Invalid or missing folder path'}), 400
 
         root = PROJECT_ROOT.resolve()
         folders = []
         for name in sorted(_list_dir_names(target)):
+            # Skip hidden folders by convention (still selectable by typing).
+            if name.startswith('.'):
+                continue
             child = target / name
-            if child.is_dir():
-                folders.append(name)
+            try:
+                if child.is_dir():
+                    folders.append(name)
+            except OSError:
+                continue
 
         parent = None
-        if target != root:
-            parent = _relative_project_path(target.parent)
+        target_parent = target.parent
+        if target_parent != target:
+            parent = _relative_project_path(target_parent)
+
+        try:
+            home_path = str(Path.home())
+        except RuntimeError:
+            home_path = ''
 
         return jsonify({
             'success': True,
             'current': _relative_project_path(target),
+            'currentAbsolute': str(target),
             'parent': parent,
             'folders': folders,
             'projectRoot': str(root),
+            'home': home_path,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/find-folder-by-name', methods=['GET'])
+def find_folder_by_name():
+    """Locate a folder by name in common user/data locations.
+
+    When the browser hides the absolute path of a drag-and-dropped folder
+    (Safari and some Chromium configurations strip ``file://`` URIs out of
+    ``DataTransfer``), the client falls back to this endpoint with just the
+    folder name. We probe the usual places a researcher would keep input
+    data — home, Desktop, Documents, Downloads, common cloud-sync dirs, the
+    project root and its siblings, plus the direct subdirectories of home
+    — and return every match.
+
+    Returns:
+        {
+            "success": true,
+            "name": "<folder name>",
+            "matches": [ {"path": "/abs/path", "label": "Desktop / remote3"} , ... ]
+        }
+    """
+    try:
+        raw_name = (request.args.get('name') or '').strip()
+        # The optional ``hints`` param lets the client narrow the candidate
+        # set when it has read directory entries via webkitGetAsEntry — a
+        # comma-separated list of immediate-child entry names. We pick the
+        # match with the most overlap when several share the name.
+        raw_hints = (request.args.get('hints') or '').strip()
+        if not raw_name:
+            return jsonify({'success': False, 'error': 'Missing folder name'}), 400
+        # Reject anything that smells like a path so the endpoint can't be
+        # tricked into traversing the filesystem from a non-name input.
+        bad_chars = ('/', '\\', '..', '\0', '\n', '\r')
+        if any(ch in raw_name for ch in bad_chars):
+            return jsonify({'success': False, 'error': 'Invalid folder name'}), 400
+        if raw_name in ('.', '..'):
+            return jsonify({'success': False, 'error': 'Invalid folder name'}), 400
+
+        try:
+            home = Path.home()
+        except RuntimeError:
+            home = None
+
+        matches = []
+        seen = set()
+
+        def consider(parent, source_label):
+            """If ``parent / raw_name`` is an existing directory, record it."""
+            try:
+                if not parent or not parent.is_dir():
+                    return
+            except OSError:
+                return
+            candidate = parent / raw_name
+            try:
+                if not candidate.is_dir():
+                    return
+                full = candidate.resolve()
+            except OSError:
+                return
+            key = str(full)
+            if key in seen:
+                return
+            seen.add(key)
+            try:
+                rel_to_home = full.relative_to(home).as_posix() if home else str(full)
+            except (ValueError, AttributeError):
+                rel_to_home = str(full)
+            matches.append({
+                'path': str(full),
+                'label': source_label,
+                'displayPath': str(full),
+                'shortPath': rel_to_home if home and str(full).startswith(str(home)) else str(full),
+            })
+
+        # 1) Well-known user directories.
+        if home:
+            for sub, label in [
+                ('', 'Home'),
+                ('Desktop', 'Desktop'),
+                ('Documents', 'Documents'),
+                ('Downloads', 'Downloads'),
+                ('Movies', 'Movies'),
+                ('Music', 'Music'),
+                ('Pictures', 'Pictures'),
+                ('Public', 'Public'),
+                ('Dropbox', 'Dropbox'),
+                ('OneDrive', 'OneDrive'),
+                ('Google Drive', 'Google Drive'),
+                ('iCloud Drive', 'iCloud Drive'),
+                ('Library/Mobile Documents/com~apple~CloudDocs', 'iCloud Drive'),
+            ]:
+                consider((home / sub) if sub else home, label)
+
+        # 2) Project root + immediate sibling (handy for cloned-repo installs
+        #    where the user's data folder lives next to the project).
+        #    Skip the sibling scan when we're running out of site-packages
+        #    (after ``pip install``), because that "parent" is full of other
+        #    Python packages and would generate noisy false matches.
+        consider(PROJECT_ROOT, 'project root')
+        project_root_str = str(PROJECT_ROOT)
+        if 'site-packages' not in project_root_str and 'dist-packages' not in project_root_str:
+            consider(PROJECT_ROOT.parent, 'project parent')
+
+        # 3) Direct subdirectories of home (catches things like
+        #    ~/research_data/remote3 without an expensive deep scan).
+        SKIP_AT_HOME = {
+            'Library', 'Applications', 'opt', 'anaconda3', 'miniconda3',
+            'venv', '.venv', 'node_modules', '__pycache__', '.cache',
+        }
+        if home and home.is_dir():
+            count = 0
+            try:
+                with os.scandir(home) as it:
+                    for entry in it:
+                        if count >= 250:
+                            break
+                        if entry.name.startswith('.') or entry.name in SKIP_AT_HOME:
+                            continue
+                        try:
+                            if not entry.is_dir(follow_symlinks=False):
+                                continue
+                        except OSError:
+                            continue
+                        count += 1
+                        consider(Path(entry.path), entry.name)
+            except (PermissionError, OSError):
+                pass
+
+        # 4) One level deeper inside Desktop / Documents / Downloads and the
+        #    most common cloud-sync dirs — research data often lives in
+        #    e.g. ~/Desktop/2026_data/remote3 or ~/Dropbox/research/remote3.
+        DEEPER_BASES = []
+        if home:
+            for sub in ('Desktop', 'Documents', 'Downloads',
+                        'Dropbox', 'OneDrive', 'Google Drive',
+                        'Library/Mobile Documents/com~apple~CloudDocs'):
+                DEEPER_BASES.append(home / sub)
+        for base in DEEPER_BASES:
+            try:
+                if not base.is_dir():
+                    continue
+            except OSError:
+                continue
+            count = 0
+            try:
+                with os.scandir(base) as it:
+                    for entry in it:
+                        if count >= 200:
+                            break
+                        if entry.name.startswith('.'):
+                            continue
+                        try:
+                            if not entry.is_dir(follow_symlinks=False):
+                                continue
+                        except OSError:
+                            continue
+                        count += 1
+                        consider(Path(entry.path), f"{base.name}/{entry.name}")
+            except (PermissionError, OSError):
+                pass
+
+        # 5) Re-rank by hint overlap if the client supplied directory entry
+        #    names from webkitGetAsEntry.
+        if raw_hints and matches:
+            hints = [h.strip() for h in raw_hints.split(',') if h.strip()][:50]
+            hints_set = set(hints)
+            if hints_set:
+                def overlap(match):
+                    try:
+                        with os.scandir(match['path']) as it:
+                            names = {e.name for e in it}
+                        return len(hints_set & names)
+                    except (PermissionError, OSError):
+                        return 0
+                matches.sort(key=overlap, reverse=True)
+
+        return jsonify({
+            'success': True,
+            'name': raw_name,
+            'matches': matches,
         })
     except Exception as e:
         import traceback
@@ -5103,24 +5385,10 @@ def process_files():
         if not uploaded_files:
             return jsonify({'success': False, 'error': 'No files uploaded'}), 400
         
-        # Handle input path - normalize to absolute path
-        if input_path.startswith('data/') or input_path.startswith('output/'):
-            input_dir = PROJECT_ROOT / input_path
-        elif input_path.startswith('/'):
-            input_dir = Path(input_path)
-        else:
-            input_dir = PROJECT_ROOT / input_path
-        
-        # Create input directory if it doesn't exist
+        input_dir = _resolve_path_from_config(input_path) or (PROJECT_ROOT / input_path)
         input_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Handle output path
-        if output_path.startswith('data/') or output_path.startswith('output/'):
-            output_dir = PROJECT_ROOT / output_path
-        elif output_path.startswith('/'):
-            output_dir = Path(output_path)
-        else:
-            output_dir = PROJECT_ROOT / output_path
+
+        output_dir = _resolve_path_from_config(output_path) or (PROJECT_ROOT / output_path)
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Save uploaded files to input directory
@@ -5130,7 +5398,7 @@ def process_files():
             # Optionally prefix with item_id if needed
             file_path = input_dir / filename
             file.save(str(file_path))
-            saved_files.append(str(file_path.relative_to(PROJECT_ROOT)))
+            saved_files.append(_path_for_client(file_path))
         
         # Process files using the appropriate script
         script_map = {
@@ -5348,14 +5616,8 @@ def get_input_files(item_id, step_index):
             print(f"DEBUG: No input path configured")
             return jsonify({'success': True, 'files': []})
         
-        # Normalize input path - remove trailing slashes
         input_path = input_path.rstrip('/')
-        if input_path.startswith('data/') or input_path.startswith('output/'):
-            input_path_obj = PROJECT_ROOT / input_path
-        elif input_path.startswith('/'):
-            input_path_obj = Path(input_path)
-        else:
-            input_path_obj = PROJECT_ROOT / input_path
+        input_path_obj = _resolve_path_from_config(input_path) or (PROJECT_ROOT / input_path)
         
         print(f"DEBUG: Resolved input_path_obj={input_path_obj}, exists={input_path_obj.exists()}")
         
@@ -5376,7 +5638,7 @@ def get_input_files(item_id, step_index):
                     'success': True,
                     'files': [{
                         'name': input_path_obj.name,
-                        'path': str(input_path_obj.relative_to(PROJECT_ROOT)),
+                        'path': _path_for_client(input_path_obj),
                         'size': input_path_obj.stat().st_size
                     }]
                 })
@@ -5424,7 +5686,7 @@ def get_input_files(item_id, step_index):
                                                 'success': True,
                                                 'files': [{
                                                     'name': input_path_obj.name,
-                                                    'path': str(input_path_obj.relative_to(PROJECT_ROOT)),
+                                                    'path': _path_for_client(input_path_obj),
                                                     'size': input_path_obj.stat().st_size
                                                 }]
                                             })
@@ -5442,7 +5704,7 @@ def get_input_files(item_id, step_index):
                             'success': True,
                             'files': [{
                                 'name': input_path_obj.name,
-                                'path': str(input_path_obj.relative_to(PROJECT_ROOT)),
+                                'path': _path_for_client(input_path_obj),
                                 'size': input_path_obj.stat().st_size
                             }]
                     })
@@ -5458,7 +5720,7 @@ def get_input_files(item_id, step_index):
                         'success': True,
                         'files': [{
                             'name': input_path_obj.name,
-                            'path': str(input_path_obj.relative_to(PROJECT_ROOT)),
+                            'path': _path_for_client(input_path_obj),
                             'size': input_path_obj.stat().st_size
                         }]
                     })
@@ -5479,7 +5741,7 @@ def get_input_files(item_id, step_index):
                     'success': True,
                     'files': [{
                         'name': exact_txt.name,
-                        'path': str(exact_txt.relative_to(PROJECT_ROOT)),
+                        'path': _path_for_client(exact_txt),
                         'size': exact_txt.stat().st_size
                     }]
                 })
@@ -5494,7 +5756,7 @@ def get_input_files(item_id, step_index):
                 try:
                     files.append({
                         'name': exact_file.name,
-                        'path': str(exact_file.relative_to(PROJECT_ROOT)),
+                        'path': _path_for_client(exact_file),
                         'size': exact_file.stat().st_size
                     })
                     found_files.add(exact_file.name)
@@ -5502,7 +5764,7 @@ def get_input_files(item_id, step_index):
                     print(f"DEBUG: Error getting file stats for {exact_file}: {e}")
                     files.append({
                         'name': exact_file.name,
-                        'path': str(exact_file.relative_to(PROJECT_ROOT)),
+                        'path': _path_for_client(exact_file),
                         'size': 0
                     })
                     found_files.add(exact_file.name)
@@ -5612,14 +5874,14 @@ def get_input_files(item_id, step_index):
                             try:
                                 files.append({
                                     'name': file_path.name,
-                                    'path': str(file_path.relative_to(PROJECT_ROOT)),
+                                    'path': _path_for_client(file_path),
                                     'size': file_path.stat().st_size
                                 })
                                 print(f"DEBUG: Added file: {file_path.name}")
                             except Exception:
                                 files.append({
                                     'name': file_path.name,
-                                    'path': str(file_path.relative_to(PROJECT_ROOT)),
+                                    'path': _path_for_client(file_path),
                                     'size': 0
                                 })
                                 print(f"DEBUG: Added file (no stats): {file_path.name}")
@@ -5640,7 +5902,7 @@ def get_input_files(item_id, step_index):
                     found_files.add(fallback_file.name)
                     files.append({
                         'name': fallback_file.name,
-                        'path': str(fallback_file.relative_to(PROJECT_ROOT)),
+                        'path': _path_for_client(fallback_file),
                         'size': fallback_file.stat().st_size
                     })
             # If still no files, check Excel files in data directory
@@ -5672,7 +5934,7 @@ def get_input_files(item_id, step_index):
                                                 found_files.add(excel_file.name)
                                                 files.append({
                                                     'name': excel_file.name,
-                                                    'path': str(excel_file.relative_to(PROJECT_ROOT)),
+                                                    'path': _path_for_client(excel_file),
                                                     'size': excel_file.stat().st_size
                                                 })
                                             break
@@ -5698,14 +5960,14 @@ def get_input_files(item_id, step_index):
                         try:
                             files.append({
                                 'name': story_file.name,
-                                'path': str(story_file.relative_to(PROJECT_ROOT)),
+                                'path': _path_for_client(story_file),
                                 'size': story_file.stat().st_size
                             })
                             print(f"DEBUG: Added story events file: {story_file.name}")
                         except Exception as e:
                             files.append({
                                 'name': story_file.name,
-                                'path': str(story_file.relative_to(PROJECT_ROOT)),
+                                'path': _path_for_client(story_file),
                                 'size': 0
                             })
                             print(f"DEBUG: Added story events file (no stats): {story_file.name}")
@@ -5727,7 +5989,7 @@ def get_input_files(item_id, step_index):
                                     try:
                                         files.append({
                                             'name': file_path.name,
-                                            'path': str(file_path.relative_to(PROJECT_ROOT)),
+                                            'path': _path_for_client(file_path),
                                             'size': file_path.stat().st_size
                                         })
                                         print(f"DEBUG: Added story events file: {file_path.name}")
@@ -5736,7 +5998,7 @@ def get_input_files(item_id, step_index):
                                     except Exception as e:
                                         files.append({
                                             'name': file_path.name,
-                                            'path': str(file_path.relative_to(PROJECT_ROOT)),
+                                            'path': _path_for_client(file_path),
                                             'size': 0
                                         })
                                         print(f"DEBUG: Added story events file (no stats): {file_path.name}")
@@ -5820,14 +6082,14 @@ def get_input_files(item_id, step_index):
                                 try:
                                     files.append({
                                         'name': file_path.name,
-                                        'path': str(file_path.relative_to(PROJECT_ROOT)),
+                                        'path': _path_for_client(file_path),
                                         'size': file_path.stat().st_size
                                     })
                                     print(f"DEBUG: Found file via lenient search: {file_path.name}")
                                 except Exception:
                                     files.append({
                                         'name': file_path.name,
-                                        'path': str(file_path.relative_to(PROJECT_ROOT)),
+                                        'path': _path_for_client(file_path),
                                         'size': 0
                                     })
         
@@ -5975,7 +6237,7 @@ def get_output_files(item_id, step_index):
                     
                     files.append({
                         'name': file_path.name,
-                        'path': str(file_path.relative_to(PROJECT_ROOT)),
+                        'path': _path_for_client(file_path),
                         'size': file_size
                     })
         
