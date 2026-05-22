@@ -19,8 +19,11 @@ Links:
   Mirror:    https://xianneuro.github.io/narRaters/
 
 
-Embed alternative (Insert → Embed → By URL):
+Embed by URL (Insert → Embed → By URL):
   https://xianneuro.github.io/narRaters/
+  Note: GitHub links on that page now open in a new tab (required — GitHub blocks iframe loads).
+
+Better for Tools page: use Embed code with deploy/xian-li-site/tools/narRaters-embed.html instead.
 
 After publishing, request indexing in Search Console:
   https://www.xian-li.com/tools

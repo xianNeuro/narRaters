@@ -191,6 +191,16 @@
     footer { margin-top: 2rem; color: var(--muted); font-size: 0.92rem; }
     footer a { color: var(--link); }
   </style>
+  <script>
+    // When this page is embedded (e.g. Google Sites Tools), open external links in a
+    // new tab — GitHub/PyPI block iframe navigation and would show a blank embed.
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('a[href^="http"]').forEach(function (a) {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      });
+    });
+  </script>
 </head>
 <body>
   <main>
