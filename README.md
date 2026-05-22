@@ -43,7 +43,7 @@ Works for **audio or text**, **stories or other long narratives** (including mov
 | Automated or AI outputs | **Screen and edit** them in the browser, then export signed-off files |
 
 <p align="center">
-  <img src="docs/diagram-workflow.svg" alt="Typical workflow: story side (transcribe, segment, causal rate) and recall side (correct, parse, match to story)" width="920">
+  <img src="docs/diagram-workflow.png" alt="Typical workflow: story side (transcribe, segment, causal rate) and recall side (correct, parse, match to story)" width="920">
 </p>
 
 ---
