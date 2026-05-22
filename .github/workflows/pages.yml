@@ -30,6 +30,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stamp sitemap lastmod
+        run: |
+          LASTMOD=$(date -u +%Y-%m-%d)
+          sed -i "s|<lastmod>[^<]*</lastmod>|<lastmod>${LASTMOD}</lastmod>|" docs/sitemap.xml
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
@@ -43,3 +48,16 @@ jobs:
       - name: Deploy
         uses: actions/deploy-pages@v4
         id: deployment
+
+      - name: Notify search engines
+        if: success()
+        env:
+          SITE: https://xianneuro.github.io/narRaters/
+          INDEXNOW_KEY: narRatersIndexNow2026Key7f3c9a2e
+        run: |
+          SITEMAP="${SITE}sitemap.xml"
+          KEYLOC="${SITE}${INDEXNOW_KEY}.txt"
+          curl -fsS -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "{\"host\":\"xianneuro.github.io\",\"key\":\"${INDEXNOW_KEY}\",\"keyLocation\":\"${KEYLOC}\",\"urlList\":[\"${SITE}\",\"${SITEMAP}\"]}"
+          curl -fsS "https://www.bing.com/ping?sitemap=${SITEMAP}" || true
