@@ -10,7 +10,7 @@
   <link rel="canonical" href="https://xianneuro.github.io/narRaters/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="narRaters GitHub — narrative recall processing">
-  <meta property="og:description" content="Open-source GitHub repository xianNeuro/narRaters. Turn stories and participant recalls into structured data with human review at every step.">
+  <meta property="og:description" content="Open-source GitHub repository xianNeuro/narRaters. Turn complex narratives into structured, reviewable data with a web UI at every step.">
   <meta property="og:url" content="https://xianneuro.github.io/narRaters/">
   <meta property="og:site_name" content="narRaters">
   <meta property="og:image" content="https://xianneuro.github.io/narRaters/screenshots/recall-matching.png">
@@ -28,7 +28,7 @@
     "description": "Human-in-the-loop platform for processing narratives: transcribe, segment, correct, parse, match, and causal-rate with a web UI.",
     "url": "https://xianneuro.github.io/narRaters/",
     "downloadUrl": "https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip",
-    "softwareVersion": "0.3.3",
+    "softwareVersion": "0.3.4",
     "author": { "@type": "Person", "name": "Xian Li", "email": "xianl.cogneuro@gmail.com" },
     "codeRepository": "https://github.com/xianNeuro/narRaters",
     "sameAs": [
@@ -188,6 +188,17 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.92em;
     }
+    pre.terminal {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      padding: 0.85rem 1rem;
+      border-radius: 0.6rem;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      overflow-x: auto;
+      margin: 0.75rem 0 0;
+    }
     footer { margin-top: 2rem; color: var(--muted); font-size: 0.92rem; }
     footer a { color: var(--link); }
   </style>
@@ -207,7 +218,7 @@
     <div class="hero">
       <img class="icon" src="https://raw.githubusercontent.com/xianNeuro/narRaters/main/static/app-icon.png" alt="narRaters app icon">
       <h1>narRaters</h1>
-      <p class="tagline">Turn stories and participant recalls into structured, reviewable data — with a web UI at every step.</p>
+      <p class="tagline">Turn complex narratives into structured, reviewable data — with a web UI at every step.</p>
       <p class="muted">Open source on GitHub: <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · PyPI: <a href="https://pypi.org/project/narraters/">narraters</a></p>
       <div class="nav-links">
         <a href="https://github.com/xianNeuro/narRaters">narRaters on GitHub</a>
@@ -224,23 +235,22 @@
     <section>
       <h2>What is narRaters?</h2>
       <p>
-        <strong>narRaters</strong> combines <em>narrative</em> and <em>raters</em> — a research tool for coding and reviewing
-        story recalls, not a text-to-speech narrator. The source code lives on GitHub at
-        <a href="https://github.com/xianNeuro/narRaters">xianNeuro/narRaters</a>.
+        <strong>narRaters</strong> (<em>narrative</em> + <em>raters</em>) is open-source software on
+        <a href="https://github.com/xianNeuro/narRaters">GitHub (xianNeuro/narRaters)</a> that helps process complex narratives
+        (e.g., audio books, text-based stories, interviews, conversations) for memory, language processing, causal reasoning, and LLM research.
+      </p>
+      <p>
+        Imagine you ran a memory study: participants listened to a <strong>story</strong>, then <strong>recalled</strong> what they remembered.
+        Before analysis, you need structured data — what happened in the story, what each person recalled, and how those pieces connect.
+        <strong>narRaters</strong> runs common narrative-processing steps and gives you a <strong>web interface to review and fix outputs</strong> before exporting.
+      </p>
+      <p class="muted">
+        Works for audio or text, stories or other long narratives (including movie annotations), and human-only or human-vs-LLM workflows.
       </p>
     </section>
 
     <section>
-      <h2>What problem does it solve?</h2>
-      <p>
-        In a typical memory study, people listen to a <strong>story</strong> and later <strong>recall</strong> what they remember.
-        Before analysis, you need structured files: numbered story events, cleaned recall text, clause-level segments,
-        matches between recalls and story events, and sometimes causal ratings between events.
-      </p>
-      <p>
-        <strong>narRaters</strong> automates those steps and lets humans <strong>review and edit</strong> every output in the browser before export.
-        Use it for audio or text, cognitive studies, movie annotations, or benchmarking LLMs against human raters.
-      </p>
+      <h2>What can it do?</h2>
       <table class="use-cases">
         <thead>
           <tr><th>You have…</th><th>narRaters helps you…</th></tr>
@@ -262,14 +272,14 @@
           <div class="step-num">1</div>
           <div>
             <h3>Download &amp; open</h3>
-            <p class="muted">Unzip the repo and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Requires Python 3.10+.</p>
+            <p class="muted">Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Requires <a href="https://www.python.org/downloads/">Python 3.10+</a>.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <div>
             <h3>Pick your pipeline</h3>
-            <p class="muted">The browser opens to a drag-and-drop builder. Choose only the steps you need. Demo data is preloaded so you can explore right away.</p>
+            <p class="muted">Your browser opens to the pipeline builder. Drag in only the steps you need (e.g. segment → match → causal rate). Example files ship with the ZIP download.</p>
           </div>
         </div>
         <div class="step">
@@ -285,6 +295,12 @@
         <span class="pill">CLI available for batch runs</span>
         <span class="pill">Human edit at every step</span>
       </div>
+      <p style="margin-top:1.25rem;margin-bottom:0.35rem;"><strong>Or via terminal</strong> (Python 3.10+). Run from the folder that contains your <code>data/</code> and <code>output/</code> directories:</p>
+      <pre class="terminal">python --version                              # must show 3.10 or newer
+python3 -m pip install narraters --upgrade    # wait for “Successfully installed”
+cd /path/to/your/project                      # folder with data/ and output/
+narraters serve                               # browser opens to the pipeline builder</pre>
+      <p class="muted" style="margin-top:0.75rem;">Then continue with steps 2–3 above — pick your pipeline, run steps on the dashboard, review, and export.</p>
     </section>
 
     <section>
@@ -325,7 +341,7 @@
       <h2>Install options</h2>
       <ul>
         <li><strong>Easiest:</strong> <a href="https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip">Download ZIP</a> → double-click launcher → browser opens automatically.</li>
-        <li><strong>Python:</strong> <code>pip install narRaters</code> then <code>narraters serve</code></li>
+        <li><strong>Python:</strong> <code>python3 -m pip install narraters --upgrade</code>, <code>cd</code> into your project folder, then <code>narraters serve</code></li>
         <li><strong>Learn more:</strong> <a href="https://github.com/xianNeuro/narRaters/blob/main/narRater_Tutorial.pdf">Tutorial PDF</a> · <a href="https://github.com/xianNeuro/narRaters/blob/main/README.md">Full README</a></li>
       </ul>
     </section>

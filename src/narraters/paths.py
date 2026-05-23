@@ -107,3 +107,52 @@ def ensure_repo_on_path() -> None:
     root = str(repo_root())
     if root not in sys.path:
         sys.path.insert(0, root)
+
+
+def bundled_examples_root() -> Path | None:
+    """Directory inside the installed package that ships example ``data/`` and ``output/``."""
+    root = repo_root()
+    if (root / "data" / "2_story_transcript").is_dir():
+        return root
+    return None
+
+
+def seed_workspace_examples(target: Path) -> bool:
+    """Copy bundled ``data/`` and ``output/`` into ``target`` when missing. Returns True if anything was copied."""
+    import shutil
+
+    source = bundled_examples_root()
+    if source is None:
+        return False
+    copied = False
+    for name in ("data", "output"):
+        src = source / name
+        dst = target / name
+        if src.is_dir() and not dst.exists():
+            shutil.copytree(src, dst)
+            copied = True
+    return copied
+
+
+def prepare_serve_workspace() -> Path | None:
+    """Ensure ``narraters serve`` has a writable workspace with example files when possible."""
+    if os.environ.get("NARRATERS_PROJECT_ROOT", "").strip():
+        return None
+
+    try:
+        from helpers.software_paths import looks_like_narraters_workspace
+    except ImportError:
+        return None
+
+    cwd = Path.cwd().resolve()
+    for candidate in (cwd, *cwd.parents):
+        if looks_like_narraters_workspace(candidate):
+            return None
+
+    if not seed_workspace_examples(cwd):
+        return None
+
+    if looks_like_narraters_workspace(cwd):
+        os.environ["NARRATERS_PROJECT_ROOT"] = str(cwd)
+        return cwd
+    return None

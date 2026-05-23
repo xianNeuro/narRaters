@@ -258,22 +258,23 @@ This is what `narRater.app` does under the hood, just without the click. `git: c
 </details>
 
 <details>
-<summary><b>(b) PyPI (just the package — no <code>data/</code> folder, no bundled examples)</b></summary>
+<summary><b>(b) PyPI (bundled examples — copied into your current folder on first <code>narraters serve</code>)</b></summary>
 
-Use this if you already have a working Python venv and just want the **`narraters`** command. You'll need to create your own `data/` folder with the [expected layout](#where-to-put-your-data).
+Use this if you already have a working Python venv and just want the **`narraters`** command. On first launch, example **`data/`** and **`output/`** folders are copied into whatever directory you run from (unless you already have a project folder, or set **`NARRATERS_PROJECT_ROOT`**).
 
 Always use **`python3 -m pip`**, not bare `pip` — on macOS, `pip` often points at an old Python and will say *“no matching distribution”*.
 
 ```bash
 python3 --version        # must be 3.10 or newer
-python3 -m venv ~/narRaters-venv
-source ~/narRaters-venv/bin/activate     # Windows: ~\narRaters-venv\Scripts\activate
+mkdir -p ~/narRaters-demo && cd ~/narRaters-demo
+python3 -m venv .venv
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
 python3 -m pip install --upgrade pip
-python3 -m pip install narraters
+python3 -m pip install narraters --upgrade
 narraters serve
 ```
 
-Package: [`narraters`](https://pypi.org/project/narraters/) (all lowercase). For the bundled examples, use the project-folder install above.
+Package: [`narraters`](https://pypi.org/project/narraters/) (all lowercase). For the full project folder (launchers, tutorial PDF, etc.), use the ZIP or git clone install above.
 </details>
 
 <details>

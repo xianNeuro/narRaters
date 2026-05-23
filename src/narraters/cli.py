@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 from narraters import __version__
-from narraters.paths import ensure_repo_on_path, repo_root, scripts_dir
+from narraters.paths import ensure_repo_on_path, prepare_serve_workspace, repo_root, scripts_dir
 from narraters.runtime_install import (
     prepare_cli_correct,
     prepare_cli_match,
@@ -222,6 +222,9 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
     import importlib.util
 
     ensure_repo_on_path()
+    seeded = prepare_serve_workspace()
+    if seeded is not None:
+        print(f"Copied bundled example data/ and output/ into {seeded}")
     server_script = repo_root() / "server" / "web-interface.py"
     if not server_script.exists():
         print(f"narraters: server script not found: {server_script}", file=sys.stderr)
