@@ -564,13 +564,61 @@
         .step-config {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 16px;
             margin-top: 16px;
+            align-items: stretch;
+        }
+
+        .step-config-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .step-config-output {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100%;
+        }
+
+        .step-config--multi-input .step-config-output {
+            justify-content: flex-start;
+        }
+
+        @media (max-width: 720px) {
+            .step-config {
+                grid-template-columns: 1fr;
+            }
+            .step-config-output {
+                justify-content: flex-start;
+            }
         }
         
         .config-field {
             display: flex;
             flex-direction: column;
+        }
+
+        .path-instruction {
+            margin-bottom: 6px;
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--t1);
+        }
+
+        .path-instruction-heading {
+            display: block;
+            font-weight: 600;
+            color: var(--t2);
+        }
+
+        .path-instruction-detail {
+            display: block;
+            font-weight: 500;
+            color: var(--t0);
+            font-size: 13px;
+            margin-top: 2px;
         }
         
         .config-field label {
@@ -617,6 +665,11 @@
             border-bottom-left-radius: 0;
         }
 
+        .path-input-row--extra input {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
         .path-input-row--output input {
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
@@ -651,6 +704,11 @@
         }
 
         .path-input-row--input .path-folder-btn {
+            border-radius: 6px 0 0 6px;
+            border-right: none;
+        }
+
+        .path-input-row--extra .path-folder-btn {
             border-radius: 6px 0 0 6px;
             border-right: none;
         }
@@ -1191,6 +1249,15 @@
             background: var(--bg2);
             border: 1px solid var(--bdr);
             border-radius: 10px;
+            transition: border-color var(--tr), box-shadow var(--tr);
+        }
+        .rater-card.needs-attention {
+            border-color: var(--ylw) !important;
+            animation: yellowGlow 2s ease-in-out infinite;
+        }
+        .rater-card.needs-attention #rater-name-input {
+            border-color: var(--ylw);
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
         }
         .rater-card label {
             display: block;
@@ -1748,6 +1815,7 @@
             if (typeof s.id !== 'number' || !Number.isFinite(s.id)) {
                 s.id = (typeof stepCounter === 'number' && Number.isFinite(stepCounter)) ? stepCounter++ : 0;
             }
+            ensureStepExtraInputDefaults(s);
             return s;
         }
 
@@ -1761,11 +1829,116 @@
             return s;
         }
 
+        function getStepExtraInputPaths(stepType) {
+            const stepDef = stepDefinitions[stepType];
+            return (stepDef && stepDef.extraInputPaths) ? stepDef.extraInputPaths : [];
+        }
+
+        function ensureStepExtraInputDefaults(step) {
+            getStepExtraInputPaths(step.type).forEach(extra => {
+                if (!step[extra.field]) {
+                    step[extra.field] = extra.default || '';
+                }
+            });
+        }
+
+        function pathFieldFromRow(row) {
+            if (!row) return 'inputPath';
+            const dataField = row.getAttribute('data-field');
+            if (dataField) return dataField;
+            if (row.classList.contains('path-input-row--output')) return 'outputPath';
+            return 'inputPath';
+        }
+
+        function folderPickerTitleForField(field) {
+            if (field === 'outputPath') return 'Choose output folder';
+            if (field === 'inputPath') return 'Choose input folder';
+            return 'Choose folder';
+        }
+
+        function inputInstructionLabel(inputIndex, totalInputs) {
+            return totalInputs <= 1 ? 'Input required' : `Input required-${inputIndex}`;
+        }
+
+        function buildInputInstruction(instruction, inputIndex, totalInputs) {
+            if (!instruction || !instruction.detail) return null;
+            return {
+                heading: inputInstructionLabel(inputIndex, totalInputs),
+                detail: instruction.detail
+            };
+        }
+
+        function renderPathInstruction(instruction) {
+            if (!instruction) return '';
+            return `<div class="path-instruction"><span class="path-instruction-heading">${escapeHtml(instruction.heading)}:</span><span class="path-instruction-detail">${escapeHtml(instruction.detail)}</span></div>`;
+        }
+
+        function renderExtraInputPathFields(step) {
+            const extras = getStepExtraInputPaths(step.type);
+            const totalInputs = extras.length + 1;
+            return extras.map((extra, idx) => {
+                const instruction = buildInputInstruction(extra.instruction, idx + 1, totalInputs);
+                return `
+                <div class="config-field">
+                    ${renderPathInstruction(instruction)}
+                    <div class="path-input-row path-input-row--extra" data-field="${escapeHtml(extra.field)}">
+                        <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
+                                onclick="openFolderPicker(${step.id}, '${extra.field}')">${FOLDER_ICON_SVG}</button>
+                        <input type="text"
+                               id="step-${step.id}-${extra.field}"
+                               value="${escapeHtml(step[extra.field] || '')}"
+                               onchange="updateStepConfig(${step.id}, '${extra.field}', this.value); updatePreview();"
+                               placeholder="${escapeHtml(extra.placeholder || '')}">
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        function renderPrimaryInputPathField(step, stepDef) {
+            const extras = getStepExtraInputPaths(step.type);
+            const totalInputs = extras.length + 1;
+            const instruction = buildInputInstruction(stepDef.inputPathInstruction, totalInputs, totalInputs);
+            return `
+                <div class="config-field">
+                    ${renderPathInstruction(instruction)}
+                    <div class="path-input-row path-input-row--input" data-field="inputPath">
+                        <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
+                                onclick="openFolderPicker(${step.id}, 'inputPath')">${FOLDER_ICON_SVG}</button>
+                        <input type="text"
+                               id="step-${step.id}-inputPath"
+                               value="${escapeHtml(step.inputPath)}"
+                               onchange="updateStepConfig(${step.id}, 'inputPath', this.value); updatePreview();"
+                               placeholder="e.g., data/5_recall_texts or /Users/me/recall_data">
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOutputPathField(step, stepDef) {
+            return `
+                <div class="config-field">
+                    ${renderPathInstruction(stepDef.outputPathInstruction)}
+                    <div class="path-input-row path-input-row--output" data-field="outputPath">
+                        <input type="text"
+                               id="step-${step.id}-outputPath"
+                               value="${escapeHtml(step.outputPath)}"
+                               onchange="updateStepConfig(${step.id}, 'outputPath', this.value); updatePreview();"
+                               placeholder="e.g., output/recall_corrected or ~/Desktop/runs/recall_corrected">
+                        <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
+                                onclick="openFolderPicker(${step.id}, 'outputPath')">${FOLDER_ICON_SVG}</button>
+                    </div>
+                </div>
+            `;
+        }
+
         const stepDefinitions = {
             'audioTranscribe:story': {
                 name: 'audioTranscribe (story)',
                 defaultInput: 'data/1_story_audio',
                 defaultOutput: 'output/story_audio-transcribed',
+                inputPathInstruction: { heading: 'Input required-1', detail: 'story audio folder' },
+                outputPathInstruction: { heading: 'Output path', detail: 'transcribed story text location' },
                 function: 'Transcribes story audio files verbatim using Whisper speech recognition model',
                 inputs: 'Audio files (.wav, .mp3, .mp4, .m4a, .flac, .ogg, .webm, .aac) from the input directory. Files should be named with story identifiers.',
                 parameters: 'Uses OpenAI Whisper model (default: whisper-1) for transcription. Processes audio files in the input directory.',
@@ -1776,6 +1949,8 @@
                 name: 'audioTranscribe (recall)',
                 defaultInput: 'data/4_recall_audio',
                 defaultOutput: 'output/recall_audio-transcribed',
+                inputPathInstruction: { heading: 'Input required-1', detail: 'recall audio folder' },
+                outputPathInstruction: { heading: 'Output path', detail: 'transcribed recall text location' },
                 function: 'Transcribes recall audio files verbatim using Whisper speech recognition model',
                 inputs: 'Audio files (.wav, .mp3, .mp4, .m4a, .flac, .ogg, .webm, .aac) from the input directory. Files should be named with subject identifiers (e.g., {subj_id}_recall*.mp4).',
                 parameters: 'Uses OpenAI Whisper model (default: whisper-1) for transcription. Processes all audio files in the input directory.',
@@ -1786,6 +1961,8 @@
                 name: 'eventSegment',
                 defaultInput: 'data/2_story_transcript',
                 defaultOutput: 'data/3_story_events',
+                inputPathInstruction: { heading: 'Input required-1', detail: 'story transcript location' },
+                outputPathInstruction: { heading: 'Output path', detail: 'segmented story events location' },
                 function: 'Segments story transcript into discrete events based on semantic boundaries and narrative structure',
                 inputs: 'Story transcript files (.txt) from the input directory. Each file should contain the full story transcript text.',
                 parameters: 'Rule-based methods (clause / fine / coarse): local segmentation compositional hierarchy. API path: Anthropic Sonnet/Haiku tiers, GPT-4o/Mini, Gemma 4 E4B via Ollama, or Llama Ollama presets — prompts from scripts/prompt/event_segment*.txt; keys required only for Anthropic/OpenAI.',
@@ -1796,6 +1973,8 @@
                 name: 'sentenceCorrect',
                 defaultInput: 'data/5_recall_texts',
                 defaultOutput: 'output/recall_corrected',
+                inputPathInstruction: { heading: 'Input required-1', detail: 'raw recall text location' },
+                outputPathInstruction: { heading: 'Output path', detail: 'corrected recall text location' },
                 function: 'Applies conservative spelling and grammar corrections to recall texts without changing sentence structure',
                 inputs: 'Plain text files (.txt) from input directory, one file per subject (e.g. data/5_recall_texts/). Each file should contain one subject\'s raw recall text. Also supports Excel summary files (.xlsx) with columns: sub, ID, recall.',
                 parameters: 'Methods: rule-based (default) with pyspellchecker and optional LanguageTool; Gemma 4 via Ollama using scripts/prompt/spell_gram.txt; or Manual. Ollama default tag gemma4:e4b (SPELL_GRAM_OLLAMA_MODEL / OLLAMA_HOST).',
@@ -1806,6 +1985,8 @@
                 name: 'textParsing',
                 defaultInput: 'output/recall_corrected',
                 defaultOutput: 'output/recall_parsed',
+                inputPathInstruction: { heading: 'Input required-1', detail: 'corrected recall text location' },
+                outputPathInstruction: { heading: 'Output path', detail: 'parsed recall segments location' },
                 function: 'Parses corrected recall texts into fine-grained event-sized segments at clause boundaries',
                 inputs: 'Plain text files (.txt) from input directory. Each file should contain corrected recall text from the previous step.',
                 parameters: 'Clause-based rules (default) or Gemma 4 E4B via Ollama using scripts/prompt/recall_parse_clause.txt (RECALL_PARSE_METHOD=ollama), or Manual.',
@@ -1816,8 +1997,18 @@
                 name: 'textMatching',
                 defaultInput: 'output/recall_parsed',
                 defaultOutput: 'output/recall_rated',
+                inputPathInstruction: { heading: 'Input required-2', detail: 'segmented recall file location' },
+                outputPathInstruction: { heading: 'Output path', detail: 'rated recall file location' },
+                extraInputPaths: [
+                    {
+                        field: 'storyEventsPath',
+                        placeholder: 'e.g., data/3_story_events or /Users/me/story_events',
+                        default: 'data/3_story_events',
+                        instruction: { heading: 'Input required-1', detail: 'segmented story file' }
+                    }
+                ],
                 function: 'Matches each recall segment to corresponding story event(s) using semantic similarity',
-                inputs: 'Excel files (.xlsx) from input directory containing parsed recall segments. Also requires story events from data/3_story_events/. Input format: {subj_id}_parsed.xlsx with column recall_in_temporal_order.',
+                inputs: 'Excel files (.xlsx) from the parsed-recall input directory ({subj_id}_parsed*.xlsx, column recall_in_temporal_order). Story event files (.xlsx) from the story-events input directory ({story}_events*.xlsx, columns event and story_texts).',
                 parameters: 'Methods: 1) Test Mode (default): keyword matching. 2) API (Anthropic): balanced Sonnet tier via scripts/5_recall-rater.py (ANTHROPIC_API_KEY). 3) Manual: empty matches for hand-labeling. 4) Gemma E4B (Ollama): same batch JSON prompt as the API path, answered locally (RECALL_RATING_BACKEND=ollama; default model gemma4:e4b).',
                 outputs: 'Excel files (.xlsx) saved to output directory. Naming: {subj_id}_rate-recall.xlsx. Contains columns: recall_in_temporal_order (recall segment text), recalled_events (matched story event number(s), comma-separated if multiple). Also generates comparison matrices and performance metrics.',
                 implementation: 'Script: scripts/5_recall-rater.py. API uses Anthropic Messages API with one batch prompt + JSON. Gemma E4B (Ollama) uses the same batch prompt via local HTTP. Outputs method-tagged rated files (e.g. _rate-recall-api_*.xlsx, _rate-recall-ollama_*.xlsx).'
@@ -1826,6 +2017,8 @@
                 name: 'causalRating',
                 defaultInput: 'data/3_story_events',
                 defaultOutput: 'output/causal_rated',
+                inputPathInstruction: { heading: 'Input required-1', detail: 'segmented story events location' },
+                outputPathInstruction: { heading: 'Output path', detail: 'causal ratings location' },
                 function: 'Rates causal relationships between all pairs of story events',
                 inputs: 'Event-segmented story files (.xlsx) from the input directory. Each file must contain columns: event (event number) and story_texts (event text).',
                 parameters: 'Three methods available: 1) Linguistic (default): Rule-based scoring using causal connectives, entity continuity, action-consequence verb patterns, and content overlap. No API key required. Uses spaCy if installed. 2) API (LLM Call): Uses Anthropic Sonnet/Haiku tiers, GPT-4o, or GPT-4o Mini with prompt from scripts/prompt/causal_rating*.txt. Requires API key. 3) Manual: Enter causal ratings via the N×N event matrix in the inspection page. Ratings: 0=none, 1=slightly causal, 2=causally related, 3=extremely causal.',
@@ -1846,7 +2039,10 @@
             currentAbsolute: '',
             parentPath: null,
             projectRoot: '',
-            home: ''
+            home: '',
+            desktop: '',
+            fdaHint: '',
+            pythonExecutable: ''
         };
 
         function formatFolderPickerLabel(relPath, absolutePath) {
@@ -1885,9 +2081,22 @@
             folderPickerState.parentPath = data.parent;
             folderPickerState.projectRoot = data.projectRoot || folderPickerState.projectRoot;
             folderPickerState.home = data.home || folderPickerState.home;
-            folderPickerState.childPaths = (data.folders || []).map(name =>
-                folderPickerState.currentPath ? `${folderPickerState.currentPath}/${name}` : name
-            );
+            folderPickerState.desktop = data.desktop || folderPickerState.desktop;
+            folderPickerState.fdaHint = data.fdaHint || folderPickerState.fdaHint || '';
+            folderPickerState.pythonExecutable = data.pythonExecutable || folderPickerState.pythonExecutable || '';
+            const entries = (data.folderEntries && data.folderEntries.length)
+                ? data.folderEntries
+                : (data.folders || []).map(name => ({
+                    name,
+                    path: folderPickerState.currentPath
+                        ? `${folderPickerState.currentPath.replace(/\\/g, '/').replace(/\/$/, '')}/${name}`
+                        : name,
+                    absolute: folderPickerState.currentAbsolute
+                        ? `${folderPickerState.currentAbsolute.replace(/\\/g, '/').replace(/\/$/, '')}/${name}`
+                        : '',
+                }));
+            folderPickerState.childPaths = entries.map(e => e.path || e.absolute || e.name);
+            folderPickerState.childAbsolutes = entries.map(e => e.absolute || '');
             const label = formatFolderPickerLabel(folderPickerState.currentPath, folderPickerState.currentAbsolute);
             pathEl.textContent = label;
             // Reflect the active path in the type-in field, but don't steal focus.
@@ -1897,12 +2106,21 @@
             }
             renderFolderPickerShortcuts();
             upBtn.disabled = (folderPickerState.parentPath === null || folderPickerState.parentPath === undefined);
-            if (!data.folders.length) {
+            const hintParts = [];
+            if (data.warning) hintParts.push(String(data.warning));
+            if (!entries.length && !data.warning && folderPickerState.fdaHint) {
+                hintParts.push(folderPickerState.fdaHint);
+            }
+            if (hintParts.length) {
+                listEl.innerHTML = `<div class="folder-picker-empty">${hintParts.map(h => escapeHtml(h)).join('<br><br>')}</div>`;
+                return;
+            }
+            if (!entries.length) {
                 listEl.innerHTML = '<div class="folder-picker-empty">No subfolders — select this folder or go up.</div>';
                 return;
             }
-            listEl.innerHTML = data.folders.map((name, idx) =>
-                `<button type="button" class="folder-picker-item" onclick="folderPickerEnter(${idx})">${FOLDER_ICON_SVG}<span>${escapeHtml(name)}</span></button>`
+            listEl.innerHTML = entries.map((entry, idx) =>
+                `<button type="button" class="folder-picker-item" onclick="folderPickerEnter(${idx})">${FOLDER_ICON_SVG}<span>${escapeHtml(entry.name)}</span></button>`
             ).join('');
         }
 
@@ -1913,13 +2131,30 @@
             chips.push({ label: 'Project root', path: '' });
             if (folderPickerState.home) {
                 chips.push({ label: 'Home', path: folderPickerState.home });
-                chips.push({ label: 'Desktop', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Desktop' });
+            }
+            if (folderPickerState.desktop) {
+                chips.push({ label: 'Desktop', path: folderPickerState.desktop });
+            } else if (folderPickerState.home) {
+                chips.push({
+                    label: 'Desktop',
+                    path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Desktop'
+                });
+            }
+            if (folderPickerState.home) {
                 chips.push({ label: 'Documents', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Documents' });
                 chips.push({ label: 'Downloads', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Downloads' });
             }
-            el.innerHTML = chips.map(c =>
-                `<button type="button" onclick="loadFolderPicker(${JSON.stringify(c.path)})">${escapeHtml(c.label)}</button>`
+            el.innerHTML = chips.map((c, idx) =>
+                `<button type="button" class="folder-picker-shortcut-btn" data-shortcut-idx="${idx}">${escapeHtml(c.label)}</button>`
             ).join('');
+            folderPickerState.shortcutChips = chips;
+            el.querySelectorAll('.folder-picker-shortcut-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.getAttribute('data-shortcut-idx'), 10);
+                    const chip = folderPickerState.shortcutChips && folderPickerState.shortcutChips[idx];
+                    if (chip) loadFolderPicker(chip.path);
+                });
+            });
         }
 
         function openFolderPicker(stepId, field) {
@@ -1927,8 +2162,7 @@
             if (!step) return;
             folderPickerState.stepId = stepId;
             folderPickerState.field = field;
-            const title = field === 'inputPath' ? 'Choose input folder' : 'Choose output folder';
-            document.getElementById('folder-picker-title').textContent = title;
+            document.getElementById('folder-picker-title').textContent = folderPickerTitleForField(field);
             document.getElementById('folder-picker-modal').classList.add('show');
             const startPath = (step[field] || '').trim();
             loadFolderPicker(startPath);
@@ -1945,8 +2179,9 @@
         }
 
         function folderPickerEnter(index) {
-            const path = folderPickerState.childPaths && folderPickerState.childPaths[index];
-            if (path !== undefined) loadFolderPicker(path);
+            const abs = folderPickerState.childAbsolutes && folderPickerState.childAbsolutes[index];
+            const path = (folderPickerState.childPaths && folderPickerState.childPaths[index]) || abs;
+            if (path !== undefined) loadFolderPicker(abs || path);
         }
 
         function folderPickerGoUp() {
@@ -2448,7 +2683,7 @@
                 if (!stepCard) return;
                 const stepId = parseInt(stepCard.getAttribute('data-step-id'), 10);
                 if (isNaN(stepId)) return;
-                const field = row.classList.contains('path-input-row--input') ? 'inputPath' : 'outputPath';
+                const field = pathFieldFromRow(row);
                 attachPathInputDrop(row, stepId, field);
             });
         }
@@ -2579,8 +2814,12 @@
 
         function updateConfirmState() {
             const btn = document.getElementById('confirm-btn');
-            if (!btn) return;
+            const raterCard = document.querySelector('.rater-card');
             const hasName = getRaterName().length > 0;
+            if (raterCard) {
+                raterCard.classList.toggle('needs-attention', !hasName);
+            }
+            if (!btn) return;
             const hasSteps = Array.isArray(pipelineSteps) && pipelineSteps.length > 0;
             const ready = hasName && hasSteps;
             btn.disabled = !ready;
@@ -2777,6 +3016,7 @@
                 inputPath: stepDef.defaultInput,
                 outputPath: stepDef.defaultOutput
             };
+            ensureStepExtraInputDefaults(step);
             
             if (position !== null && position < pipelineSteps.length) {
                 pipelineSteps.splice(position, 0, step);
@@ -2920,30 +3160,13 @@
                             </div>
                             <button class="step-remove" onclick="removeStep(${step.id})" title="Remove step">×</button>
                         </div>
-                        <div class="step-config">
-                            <div class="config-field">
-                                <label>Input Path/Directory:<span style="font-weight:400;color:var(--t3);font-size:11px;margin-left:6px;">(click the folder icon, drag a folder from Finder/Explorer, or type any absolute path)</span></label>
-                                <div class="path-input-row path-input-row--input">
-                                    <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
-                                            onclick="openFolderPicker(${step.id}, 'inputPath')">${FOLDER_ICON_SVG}</button>
-                                    <input type="text"
-                                           id="step-${step.id}-inputPath"
-                                           value="${escapeHtml(step.inputPath)}"
-                                           onchange="updateStepConfig(${step.id}, 'inputPath', this.value); updatePreview();"
-                                           placeholder="e.g., data/5_recall_texts or /Users/me/recall_data">
-                                </div>
+                        <div class="step-config${getStepExtraInputPaths(step.type).length ? ' step-config--multi-input' : ''}">
+                            <div class="step-config-inputs">
+                                ${renderExtraInputPathFields(step)}
+                                ${renderPrimaryInputPathField(step, stepDef)}
                             </div>
-                            <div class="config-field">
-                                <label>Output Path/Directory:<span style="font-weight:400;color:var(--t3);font-size:11px;margin-left:6px;">(click the folder icon, drag a folder from Finder/Explorer, or type any absolute path)</span></label>
-                                <div class="path-input-row path-input-row--output">
-                                    <input type="text"
-                                           id="step-${step.id}-outputPath"
-                                           value="${escapeHtml(step.outputPath)}"
-                                           onchange="updateStepConfig(${step.id}, 'outputPath', this.value); updatePreview();"
-                                           placeholder="e.g., output/recall_corrected or ~/Desktop/runs/recall_corrected">
-                                    <button type="button" class="path-folder-btn" title="Browse or drag a folder here" aria-label="Browse or drag a folder here"
-                                            onclick="openFolderPicker(${step.id}, 'outputPath')">${FOLDER_ICON_SVG}</button>
-                                </div>
+                            <div class="step-config-output">
+                                ${renderOutputPathField(step, stepDef)}
                             </div>
                         </div>
                         <button class="step-info-toggle" id="step-toggle-${step.id}" onclick="toggleStepDetails(${step.id})">
@@ -3076,6 +3299,9 @@
                 inputPath: step.inputPath,
                 outputPath: step.outputPath
             };
+            getStepExtraInputPaths(step.type).forEach(extra => {
+                newStep[extra.field] = step[extra.field] || extra.default || '';
+            });
             
             const index = pipelineSteps.findIndex(s => s.id === stepId);
             pipelineSteps.splice(index + 1, 0, newStep);
@@ -3136,7 +3362,7 @@
                             const dy = Math.abs(e.clientY - cy);
                             if (dy < bestDy) { bestDy = dy; target = r; }
                         });
-                        const field = (target && target.classList.contains('path-input-row--output')) ? 'outputPath' : 'inputPath';
+                        const field = pathFieldFromRow(target);
                         await applyDroppedFolderToStep(stepId, field, e);
                         return;
                     }

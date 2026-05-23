@@ -818,17 +818,21 @@ def expand_story_event_file_bases(item_id: str) -> list[str]:
 
 
 def _pick_story_events_for_base(events_dir: Path, base_id: str) -> Optional[Path]:
-    """Resolve ``{base}_events.xlsx``; prefer exact canonical name over newer *-fine / *-coarse files."""
+    """Resolve ``{base}_events`` file; prefer exact canonical name over newer variants."""
+    from helpers.flexible_io import STORY_EVENTS_EXTENSIONS
+
     base = f"{base_id}_events"
-    p0 = events_dir / f"{base}.xlsx"
-    if p0.exists():
-        return p0
+    for ext in (".xlsx", ".csv", ".tsv", ".xls"):
+        p0 = events_dir / f"{base}{ext}"
+        if p0.exists():
+            return p0
     paths: list[Path] = []
-    paths.extend(events_dir.glob(f"{base}-*.xlsx"))
-    for suffix in ("_rule-based.xlsx", "_api.xlsx"):
-        q = events_dir / f"{base}{suffix}"
-        if q.exists():
-            paths.append(q)
+    for ext in STORY_EVENTS_EXTENSIONS:
+        paths.extend(events_dir.glob(f"{base}-*{ext}"))
+        for suffix in ("_rule-based", "_api"):
+            q = events_dir / f"{base}{suffix}{ext}"
+            if q.exists():
+                paths.append(q)
     if not paths:
         return None
     return max(paths, key=lambda p: p.stat().st_mtime)
@@ -876,13 +880,14 @@ def resolve_story_events_xlsx(subj_id: str, story_dir_arg: str = "data/3_story_e
             continue
         for base in bases:
             if explicit_variant is not None:
-                cand = events_dir / f"{base}_events{explicit_variant}.xlsx"
-                if cand.is_file():
-                    print(
-                        f"  Using story events file: {cand.name} "
-                        f"(directory={events_dir}, base={base!r}, variant={explicit_variant!r})"
-                    )
-                    return cand
+                for ext in (".xlsx", ".csv", ".tsv", ".xls"):
+                    cand = events_dir / f"{base}_events{explicit_variant}{ext}"
+                    if cand.is_file():
+                        print(
+                            f"  Using story events file: {cand.name} "
+                            f"(directory={events_dir}, base={base!r}, variant={explicit_variant!r})"
+                        )
+                        return cand
                 continue
             picked = _pick_story_events_for_base(events_dir, base)
             if picked:
@@ -932,17 +937,33 @@ def process_subject(
     # Create output directory if it doesn't exist
     output_path.mkdir(exist_ok=True)
 
+    from helpers.flexible_io import (
+        PARSED_RECALL_EXTENSIONS,
+        read_parsed_recall_file,
+        read_story_events_file,
+        order_recall_rating_columns,
+    )
+
     if recall_source is not None:
         recall_file = Path(recall_source)
         if not recall_file.is_absolute():
             recall_file = recall_path / recall_file.name
     else:
         explicit_variant = os.environ.get("BATCH_INPUT_VARIANT")
+        recall_file = None
         if explicit_variant is not None:
-            recall_file = recall_path / f"{subj_id}{explicit_variant}.xlsx"
+            for ext in PARSED_RECALL_EXTENSIONS:
+                cand = recall_path / f"{subj_id}{explicit_variant}{ext}"
+                if cand.is_file():
+                    recall_file = cand
+                    break
         else:
-            recall_file = recall_path / f"{subj_id}_parsed.xlsx"
-            if not recall_file.exists():
+            for ext in PARSED_RECALL_EXTENSIONS:
+                cand = recall_path / f"{subj_id}_parsed{ext}"
+                if cand.is_file():
+                    recall_file = cand
+                    break
+            if recall_file is None:
                 env_rf = (os.environ.get("BATCH_RECALL_FILE") or "").strip()
                 if env_rf:
                     cand = Path(env_rf)
@@ -950,18 +971,21 @@ def process_subject(
                         cand = recall_path / cand.name
                     if cand.is_file():
                         recall_file = cand
-            if not recall_file.exists():
+            if recall_file is None:
                 edits = sorted(
                     (
                         p
-                        for p in recall_path.glob(f"{subj_id}_parsed_*-edit.xlsx")
-                        if re.search(r"_\w+-edit\.xlsx$", p.name, re.IGNORECASE)
+                        for p in recall_path.glob(f"{subj_id}_parsed_*-edit.*")
+                        if p.suffix.lower() in PARSED_RECALL_EXTENSIONS
+                        and re.search(r"_\w+-edit\.", p.name, re.IGNORECASE)
                     ),
                     key=lambda p: p.stat().st_mtime,
                     reverse=True,
                 )
                 if edits:
                     recall_file = edits[0]
+        if recall_file is None:
+            recall_file = recall_path / f"{subj_id}_parsed.xlsx"
 
     if not recall_file.is_file():
         print(f"  Warning: Recall parsed file not found: {recall_file}")
@@ -980,47 +1004,26 @@ def process_subject(
     
     # Read story events file
     try:
-        story_df = pd.read_excel(story_file)
-        if "event" not in story_df.columns:
-            print("  Error: Story events file missing required column (event)")
-            return False
-        text_col = (
-            "story_texts"
-            if "story_texts" in story_df.columns
-            else ("story_text" if "story_text" in story_df.columns else None)
-        )
-        if not text_col:
-            print("  Error: Story events file missing story text column (story_texts or story_text)")
-            return False
-
-        # Convert to list of dicts for easier handling
+        story_df = read_story_events_file(story_file)
         story_events = [
             {
                 "event": int(row["event"]),
-                "story_texts": str(row[text_col]) if pd.notna(row[text_col]) else "",
+                "story_texts": str(row["story_texts"]) if pd.notna(row["story_texts"]) else "",
             }
             for _, row in story_df.iterrows()
             if pd.notna(row["event"])
         ]
-        
     except Exception as e:
         print(f"  Error reading story events file: {e}")
         return False
     
     # Read recall parsed file
     try:
-        recall_df = pd.read_excel(recall_file)
-        if 'recall_in_temporal_order' not in recall_df.columns:
-            print(f"  Error: Recall file missing required column (recall_in_temporal_order)")
-            return False
+        recall_df = read_parsed_recall_file(recall_file)
     except Exception as e:
         print(f"  Error reading recall file: {e}")
         return False
     
-    # Ensure recalled_events column exists
-    if 'recalled_events' not in recall_df.columns:
-        recall_df.insert(0, 'recalled_events', '')
-
     total_segments = len(recall_df)
     matched_count = 0
     matched_events_list: List[str] = []
@@ -1199,9 +1202,7 @@ def process_subject(
     
     recall_df['recalled_events'] = recall_df['recalled_events'].apply(clean_matched_event)
     
-    # Ensure correct column order: recalled_events first, then recall_in_temporal_order
-    if 'recalled_events' in recall_df.columns and 'recall_in_temporal_order' in recall_df.columns:
-        recall_df = recall_df[['recalled_events', 'recall_in_temporal_order']]
+    recall_df = order_recall_rating_columns(recall_df)
     
     # Save to output file
     if use_ollama_recall:
@@ -1303,10 +1304,16 @@ def process_all_subjects(
 
     # Find all parsed recall files: canonical ({item}_parsed.xlsx), method-suffixed
     # ({item}[_spell-...]_parsed[-method].xlsx), and user-edit variants thereof.
-    parsed_name_re = re.compile(r"_parsed(?:[-_].*)?\.xlsx$", re.IGNORECASE)
-    recall_files_set: set[Path] = {
-        p for p in recall_path.glob("*.xlsx") if parsed_name_re.search(p.name)
-    }
+    from helpers.flexible_io import PARSED_RECALL_EXTENSIONS
+
+    parsed_name_re = re.compile(
+        r"_parsed(?:[-_].*)?\.(xlsx|csv|tsv|xls)$", re.IGNORECASE
+    )
+    recall_files_set: set[Path] = set()
+    for ext in PARSED_RECALL_EXTENSIONS:
+        for p in recall_path.glob(f"*{ext}"):
+            if parsed_name_re.search(p.name):
+                recall_files_set.add(p)
     recall_files = sorted(recall_files_set, key=lambda p: p.name)
 
     # Filter by BATCH_ITEM_ID if set (for single subject processing)

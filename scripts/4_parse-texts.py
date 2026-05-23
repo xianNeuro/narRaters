@@ -477,25 +477,30 @@ def process_recall_file(
     Returns:
         Tuple of (filename_base, list of parsed units)
     """
-    with open(file_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-    
-    # First line is filename, rest is text
-    if len(lines) < 2:
-        return None, []
-    
-    filename_line = lines[0].strip()
-    # Extract base filename (without .txt extension)
-    filename_base = filename_line.replace('.txt', '')
-    
-    # Combine remaining lines as the text
-    text = '\n'.join(lines[1:]).strip()
-    
-    # Remove surrounding quotes if present
-    if text.startswith('"') and text.endswith('"'):
-        text = text[1:-1]
-    if text.startswith("'") and text.endswith("'"):
-        text = text[1:-1]
+    from helpers.flexible_io import read_document_text
+
+    ext = Path(file_path).suffix.lower()
+    if ext in (".csv", ".tsv", ".xlsx", ".xls"):
+        text = read_document_text(file_path)
+        filename_base = Path(file_path).stem
+        if not text.strip():
+            return filename_base, []
+        lines = None
+    else:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+    if lines is not None:
+        # First line is filename, rest is text
+        if len(lines) < 2:
+            return None, []
+        filename_line = lines[0].strip()
+        filename_base = filename_line.replace('.txt', '')
+        text = '\n'.join(lines[1:]).strip()
+        if text.startswith('"') and text.endswith('"'):
+            text = text[1:-1]
+        if text.startswith("'") and text.endswith("'"):
+            text = text[1:-1]
     
     if (parse_method or "rules").lower() == "ollama":
         parsed_units = parse_text_ollama_e4b(
@@ -588,9 +593,11 @@ def process_all_recall_files(
         print(error_msg)
         raise NotADirectoryError(error_msg)
     
-    # Get all .txt files (exclude user-edit variants)
-    txt_files = sorted(input_path.glob('*.txt'))
-    txt_files = [f for f in txt_files if not re.search(r'_\w+-edit\.', f.name)]
+    from helpers.flexible_io import TRANSCRIPT_EXTENSIONS, glob_extensions
+
+    input_files = glob_extensions(input_path, TRANSCRIPT_EXTENSIONS)
+    input_files = [f for f in input_files if not re.search(r'_\w+-edit\.', f.name)]
+    txt_files = list(input_files)
 
     # Filter by pattern if provided
     # Resolution order:
@@ -603,29 +610,29 @@ def process_all_recall_files(
         explicit_variant = os.environ.get("BATCH_INPUT_VARIANT")
         if explicit_variant is not None:
             target_stem = f"{filter_pattern}{explicit_variant}"
-            txt_files = [f for f in txt_files if f.stem == target_stem]
+            txt_files = [f for f in input_files if f.stem == target_stem]
         else:
-            exact = [f for f in txt_files if f.stem == filter_pattern]
+            exact = [f for f in input_files if f.stem == filter_pattern]
             if exact:
                 txt_files = exact
             else:
-                suffix_cands = [f for f in txt_files
+                suffix_cands = [f for f in input_files
                                 if f.stem.startswith(f"{filter_pattern}_")]
                 if suffix_cands:
                     txt_files = [max(suffix_cands, key=lambda p: p.stat().st_mtime)]
                 else:
-                    txt_files = [f for f in txt_files if filter_pattern in f.name]
+                    txt_files = [f for f in input_files if filter_pattern in f.name]
         if not txt_files:
             error_msg = (
                 f"No files found matching BATCH_ITEM_ID/pattern '{filter_pattern}' in {input_dir}. "
-                f"Found {original_count} eligible .txt file(s) total."
+                f"Found {original_count} eligible file(s) total."
             )
             print(error_msg)
             raise FileNotFoundError(error_msg)
         print(f"Filtered to {len(txt_files)} file(s) for '{filter_pattern}'")
     
     if not txt_files:
-        error_msg = f"No .txt files found in {input_dir}"
+        error_msg = f"No transcript files found in {input_dir} (supported: .txt, .csv, .tsv, .xlsx)"
         print(error_msg)
         raise FileNotFoundError(error_msg)
     

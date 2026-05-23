@@ -4,7 +4,7 @@
 
 <h1 align="center">narRaters</h1>
 
-<h3 align="center">Turn stories and recalls into structured, reviewable data — with a web UI at every step</h3>
+<h3 align="center">Turn complex narratives into structured, reviewable data — with a web UI at every step</h3>
 
 <p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narRaters/">narRaters</a></p>
 
@@ -31,13 +31,13 @@
 
 ## What is narRaters?
 
-**narRaters** (*narrative* + *raters*) is an open-source project on [GitHub (xianNeuro/narRaters)](https://github.com/xianNeuro/narRaters) for memory and narrative research — not a speech narrator.
+**narRaters** (*narrative* + *raters*) is an open-source software on [GitHub (xianNeuro/narRaters)](https://github.com/xianNeuro/narRaters) that helps process complex narratives (e.g., audio book, text-based stories, interviews, conversations, etc.) for memory, language processing, causal reasoning, and LLM research.
 
-Imagine you ran a memory study: participants listened to a **story**, then **recalled** what they remembered (spoken or typed). Before you can analyze memory, you need structured data — what happened in the story, what each person recalled, and how those pieces connect.
+Imagine you ran a memory study: participants listened to a story, then recalled what they remembered (spoken or typed). Before you can analyze memory, you need structured data — what happened in the story, what each person recalled, and how those pieces connect.
 
-**narRaters** helps you get there. It runs common narrative-processing steps (transcribe audio, split a story into events, clean up recall text, parse recalls into clauses, match recalls back to story events, rate causal links between events) and gives you a **web interface to review and fix outputs** before exporting.
+**narRaters** helps you get there. It runs common narrative-processing steps (transcribe audio, split a story into events, clean up recall text, parse recalls into clauses, match recalls back to story events, rate causal links between events) and gives you a web interface to review and fix outputs before exporting.
 
-Works for **audio or text**, **stories or other long narratives** (including movie annotations), and **human-only or human-vs-LLM** workflows.
+Works for audio or text, stories or other long narratives (including movie annotations), and human-only or human-vs-LLM workflows.
 
 | You have… | narRaters helps you… |
 |---|---|

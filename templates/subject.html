@@ -2101,12 +2101,18 @@
             // dashboard still shows complete — still show the tab when inspecting this step.
             const showSegmented = stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
             const showMatched = stepInPanel(['step3']);
-            const showCausalMatrix = data.story_events && stepInPanel(['step0_causal']);
+            const showCausalMatrix = data.story_events && data.story_events.length > 0 && stepInPanel(['step0_causal']);
+            const showCausalMatrixMissing = stepInPanel(['step0_causal']) && !(data.story_events && data.story_events.length > 0);
             let initialTab = getInitialTab();
+            if (stepParam === 'step0_causal') {
+                if (showCausalMatrix) initialTab = 'causal-matrix';
+                else if (showCausalMatrixMissing) initialTab = 'causal-matrix-missing';
+            }
             if (panelSteps && panelSteps.length) {
                 const stepForParam = stepParam || 'step1';
                 if (!stepInPanel([stepForParam])) {
                     if (showCausalMatrix) initialTab = 'causal-matrix';
+                    else if (showCausalMatrixMissing) initialTab = 'causal-matrix-missing';
                     else if (showStoryEvents) initialTab = 'story-events';
                     else if (showAudio) initialTab = 'audio-transcription';
                     else if (showRawProcessed) initialTab = 'raw-processed';
@@ -2118,6 +2124,7 @@
             // Build tabs in dashboard step order (panelSteps), falling back to default order
             const tabDefs = [
                 { step: 'step0_causal', id: 'causal-matrix', label: 'Causal Rating', show: showCausalMatrix },
+                { step: 'step0_causal', id: 'causal-matrix-missing', label: 'Causal Rating', show: showCausalMatrixMissing },
                 { step: 'step0', id: 'story-events', label: 'Story Segments', show: showStoryEvents },
                 { step: 'step0_story_audio', id: 'audio-transcription', label: 'Audio Transcription', show: showAudio },
                 { step: 'step0_audio', id: 'audio-transcription', label: 'Audio Transcription', show: showAudio },
@@ -2243,6 +2250,17 @@
                                 <button id="export-causal-matrix" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths.causal) || ''))}" onclick="showExportModal('causal', (window._causalRatingsData && window._causalRatingsData.source_file) || '', function(path){ saveCausalMatrix(path); }, this)">Export Causal Ratings</button>
                                 <div id="save-causal-matrix-status" class="save-status"></div>
                             </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (showCausalMatrixMissing) {
+                html += `
+                    <div id="causal-matrix-missing" class="tab-content ${initialTab === 'causal-matrix-missing' ? 'active' : ''}">
+                        <div class="causal-matrix-instructions" style="border-color: var(--acc3);">
+                            <strong>Story events file not found.</strong> The dashboard found this story from your pipeline input folder, but the app could not load a matching <code style="color: var(--t2);">{story}_events.xlsx</code> file with <code style="color: var(--t2);">event</code> and <code style="color: var(--t2);">story_texts</code> columns.<br><br>
+                            Check that the causal-rating (or event-segmentation) <strong>input folder</strong> in Pipeline Config points at the folder containing the events file, then reload this page. If the file lives elsewhere, set that folder as the step input path or copy the events file into <code style="color: var(--t2);">data/3_story_events/</code>.
                         </div>
                     </div>
                 `;

@@ -64,12 +64,7 @@ ENV/
 *.swo
 
 # Private maintainer / internal documentation (not published on GitHub)
-# Exception: tutorial PDF generator + Playwright capture are shared so maintainers
-# can rebuild narRater_Tutorial.pdf without hunting local-only copies.
 developer/*
-!developer/capture_tutorial_screenshots.py
-!developer/generate_tutorial_pdf.py
-!developer/TUTORIAL_PDF.md
 
 # Coding-agent context (keep local; do not publish)
 /CLAUDE.md

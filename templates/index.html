@@ -2597,6 +2597,15 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        function formatStepPathSummary(step) {
+            let summary = `Input: ${step.inputPath || ''}`;
+            if (step.storyEventsPath) {
+                summary += ` · Story Events: ${step.storyEventsPath}`;
+            }
+            summary += ` → Output: ${step.outputPath || ''}`;
+            return summary;
+        }
         
         function showBatchProcessDialog() {
             if (!pipelineConfig || pipelineConfig.length === 0) {
@@ -2634,7 +2643,7 @@
                                 <div class="batch-step-info">
                                     <div class="batch-step-name">${escapeHtml(stepName)}</div>
                                     <div class="batch-step-paths">
-                                        Input: ${escapeHtml(step.inputPath)} → Output: ${escapeHtml(step.outputPath)}
+                                        ${escapeHtml(formatStepPathSummary(step))}
                                     </div>
                                 </div>
                             </div>

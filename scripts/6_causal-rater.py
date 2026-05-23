@@ -674,22 +674,12 @@ def rate_causal_pairs_api(
 # ==============================
 
 def _read_story_events(events_path: Path) -> Optional[List[Dict]]:
-    """Read story events from an Excel file. Returns list of dicts or None on error."""
+    """Read story events from Excel/CSV/TSV. Returns list of dicts or None on error."""
     try:
-        story_df = pd.read_excel(events_path)
-        if 'event' not in story_df.columns or 'story_texts' not in story_df.columns:
-            print(f"  Error: File missing required columns (event, story_texts)")
-            return None
+        from helpers.flexible_io import read_story_events_file, story_events_to_records
 
-        story_events = [
-            {
-                'event': int(row['event']),
-                'story_texts': str(row['story_texts']) if pd.notna(row['story_texts']) else ''
-            }
-            for _, row in story_df.iterrows()
-            if pd.notna(row['event'])
-        ]
-        return story_events if story_events else None
+        story_df = read_story_events_file(events_path)
+        return story_events_to_records(story_df)
     except Exception as e:
         print(f"  Error reading events file: {e}")
         return None
@@ -824,8 +814,12 @@ def process_all_stories(
         print(f"Error: Input directory not found: {input_dir}")
         return
 
-    events_files = sorted(input_path.glob('*_events*.xlsx'))
-    events_files = [f for f in events_files if '-edit' not in f.name]
+    from helpers.flexible_io import STORY_EVENTS_EXTENSIONS
+
+    events_files: list[Path] = []
+    for ext in STORY_EVENTS_EXTENSIONS:
+        events_files.extend(input_path.glob(f"*_events*{ext}"))
+    events_files = sorted({f for f in events_files if '-edit' not in f.name}, key=lambda p: p.name)
 
     batch_item_id = os.environ.get('BATCH_ITEM_ID', None)
     if batch_item_id:

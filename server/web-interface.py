@@ -244,6 +244,35 @@ def _migrate_legacy_user_file_once():
 _migrate_legacy_user_file_once()
 
 
+def _pipeline_config_path():
+    """Writable pipeline config location (pip installs use read-only site-packages)."""
+    return ACCOUNT_DATA_DIR / "pipeline_config.json"
+
+
+_LEGACY_PIPELINE_FILE = PROJECT_ROOT / "pipeline_config.json"
+
+
+def _migrate_legacy_pipeline_config_once():
+    try:
+        target = _pipeline_config_path()
+        if _LEGACY_PIPELINE_FILE.exists() and not target.exists():
+            ACCOUNT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            try:
+                target.write_bytes(_LEGACY_PIPELINE_FILE.read_bytes())
+                try:
+                    os.chmod(target, 0o600)
+                except OSError:
+                    pass
+                print(f"Migrated legacy pipeline_config.json -> {target}")
+            except Exception as e:
+                print(f"Warning: could not migrate legacy pipeline_config.json: {e}")
+    except Exception:
+        pass
+
+
+_migrate_legacy_pipeline_config_once()
+
+
 def load_users():
     """Load users from the per-user JSON file."""
     if USERS_FILE.exists():
@@ -366,7 +395,10 @@ def _list_dir_names(directory):
     try:
         with os.scandir(directory) as it:
             names = [e.name for e in it]
-    except (FileNotFoundError, NotADirectoryError, PermissionError, OSError):
+    except PermissionError:
+        # Do not cache permission failures — user may grant FDA and retry without restart.
+        return []
+    except (FileNotFoundError, NotADirectoryError, OSError):
         names = []
     cache[key] = (names, now)
     return names
@@ -397,6 +429,29 @@ def cached_glob(directory, pattern):
         return []
     base = Path(directory)
     return [base / n for n in _list_dir_names(directory) if _fnmatch.fnmatch(n, pattern)]
+
+
+def glob_files_in_dir(directory, pattern):
+    """Glob flat files in ``directory``, with a direct scandir fallback when the dir cache is empty."""
+    hits = cached_glob(directory, pattern)
+    if hits:
+        return hits
+    try:
+        base = Path(directory)
+        if not base.is_dir():
+            return []
+        with os.scandir(base) as it:
+            return [
+                base / entry.name
+                for entry in it
+                if entry.is_file(follow_symlinks=False) and _fnmatch.fnmatch(entry.name, pattern)
+            ]
+    except PermissionError:
+        print(f"Warning: permission denied listing {directory}")
+        return []
+    except OSError as e:
+        print(f"Warning: could not list {directory}: {e}")
+        return []
 
 
 def cached_path_exists(path):
@@ -667,13 +722,28 @@ def get_output_dir_for_step_type(step_type):
     return STEP_TYPE_DEFAULT_OUTPUT.get(step_type)
 
 
+def _iter_pipeline_config_io_dirs():
+    """Yield resolved input/output directories from the active pipeline config."""
+    config = get_pipeline_config()
+    if not config or not config.get('steps'):
+        return
+    for step in config['steps']:
+        for key in ('inputPath', 'outputPath'):
+            d = _resolve_path_from_config(step.get(key, ''))
+            if d is not None:
+                yield d
+        for _field, _env_var, d in _resolve_step_extra_input_dirs(step):
+            yield d
+
+
 def iter_story_events_search_dirs():
     """Directories to search for story-event .xlsx files.
     Search order (each path included at most once):
     1. Optional ``NARRATIVE_STORY_EVENTS_DIR`` env (absolute path to the folder).
-    2. Pipeline-configured story-event output, else ``PROJECT_ROOT/data/3_story_events``.
-    3. ``PROJECT_ROOT/data/3_story_events`` (Flask ``PROJECT_ROOT`` is the ``software/`` package root).
-    4. ``<parent of PROJECT_ROOT>/data/3_story_events`` when data lives next to ``software/``
+    2. All pipeline-configured input/output folders (e.g. causal-rating input on Desktop).
+    3. Pipeline-configured story-event output, else ``PROJECT_ROOT/data/3_story_events``.
+    4. ``PROJECT_ROOT/data/3_story_events`` (Flask ``PROJECT_ROOT`` is the ``software/`` package root).
+    5. ``<parent of PROJECT_ROOT>/data/3_story_events`` when data lives next to ``software/``
        (monorepo layout: ``repo/data/`` vs ``repo/software/data/``).
     """
     seen = set()
@@ -681,6 +751,7 @@ def iter_story_events_search_dirs():
     env_override = (os.environ.get('NARRATIVE_STORY_EVENTS_DIR') or '').strip()
     if env_override:
         candidates.append(Path(env_override).expanduser())
+    candidates.extend(_iter_pipeline_config_io_dirs())
     primary = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
     sibling_repo_events = PROJECT_ROOT.parent / 'data' / '3_story_events'
     candidates.extend([primary, STORY_EVENTS_DIR, sibling_repo_events])
@@ -718,7 +789,7 @@ def get_subject_id_from_filename(filename):
     import re
     # Remove common extensions first
     name = filename
-    for ext in ('.txt', '.xlsx') + SUPPORTED_AUDIO_EXTENSIONS:
+    for ext in ('.txt', '.csv', '.tsv', '.xlsx', '.xls') + SUPPORTED_AUDIO_EXTENSIONS:
         name = name.replace(ext, '')
     # Remove common suffixes including method-suffixed variants (e.g., _events-api_<model-id>)
     name = re.sub(r'_rate-recall(-[a-zA-Z0-9_.-]+)?', '', name)
@@ -751,7 +822,7 @@ def get_story_name_from_filename(filename):
     import re
     # Remove common extensions
     name = filename
-    for ext in ('.txt', '.xlsx') + SUPPORTED_AUDIO_EXTENSIONS:
+    for ext in ('.txt', '.csv', '.tsv', '.xlsx', '.xls') + SUPPORTED_AUDIO_EXTENSIONS:
         name = name.replace(ext, '')
     # Remove any user-edit suffix (e.g., _human-edit, _username-edit)
     name = re.sub(r'_\w+-edit', '', name)
@@ -830,15 +901,58 @@ def expand_story_event_file_bases(item_id):
 _STEP_INPUT_STREAMS = {
     'audioTranscribe:story':  [('main',          'Input',         'BATCH_INPUT_VARIANT',         'audio', '')],
     'audioTranscribe:recall': [('main',          'Input',         'BATCH_INPUT_VARIANT',         'audio', '')],
-    'eventSegment':     [('main',          'Story Transcript', 'BATCH_INPUT_VARIANT',      '.txt',  '')],
-    'sentenceCorrect':   [('main',          'Recall Text',   'BATCH_INPUT_VARIANT',         '.txt',  '')],
-    'textParsing':            [('main',          'Corrected Recall', 'BATCH_INPUT_VARIANT',      '.txt',  '')],
+    'eventSegment':     [('main',          'Story Transcript', 'BATCH_INPUT_VARIANT',      ('.txt', '.csv', '.tsv', '.xlsx', '.xls'), '')],
+    'sentenceCorrect':   [('main',          'Recall Text',   'BATCH_INPUT_VARIANT',         ('.txt', '.csv', '.tsv', '.xlsx'), '')],
+    'textParsing':            [('main',          'Corrected Recall', 'BATCH_INPUT_VARIANT',      ('.txt', '.csv', '.tsv', '.xlsx', '.xls'), '')],
     'textMatching':     [
-        ('parsed_recall', 'Parsed Recall', 'BATCH_INPUT_VARIANT',          '.xlsx', '_parsed'),
-        ('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',   '.xlsx', '_events'),
+        ('parsed_recall', 'Parsed Recall', 'BATCH_INPUT_VARIANT',          ('.xlsx', '.csv', '.tsv'), '_parsed'),
+        ('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',   ('.xlsx', '.csv', '.tsv'), '_events'),
     ],
-    'causalRating':      [('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',  '.xlsx', '_events')],
+    'causalRating':      [('story_events',  'Story Events',  'BATCH_STORY_EVENTS_VARIANT',  ('.xlsx', '.csv', '.tsv'), '_events')],
 }
+
+# Extra input path fields on pipeline step config (beyond inputPath / outputPath).
+# Each entry: (config field name, env var passed to the batch script).
+_STEP_EXTRA_INPUTS = {
+    'textMatching': [
+        ('storyEventsPath', 'BATCH_STORY_EVENTS_DIR'),
+    ],
+}
+
+
+def _step_extra_input_fields(step_type):
+    """Return (field, env_var) pairs for optional extra inputs on ``step_type``."""
+    return _STEP_EXTRA_INPUTS.get(step_type, [])
+
+
+def _resolve_step_extra_input_dirs(step):
+    """Yield (field, env_var, resolved Path) for configured extra inputs on ``step``."""
+    if not step:
+        return
+    step_type = step_runtime_key(step)
+    for field, env_var in _step_extra_input_fields(step_type):
+        raw = (step.get(field) or '').strip()
+        if not raw:
+            continue
+        resolved = _resolve_path_from_config(raw)
+        if resolved is not None:
+            yield field, env_var, resolved
+
+
+def _apply_step_path_env(env, step):
+    """Set BATCH_* directory env vars from a pipeline step's configured paths."""
+    input_path = step.get('inputPath', '')
+    output_path = step.get('outputPath', '')
+    if input_path:
+        inp = _resolve_path_from_config(input_path)
+        if inp is not None:
+            env['BATCH_INPUT_DIR'] = str(inp)
+    if output_path:
+        out = _resolve_path_from_config(output_path)
+        if out is not None:
+            env['BATCH_OUTPUT_DIR'] = str(out)
+    for _field, env_var, resolved in _resolve_step_extra_input_dirs(step):
+        env[env_var] = str(resolved)
 
 
 def _audio_files_for_item(root, item_id):
@@ -851,21 +965,22 @@ def _audio_files_for_item(root, item_id):
     return out
 
 
-def _resolve_stream_dir(step_inputPath, stream_key, item_id):
+def _resolve_stream_dir(step_inputPath, stream_key, item_id, step=None):
     """Resolve the directory to search for a given stream.
 
     Most streams use the step's configured ``inputPath``. The story-events stream
-    on step 5 (textMatching) is special: the script reads it from the
-    canonical ``data/3_story_events`` regardless of the parsed-recall input dir.
+    on textMatching uses ``storyEventsPath`` when set; otherwise falls back to
+    ``data/3_story_events`` when the primary input is the parsed-recall directory.
     """
+    if stream_key == 'story_events' and step:
+        extra = (step.get('storyEventsPath') or '').strip()
+        if extra:
+            return _resolve_path_from_config(extra)
     if stream_key == 'story_events' and step_inputPath and 'story_events' not in step_inputPath:
         return STORY_EVENTS_DIR
     if not step_inputPath:
         return None
-    p = Path(step_inputPath)
-    if not p.is_absolute():
-        p = PROJECT_ROOT / step_inputPath
-    return p
+    return _resolve_path_from_config(step_inputPath)
 
 
 def _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key):
@@ -900,28 +1015,24 @@ def _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key):
                 elif stem.startswith(base):
                     variants.add(stem[len(base):])
         else:
-            # Glob for {base}*<ext>
-            for f in stream_dir.glob(f"{base}*{ext}"):
-                if not f.is_file():
-                    continue
-                stem = f.stem
-                if tail_pat:
-                    # ``story_events`` files: variant suffix is the tail AFTER ``_events`` only,
-                    # so files like ``pieman_edited_events.xlsx`` are NOT variants of the bare
-                    # ``pieman`` base — the script side would mis-construct the filename.
-                    if stem == f"{base}{tail_pat}":
-                        variants.add('')
-                    elif stem.startswith(f"{base}{tail_pat}"):
-                        variants.add(stem[len(base) + len(tail_pat):])
-                    elif stream_key != 'story_events' and stem.startswith(f"{base}_") and tail_pat in stem:
-                        # Method-chain case for parsed_recall: {base}_spell-X_parsed-Y where
-                        # ``tail_pat='_parsed'``. Variant = full stem suffix after base.
-                        variants.add(stem[len(base):])
-                else:
-                    if stem == base:
-                        variants.add('')
-                    elif stem.startswith(base):
-                        variants.add(stem[len(base):])
+            exts = ext if isinstance(ext, (list, tuple)) else (ext,)
+            for one_ext in exts:
+                for f in stream_dir.glob(f"{base}*{one_ext}"):
+                    if not f.is_file():
+                        continue
+                    stem = f.stem
+                    if tail_pat:
+                        if stem == f"{base}{tail_pat}":
+                            variants.add('')
+                        elif stem.startswith(f"{base}{tail_pat}"):
+                            variants.add(stem[len(base) + len(tail_pat):])
+                        elif stream_key != 'story_events' and stem.startswith(f"{base}_") and tail_pat in stem:
+                            variants.add(stem[len(base):])
+                    else:
+                        if stem == base:
+                            variants.add('')
+                        elif stem.startswith(base):
+                            variants.add(stem[len(base):])
 
     for b in bases:
         _try_collect(b)
@@ -942,7 +1053,7 @@ def _label_for_variant(suffix, tail_pat):
     return s
 
 
-def enumerate_step_input_variants(step_type, item_ids, step_inputPath):
+def enumerate_step_input_variants(step_type, item_ids, step_inputPath, step=None):
     """Compute available input variants for ``step_type``, intersected across ``item_ids``.
 
     Returns a dict ``{"streams": [...]}`` describing each logical input stream and the
@@ -960,7 +1071,7 @@ def enumerate_step_input_variants(step_type, item_ids, step_inputPath):
     for stream_key, stream_label, env_var, ext, tail_pat in stream_defs:
         per_item_variants = {}  # item_id -> set[str]
         for item_id in item_ids:
-            stream_dir = _resolve_stream_dir(step_inputPath, stream_key, item_id)
+            stream_dir = _resolve_stream_dir(step_inputPath, stream_key, item_id, step=step)
             found = _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key)
             per_item_variants[item_id] = set(found)
 
@@ -1104,38 +1215,54 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         extract_func = get_subject_id_from_filename
     elif step_type == 'eventSegment':
         if scan_type == 'input':
-            patterns = ['*.txt']
+            patterns = ['*.txt', '*.csv', '*.tsv', '*.xlsx', '*.xls']
         elif scan_type == 'output':
-            patterns = ['*_events.xlsx', '*_events-*.xlsx', '*_events_rule-based.xlsx', '*_events_api.xlsx']
+            patterns = [
+                '*_events.xlsx', '*_events-*.xlsx', '*_events_rule-based.xlsx', '*_events_api.xlsx',
+                '*_events.csv', '*_events-*.csv', '*_events.tsv', '*_events-*.tsv',
+            ]
         else:
-            patterns = ['*.txt', '*_events.xlsx', '*_events-*.xlsx', '*_events_rule-based.xlsx', '*_events_api.xlsx']
+            patterns = [
+                '*.txt', '*.csv', '*.tsv', '*.xlsx', '*.xls',
+                '*_events.xlsx', '*_events-*.xlsx', '*_events_rule-based.xlsx', '*_events_api.xlsx',
+                '*_events.csv', '*_events-*.csv', '*_events.tsv', '*_events-*.tsv',
+            ]
         extract_func = get_story_name_from_filename if is_story else get_subject_id_from_filename
     elif step_type == 'sentenceCorrect':
-        patterns = ['*.txt']
+        patterns = ['*.txt', '*.csv', '*.tsv', '*.xlsx']
         extract_func = get_subject_id_from_filename
     elif step_type == 'textParsing':
         if scan_type == 'input':
-            patterns = ['*.txt']
+            patterns = ['*.txt', '*.csv', '*.tsv', '*.xlsx', '*.xls']
         elif scan_type == 'output':
-            patterns = ['*_parsed.xlsx']
+            patterns = ['*_parsed.xlsx', '*_parsed.csv', '*_parsed.tsv']
         else:
-            patterns = ['*.txt', '*_parsed.xlsx']
+            patterns = ['*.txt', '*.csv', '*.tsv', '*.xlsx', '*_parsed.xlsx', '*_parsed.csv', '*_parsed.tsv']
         extract_func = get_subject_id_from_filename
     elif step_type == 'textMatching':
         if scan_type == 'input':
-            patterns = ['*_parsed.xlsx', '*_events.xlsx', '*_events-*.xlsx']
+            patterns = [
+                '*_parsed.xlsx', '*_parsed.csv', '*_parsed.tsv',
+                '*_events.xlsx', '*_events-*.xlsx', '*_events.csv', '*_events-*.csv', '*_events.tsv',
+            ]
         elif scan_type == 'output':
-            patterns = ['*_rate-recall.xlsx', '*_rate-recall-*.xlsx']
+            patterns = ['*_rate-recall.xlsx', '*_rate-recall-*.xlsx', '*_rate-recall.csv', '*_rate-recall-*.csv']
         else:
-            patterns = ['*_rate-recall.xlsx', '*_rate-recall-*.xlsx', '*_parsed.xlsx', '*_events.xlsx']
+            patterns = [
+                '*_rate-recall.xlsx', '*_rate-recall-*.xlsx', '*_rate-recall.csv',
+                '*_parsed.xlsx', '*_parsed.csv', '*_events.xlsx', '*_events.csv',
+            ]
         extract_func = get_subject_id_from_filename
     elif step_type == 'causalRating':
         if scan_type == 'input':
-            patterns = ['*_events.xlsx', '*_events-*.xlsx']
+            patterns = ['*_events.xlsx', '*_events-*.xlsx', '*_events.csv', '*_events-*.csv', '*_events.tsv']
         elif scan_type == 'output':
-            patterns = ['*_causal-*.xlsx', '*_causal.xlsx']
+            patterns = ['*_causal-*.xlsx', '*_causal.xlsx', '*_causal-*.csv', '*_causal.csv']
         else:
-            patterns = ['*_events.xlsx', '*_events-*.xlsx', '*_causal-*.xlsx', '*_causal.xlsx']
+            patterns = [
+                '*_events.xlsx', '*_events-*.xlsx', '*_events.csv', '*_events-*.csv',
+                '*_causal-*.xlsx', '*_causal.xlsx', '*_causal-*.csv',
+            ]
         extract_func = get_story_name_from_filename if is_story else get_subject_id_from_filename
     else:
         patterns = ['*.txt', '*.xlsx']
@@ -1143,7 +1270,7 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
     
     # Search for files matching patterns
     for pattern in patterns:
-        for file in cached_glob(dir_path, pattern):
+        for file in glob_files_in_dir(dir_path, pattern):
             # Skip human-edit files for discovery (they'll be found via original files)
             if not is_user_edit_file(file.name):
                 # For textParsing with .txt files, make sure we're getting the right files
@@ -1818,9 +1945,8 @@ def get_parsed_texts(subj_id, file_version=None):
         return None
     
     try:
-        df = pd.read_excel(file_path)
-        if 'recall_in_temporal_order' not in df.columns:
-            return None
+        from helpers.flexible_io import read_parsed_recall_file
+        df = read_parsed_recall_file(file_path)
         
         segments = []
         for _, row in df.iterrows():
@@ -1877,10 +2003,8 @@ def get_rated_texts(subj_id, file_version=None):
     
     # Read rated file directly
     try:
-        df = pd.read_excel(rated_file)
-        if 'recall_in_temporal_order' not in df.columns:
-            print(f"Warning: Rated file {rated_file} missing 'recall_in_temporal_order' column")
-            return None
+        from helpers.flexible_io import read_parsed_recall_file
+        df = read_parsed_recall_file(rated_file)
         
         segments = []
         for _, row in df.iterrows():
@@ -2070,14 +2194,22 @@ def _story_transcript_glob_patterns(item_id, is_story=False):
         return [
             f"{item_id}.txt",
             f"{item_id}*.txt",
+            f"{item_id}*.csv",
+            f"{item_id}*.tsv",
             f"{item_id}*.xlsx",
             f"*{item_id}*.txt",
+            f"*{item_id}*.csv",
+            f"*{item_id}*.tsv",
             f"*{item_id}*.xlsx",
         ]
     return [
         f"{item_id}*.txt",
+        f"{item_id}*.csv",
+        f"{item_id}*.tsv",
         f"{item_id}*.xlsx",
         f"*{item_id}*.txt",
+        f"*{item_id}*.csv",
+        f"*{item_id}*.tsv",
         f"*{item_id}*.xlsx",
     ]
 
@@ -2101,17 +2233,10 @@ def collect_story_transcript_paths(item_id, is_story=False):
 
 
 def _read_story_transcript_file(file_path):
-    """Read full text from a .txt or .xlsx transcript file."""
+    """Read full text from transcript files (.txt, .csv, .tsv, .xlsx)."""
     try:
-        if file_path.suffix.lower() == '.txt':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read().strip()
-        if file_path.suffix.lower() == '.xlsx':
-            df = pd.read_excel(file_path)
-            for col in ['transcript', 'text', 'story_text', 'story_texts']:
-                if col in df.columns:
-                    full_text = ' '.join(df[col].dropna().astype(str))
-                    return full_text.strip() if full_text else None
+        from helpers.flexible_io import read_document_text
+        return read_document_text(file_path) or None
     except Exception as e:
         print(f"Error reading story transcript from file: {e}")
     return None
@@ -2241,7 +2366,8 @@ def _try_read_story_events_from_paths(paths):
         if not fp.exists():
             continue
         try:
-            df = pd.read_excel(fp)
+            from helpers.flexible_io import read_tabular, normalize_story_events_df
+            df = normalize_story_events_df(read_tabular(fp))
             result = _read_story_events_dataframe(df)
             if result:
                 return result
@@ -2252,47 +2378,56 @@ def _try_read_story_events_from_paths(paths):
 
 def _story_events_paths_candidate_list(base_id, file_version, min_event_count, events_dir):
     """Ordered candidate paths for story events in one directory (same order as load logic)."""
+    from helpers.flexible_io import STORY_EVENTS_EXTENSIONS, read_tabular, normalize_story_events_df
+
     event_filename_base = f"{base_id}_events"
     paths_to_try = []
 
-    if file_version and file_version.endswith('.xlsx') and '_events' in file_version:
+    def _events_glob(pattern_stem):
+        found = []
+        for ext in STORY_EVENTS_EXTENSIONS:
+            found.extend(events_dir.glob(f"{pattern_stem}{ext}"))
+        return found
+
+    if file_version and any(file_version.endswith(ext) for ext in STORY_EVENTS_EXTENSIONS) and '_events' in file_version:
         paths_to_try = [events_dir / Path(file_version).name]
     elif file_version and file_version.endswith('-edit'):
-        paths_to_try = [events_dir / f"{event_filename_base}_{file_version}.xlsx"]
+        paths_to_try = _events_glob(f"{event_filename_base}_{file_version}")
+        if not paths_to_try:
+            paths_to_try = [events_dir / f"{event_filename_base}_{file_version}.xlsx"]
     elif file_version == 'original':
-        p0 = events_dir / f"{event_filename_base}.xlsx"
-        paths_to_try = [p0]
-        if not p0.exists():
-            candidates = sorted(events_dir.glob(f"{event_filename_base}-*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
+        paths_to_try = _events_glob(event_filename_base)
+        if not paths_to_try:
+            candidates = sorted(_events_glob(f"{event_filename_base}-*"), key=lambda p: p.stat().st_mtime, reverse=True)
             candidates = [c for c in candidates if not is_user_edit_file(c.name)]
             if candidates:
                 paths_to_try = [candidates[0]]
     else:
         edit_file = find_best_edit_file(events_dir, base_id, '_events', '.xlsx')
-        original_path = events_dir / f"{event_filename_base}.xlsx"
-        method_files = list(events_dir.glob(f"{event_filename_base}-*.xlsx"))
-        method_files.extend(list(events_dir.glob(f"{event_filename_base}_rule-based.xlsx")))
-        method_files.extend(list(events_dir.glob(f"{event_filename_base}_api.xlsx")))
+        if not edit_file:
+            for ext in STORY_EVENTS_EXTENSIONS:
+                edit_file = find_best_edit_file(events_dir, base_id, '_events', ext)
+                if edit_file:
+                    break
+        method_files = _events_glob(f"{event_filename_base}-*")
+        method_files.extend(_events_glob(f"{event_filename_base}_rule-based"))
+        method_files.extend(_events_glob(f"{event_filename_base}_api"))
         method_files = list(dict.fromkeys(method_files))
+        original_paths = _events_glob(event_filename_base)
         if edit_file:
             paths_to_try.append(edit_file)
         for f in sorted(method_files, key=lambda p: p.stat().st_mtime, reverse=True):
             paths_to_try.append(f)
-        if original_path.exists():
-            paths_to_try.append(original_path)
+        for f in original_paths:
+            if f not in paths_to_try:
+                paths_to_try.append(f)
 
         if min_event_count > 0 and paths_to_try:
             filtered = []
             for f in paths_to_try:
                 try:
-                    df_check = pd.read_excel(f)
-                    if 'event' not in df_check.columns:
-                        continue
-                    tc = 'story_texts' if 'story_texts' in df_check.columns else ('story_text' if 'story_text' in df_check.columns else None)
-                    if not tc:
-                        continue
-                    n_ev = len(df_check.dropna(subset=['event', tc]))
-                    if n_ev >= min_event_count:
+                    norm = normalize_story_events_df(read_tabular(f))
+                    if len(norm) >= min_event_count:
                         filtered.append(f)
                 except Exception:
                     continue
@@ -2456,19 +2591,20 @@ def list_subject_parsed_source_files(output_dir, subj_id):
         return []
     out = []
     seen = set()
-    for p in sorted(od.glob(f"{subj_id}*_parsed*.xlsx"),
-                    key=lambda x: x.stat().st_mtime, reverse=True):
-        stem = p.stem
-        # Word-boundary: stem must be canonical or start with "{subj_id}_"
-        if not (stem == f"{subj_id}_parsed" or stem.startswith(f"{subj_id}_")):
-            continue
-        if is_user_edit_file(p.name):
-            continue
-        key = p.resolve()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(p)
+    from helpers.flexible_io import PARSED_RECALL_EXTENSIONS
+    for ext in PARSED_RECALL_EXTENSIONS:
+        for p in sorted(od.glob(f"{subj_id}*_parsed*{ext}"),
+                        key=lambda x: x.stat().st_mtime, reverse=True):
+            stem = p.stem
+            if not (stem == f"{subj_id}_parsed" or stem.startswith(f"{subj_id}_")):
+                continue
+            if is_user_edit_file(p.name):
+                continue
+            key = p.resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(p)
     return out
 
 
@@ -2533,13 +2669,14 @@ def get_story_events(item_id, file_version=None, is_story=False, min_event_count
     For subjects, also tries the story name derived from the subject id (e.g. the_siren_sub-01 -> the_siren).
     For stories, also tries editorial shortenings (e.g. pieman_edited -> pieman) so event files match the transcript name.
     """
-    if file_version and file_version.endswith('.xlsx') and '_events' in file_version:
+    if file_version and any(str(file_version).endswith(ext) for ext in ('.xlsx', '.csv', '.tsv', '.xls')) and '_events' in str(file_version):
         fn = Path(file_version).name
         for events_dir in iter_story_events_search_dirs():
             file_path = events_dir / fn
             if file_path.exists():
                 try:
-                    df = pd.read_excel(file_path)
+                    from helpers.flexible_io import read_tabular, normalize_story_events_df
+                    df = normalize_story_events_df(read_tabular(file_path))
                     result = _read_story_events_dataframe(df)
                     if result is not None:
                         return result
@@ -2552,6 +2689,76 @@ def get_story_events(item_id, file_version=None, is_story=False, min_event_count
         if ev:
             return ev
     return None
+
+
+def _resolve_story_events_file_for_rating(subj_id):
+    """Locate a story-events file for recall matching (xlsx/csv/tsv)."""
+    from helpers.flexible_io import pick_story_events_file
+
+    events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
+    story_file = pick_story_events_file(events_dir, subj_id)
+    if story_file:
+        return story_file
+    story_name = get_story_name_from_subject_id(subj_id)
+    if story_name and story_name != subj_id:
+        return pick_story_events_file(events_dir, story_name)
+    return None
+
+
+def _auto_rate_parsed_df(subj_id, parsed_df):
+    """Match parsed recall segments to story events; returns rated DataFrame or None."""
+    story_file = _resolve_story_events_file_for_rating(subj_id)
+    if not story_file:
+        return None
+    from helpers.flexible_io import order_recall_rating_columns, story_events_records_from_path
+
+    story_events = story_events_records_from_path(story_file)
+    if not story_events:
+        return None
+
+    import importlib.util
+    rate_file = SCRIPTS_DIR / '5_recall-rater.py'
+    spec = importlib.util.spec_from_file_location("recall_rater", rate_file)
+    rate_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rate_module)
+    match_sonnet = rate_module.match_recall_to_events_sonnet
+    match_test = rate_module.match_recall_to_events_test_mode
+    get_client = rate_module.get_anthropic_client
+
+    test_mode = os.getenv('ANTHROPIC_API_KEY') is None
+    client = None
+    if not test_mode:
+        try:
+            client = get_client()
+        except Exception:
+            test_mode = True
+
+    if 'recall_in_temporal_order' not in parsed_df.columns:
+        from helpers.flexible_io import normalize_parsed_recall_df
+        parsed_df = normalize_parsed_recall_df(parsed_df)
+
+    matched_events_list = []
+    for _, row in parsed_df.iterrows():
+        recall_segment = str(row.get('recall_in_temporal_order', ''))
+        if not recall_segment or recall_segment.strip() == '':
+            matched_events_list.append('')
+            continue
+        if test_mode:
+            matching_events = match_test(recall_segment, story_events)
+        else:
+            matching_events = match_sonnet(
+                client, recall_segment, story_events, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+            )
+            import time
+            time.sleep(0.5)
+        if matching_events:
+            matched_events_list.append(','.join(str(int(e)) for e in matching_events))
+        else:
+            matched_events_list.append('')
+
+    out = parsed_df.copy()
+    out['recalled_events'] = matched_events_list
+    return order_recall_rating_columns(out)
 
 
 def _parse_causal_pairs_dataframe(df):
@@ -3042,40 +3249,41 @@ def get_all_event_granularities(item_id):
     """Get both fine-grained and coarse-grained event segmentations for a story.
     Returns dict with 'fine' and 'coarse' event lists, or None if not available.
     """
-    events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
-    if not events_dir or not events_dir.exists():
+    search_dirs = [d for d in iter_story_events_search_dirs() if d and d.exists()]
+    if not search_dirs:
         return None
-    
+
     result = {'fine': None, 'coarse': None, 'fine_file': None, 'coarse_file': None}
 
     def _load_event_list(glob_pat):
-        files = sorted(events_dir.glob(glob_pat), key=lambda p: p.stat().st_mtime, reverse=True)
-        for f in files:
-            if is_user_edit_file(f.name):
-                continue
-            try:
-                df = pd.read_excel(f)
-                if 'event' not in df.columns or 'story_texts' not in df.columns:
+        for events_dir in search_dirs:
+            files = sorted(events_dir.glob(glob_pat), key=lambda p: p.stat().st_mtime, reverse=True)
+            for f in files:
+                if is_user_edit_file(f.name):
                     continue
-                evs = [{'event': int(r['event']), 'text': str(r['story_texts']).strip()}
-                       for _, r in df.iterrows() if pd.notna(r['event']) and pd.notna(r['story_texts'])]
-                if evs:
-                    return f.name, evs
-            except Exception:
-                continue
-        for f in files:
-            if not is_user_edit_file(f.name):
-                continue
-            try:
-                df = pd.read_excel(f)
-                if 'event' not in df.columns or 'story_texts' not in df.columns:
+                try:
+                    df = pd.read_excel(f)
+                    if 'event' not in df.columns or 'story_texts' not in df.columns:
+                        continue
+                    evs = [{'event': int(r['event']), 'text': str(r['story_texts']).strip()}
+                           for _, r in df.iterrows() if pd.notna(r['event']) and pd.notna(r['story_texts'])]
+                    if evs:
+                        return f.name, evs
+                except Exception:
                     continue
-                evs = [{'event': int(r['event']), 'text': str(r['story_texts']).strip()}
-                       for _, r in df.iterrows() if pd.notna(r['event']) and pd.notna(r['story_texts'])]
-                if evs:
-                    return f.name, evs
-            except Exception:
-                continue
+            for f in files:
+                if not is_user_edit_file(f.name):
+                    continue
+                try:
+                    df = pd.read_excel(f)
+                    if 'event' not in df.columns or 'story_texts' not in df.columns:
+                        continue
+                    evs = [{'event': int(r['event']), 'text': str(r['story_texts']).strip()}
+                           for _, r in df.iterrows() if pd.notna(r['event']) and pd.notna(r['story_texts'])]
+                    if evs:
+                        return f.name, evs
+                except Exception:
+                    continue
         return None, None
 
     ff, fe = _load_event_list(f"{item_id}_events-fine*.xlsx")
@@ -3122,6 +3330,12 @@ def _resolve_and_validate_output_path(path_str):
             cfg_dir = _resolve_path_from_config(step.get(key, ''))
             if cfg_dir is None:
                 continue
+            try:
+                p.relative_to(cfg_dir.resolve())
+                return p
+            except (ValueError, OSError):
+                continue
+        for _field, _env_var, cfg_dir in _resolve_step_extra_input_dirs(step):
             try:
                 p.relative_to(cfg_dir.resolve())
                 return p
@@ -3399,7 +3613,7 @@ def api_verify_auth():
 def index():
     """Main dashboard. Requires a configured pipeline; rater name is optional
     here (it is collected on the pipeline-config page)."""
-    pipeline_file = PROJECT_ROOT / 'pipeline_config.json'
+    pipeline_file = _pipeline_config_path()
     if not pipeline_file.exists():
         print("No pipeline config found, redirecting to pipeline configuration page")
         return redirect('/pipeline-config')
@@ -3969,93 +4183,14 @@ def save_corrected_text(subj_id):
                 print(f"Auto-updated parsed file: {parsed_file} ({len(parsed_units)} segments)")
                 
                 # Automatically re-rate the parsed segments
-                # Note: When cascading from step 1, we update step 3 content but keep original filename
                 try:
-                    import importlib.util
-                    # Import functions from 5_recall-rater.py
-                    rate_file = SCRIPTS_DIR / '5_recall-rater.py'
-                    spec = importlib.util.spec_from_file_location("recall_rater", rate_file)
-                    rate_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(rate_module)
-                    match_recall_to_events_sonnet_func = rate_module.match_recall_to_events_sonnet
-                    match_recall_to_events_test_mode_func = rate_module.match_recall_to_events_test_mode
-                    get_anthropic_client_func = rate_module.get_anthropic_client
-                    
-                    # Read story events (check for method-suffixed files too)
-                    events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
-                    event_filename_base = f"{subj_id}_events"
-                    story_file = events_dir / f"{event_filename_base}.xlsx"
-                    if not story_file.exists():
-                        method_files = []
-                        method_files.extend(list(events_dir.glob(f"{event_filename_base}_rule-based.xlsx")))
-                        method_files.extend(list(events_dir.glob(f"{event_filename_base}_api.xlsx")))
-                        method_files.extend(list(events_dir.glob(f"{event_filename_base}-*.xlsx")))
-                        if method_files:
-                            story_file = max(method_files, key=lambda p: p.stat().st_mtime)
-                    if not story_file.exists():
-                        sn = get_story_name_from_subject_id(subj_id)
-                        if sn and sn != subj_id:
-                            sn_base = f"{sn}_events"
-                            story_file = events_dir / f"{sn_base}.xlsx"
-                            if not story_file.exists():
-                                sn_files = list(events_dir.glob(f"{sn_base}-*.xlsx"))
-                                sn_files.extend(list(events_dir.glob(f"{sn_base}_rule-based.xlsx")))
-                                sn_files.extend(list(events_dir.glob(f"{sn_base}_api.xlsx")))
-                                if sn_files:
-                                    story_file = max(sn_files, key=lambda p: p.stat().st_mtime)
-                    if story_file.exists():
-                        story_df = pd.read_excel(story_file)
-                        story_events = [
-                            {'event': int(row['event']), 'story_texts': str(row['story_texts']) if pd.notna(row['story_texts']) else ''}
-                            for _, row in story_df.iterrows()
-                            if pd.notna(row['event'])
-                        ]
-                        
-                        # Read the parsed file we just created
-                        parsed_df = pd.read_excel(parsed_file)
-                        
-                        # Initialize client for rating
-                        test_mode = os.getenv('ANTHROPIC_API_KEY') is None
-                        client = None
-                        if not test_mode:
-                            try:
-                                client = get_anthropic_client_func()
-                            except:
-                                test_mode = True
-                        
-                        # Match each segment to story events
-                        matched_events_list = []
-                        matched_count = 0
-                        for idx, row in parsed_df.iterrows():
-                            recall_segment = str(row.get('recall_in_temporal_order', ''))
-                            if not recall_segment or recall_segment.strip() == '':
-                                matched_events_list.append('')
-                                continue
-                            
-                            if test_mode:
-                                matching_events = match_recall_to_events_test_mode_func(recall_segment, story_events)
-                            else:
-                                matching_events = match_recall_to_events_sonnet_func(
-                                    client, recall_segment, story_events, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
-                                )
-                                import time
-                                time.sleep(0.5)  # Rate limiting
-                            
-                            if matching_events:
-                                matched_events_list.append(','.join(str(int(e)) for e in matching_events))
-                                matched_count += 1
-                            else:
-                                matched_events_list.append('')
-                        
-                        # Update dataframe
-                        parsed_df['recalled_events'] = matched_events_list
-                        parsed_df = parsed_df[['recalled_events', 'recall_in_temporal_order']]
-                        
-                        # Save to rated file - update original filename when cascading
+                    rated_df = _auto_rate_parsed_df(subj_id, parsed_df)
+                    if rated_df is not None:
                         rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
                         rated_dir.mkdir(parents=True, exist_ok=True)
                         rated_file = rated_dir / f"{subj_id}_rate-recall.xlsx"
-                        parsed_df.to_excel(rated_file, index=False, engine='openpyxl', na_rep='')
+                        rated_df.to_excel(rated_file, index=False, engine='openpyxl', na_rep='')
+                        matched_count = sum(1 for v in rated_df['recalled_events'] if str(v).strip())
                         print(f"Auto-updated rated file: {rated_file} ({matched_count} segments matched)")
                     else:
                         print(f"Warning: Story events file not found for {subj_id}, skipping auto-rating")
@@ -4126,9 +4261,11 @@ def save_rated_events(subj_id):
         else:
             file_path.parent.mkdir(parents=True, exist_ok=True)
         
+        from helpers.flexible_io import read_parsed_recall_file
+
         # Read existing file if it exists, otherwise read from original rated file to preserve existing ratings
         if file_path.exists():
-            df = pd.read_excel(file_path)
+            df = read_parsed_recall_file(file_path)
             print(f"Reading from existing user-edit file: {file_path.name}")
         else:
             # Try to read from original rated file first (to preserve existing ratings)
@@ -4139,7 +4276,7 @@ def save_rated_events(subj_id):
                 if candidates:
                     original_rated = candidates[0]
             if original_rated.exists():
-                df = pd.read_excel(original_rated)
+                df = read_parsed_recall_file(original_rated)
                 print(f"Reading from original rated file: {original_rated.name}")
             else:
                 # Fallback: create from parsed file (prioritize user-edit, then canonical,
@@ -4156,21 +4293,14 @@ def save_rated_events(subj_id):
                     parsed_file = method_cands[0] if method_cands else parsed_original
                 
                 if parsed_file.exists():
-                    df = pd.read_excel(parsed_file)
+                    df = read_parsed_recall_file(parsed_file)
                     print(f"Creating from parsed file: {parsed_file.name}")
-                    # Ensure recalled_events column exists
-                    if 'recalled_events' not in df.columns:
-                        df['recalled_events'] = ''
                 else:
                     return jsonify({'error': 'Rated file not found and cannot be created from parsed file'}), 404
         
         if 'recall_in_temporal_order' not in df.columns:
             return jsonify({'error': 'Invalid file format'}), 400
-        
-        # Ensure recalled_events column exists
-        if 'recalled_events' not in df.columns:
-            df['recalled_events'] = ''
-        
+
         # Update matched events based on segment indices
         updated_count = 0
         print(f"Received {len(segments)} segments to update")
@@ -4243,7 +4373,7 @@ def save_rated_events(subj_id):
             import gc
             gc.collect()
             
-            # Ensure proper column order
+            # Ensure proper column order (ratings first, then recall text)
             if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
                 df = df[['recalled_events', 'recall_in_temporal_order']]
             
@@ -4364,12 +4494,11 @@ def save_parsed_segments(subj_id):
         
         # Read existing file if it exists, otherwise create new structure
         if file_path.exists():
-            df = pd.read_excel(file_path)
-            if 'recall_in_temporal_order' not in df.columns:
-                return jsonify({'error': 'Invalid file format'}), 400
+            from helpers.flexible_io import read_parsed_recall_file
+            read_parsed_recall_file(file_path)
         else:
             # Create new dataframe with required columns
-            df = pd.DataFrame(columns=['recall_in_temporal_order', 'recalled_events'])
+            df = pd.DataFrame(columns=['recalled_events', 'recall_in_temporal_order'])
         
         # Sort segments by index to maintain order
         segments_sorted = sorted(segments, key=lambda x: x.get('index', 0))
@@ -4442,96 +4571,15 @@ def save_parsed_segments(subj_id):
         print(f"Note: Segment count changed from {len(df) if 'df' in locals() else 0} to {len(new_df)}")
         
         # FORWARD CASCADE: Tab 2 → Tab 3 (does NOT update Tab 1)
-        # Automatically re-rate the NEW parsed segments
-        # Note: When cascading from step 2, we update step 3 content but keep original filename
         try:
-            import importlib.util
-            import sys
-            sys.path.insert(0, str(SCRIPTS_DIR))
-            sys.path.insert(0, str(PROJECT_ROOT))
-            
-            # Import functions from 5_recall-rater.py
-            rate_file = SCRIPTS_DIR / '5_recall-rater.py'
-            spec = importlib.util.spec_from_file_location("recall_rater", rate_file)
-            rate_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(rate_module)
-            match_recall_to_events_sonnet_func = rate_module.match_recall_to_events_sonnet
-            match_recall_to_events_test_mode_func = rate_module.match_recall_to_events_test_mode
-            get_anthropic_client_func = rate_module.get_anthropic_client
-            
-            # Read story events (check for method-suffixed files too)
-            events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
-            event_filename_base = f"{subj_id}_events"
-            story_file = events_dir / f"{event_filename_base}.xlsx"
-            if not story_file.exists():
-                method_files = []
-                method_files.extend(list(events_dir.glob(f"{event_filename_base}_rule-based.xlsx")))
-                method_files.extend(list(events_dir.glob(f"{event_filename_base}_api.xlsx")))
-                method_files.extend(list(events_dir.glob(f"{event_filename_base}-*.xlsx")))
-                if method_files:
-                    story_file = max(method_files, key=lambda p: p.stat().st_mtime)
-            if not story_file.exists():
-                sn = get_story_name_from_subject_id(subj_id)
-                if sn and sn != subj_id:
-                    sn_base = f"{sn}_events"
-                    story_file = events_dir / f"{sn_base}.xlsx"
-                    if not story_file.exists():
-                        sn_files = list(events_dir.glob(f"{sn_base}-*.xlsx"))
-                        sn_files.extend(list(events_dir.glob(f"{sn_base}_rule-based.xlsx")))
-                        sn_files.extend(list(events_dir.glob(f"{sn_base}_api.xlsx")))
-                        if sn_files:
-                            story_file = max(sn_files, key=lambda p: p.stat().st_mtime)
-            if story_file.exists():
-                story_df = pd.read_excel(story_file)
-                story_events = [
-                    {'event': int(row['event']), 'story_texts': str(row['story_texts']) if pd.notna(row['story_texts']) else ''}
-                    for _, row in story_df.iterrows()
-                    if pd.notna(row['event'])
-                ]
-                
-                # Initialize client for rating
-                test_mode = os.getenv('ANTHROPIC_API_KEY') is None
-                client = None
-                if not test_mode:
-                    try:
-                        client = get_anthropic_client_func()
-                    except:
-                        test_mode = True
-                
-                # Match each segment to story events
-                matched_events_list = []
-                matched_count = 0
-                for idx, row in new_df.iterrows():
-                    recall_segment = str(row.get('recall_in_temporal_order', ''))
-                    if not recall_segment or recall_segment.strip() == '':
-                        matched_events_list.append('')
-                        continue
-                    
-                    if test_mode:
-                        matching_events = match_recall_to_events_test_mode_func(recall_segment, story_events)
-                    else:
-                        matching_events = match_recall_to_events_sonnet_func(
-                            client, recall_segment, story_events, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
-                        )
-                        import time
-                        time.sleep(0.5)  # Rate limiting
-                    
-                    if matching_events:
-                        matched_events_list.append(','.join(str(int(e)) for e in matching_events))
-                        matched_count += 1
-                    else:
-                        matched_events_list.append('')
-                
-                # Update dataframe
-                new_df['recalled_events'] = matched_events_list
-                new_df = new_df[['recalled_events', 'recall_in_temporal_order']]
-                
-                # Save to rated file - update original filename when cascading
+            rated_df = _auto_rate_parsed_df(subj_id, new_df)
+            if rated_df is not None:
                 rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
                 rated_dir.mkdir(parents=True, exist_ok=True)
                 rated_file = rated_dir / f"{subj_id}_rate-recall.xlsx"
-                new_df.to_excel(rated_file, index=False, engine='openpyxl', na_rep='')
-                print(f"Auto-updated rated file: {rated_file} with {len(new_df)} segments ({matched_count} matched)")
+                rated_df.to_excel(rated_file, index=False, engine='openpyxl', na_rep='')
+                matched_count = sum(1 for v in rated_df['recalled_events'] if str(v).strip())
+                print(f"Auto-updated rated file: {rated_file} with {len(rated_df)} segments ({matched_count} matched)")
             else:
                 print(f"Warning: Story events file not found for {subj_id}, skipping auto-rating")
         except Exception as rate_error:
@@ -4960,6 +5008,68 @@ def _safe_browse_dir(path_str: str, *, walk_up_to_dir: bool = False) -> Path | N
 _safe_project_dir = _safe_browse_dir
 
 
+def _resolve_desktop_path():
+    """Best-effort Desktop folder for the folder picker shortcuts."""
+    try:
+        home = Path.home()
+    except RuntimeError:
+        return None
+    candidates = [
+        home / 'Desktop',
+        home / 'OneDrive' / 'Desktop',
+        home / 'Library' / 'Mobile Documents' / 'com~apple~CloudDocs' / 'Desktop',
+    ]
+    for c in candidates:
+        try:
+            if c.is_dir():
+                return c
+        except OSError:
+            continue
+    return home / 'Desktop'
+
+
+def _list_picker_subdirs(directory):
+    """List immediate subdirectories for the folder picker.
+
+    Returns ``(folder_names, warning_message)``. ``warning_message`` is set when
+    the directory exists but cannot be read (common on macOS Desktop without
+    Full Disk Access).
+    """
+    if directory is None:
+        return [], None
+    try:
+        target = Path(directory)
+    except (TypeError, ValueError):
+        return [], 'Invalid folder path'
+    try:
+        if not target.is_dir():
+            return [], 'Not a folder'
+    except OSError as e:
+        return [], str(e)
+    folders = []
+    try:
+        with os.scandir(target) as it:
+            for entry in it:
+                if entry.name.startswith('.'):
+                    continue
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        folders.append(entry.name)
+                except OSError:
+                    continue
+    except PermissionError:
+        return [], (
+            'Permission denied reading this folder. On macOS, grant Full Disk Access '
+            'to Terminal (or Python) in System Settings → Privacy & Security, or paste '
+            'the folder path into the text box below.'
+        )
+    except (FileNotFoundError, NotADirectoryError) as e:
+        return [], str(e)
+    except OSError as e:
+        return [], str(e)
+    return sorted(folders), None
+
+
 def _relative_project_path(directory: Path) -> str:
     """Render a folder path for the picker UI.
 
@@ -4997,17 +5107,15 @@ def browse_folders():
             return jsonify({'success': False, 'error': 'Invalid or missing folder path'}), 400
 
         root = PROJECT_ROOT.resolve()
-        folders = []
-        for name in sorted(_list_dir_names(target)):
-            # Skip hidden folders by convention (still selectable by typing).
-            if name.startswith('.'):
-                continue
+        folders, list_warning = _list_picker_subdirs(target)
+        folder_entries = []
+        for name in folders:
             child = target / name
-            try:
-                if child.is_dir():
-                    folders.append(name)
-            except OSError:
-                continue
+            folder_entries.append({
+                'name': name,
+                'path': _relative_project_path(child),
+                'absolute': str(child),
+            })
 
         parent = None
         target_parent = target.parent
@@ -5019,14 +5127,28 @@ def browse_folders():
         except RuntimeError:
             home_path = ''
 
+        desktop_path = _resolve_desktop_path()
+        try:
+            desktop_str = str(desktop_path.resolve()) if desktop_path else ''
+        except OSError:
+            desktop_str = str(desktop_path) if desktop_path else ''
+
         return jsonify({
             'success': True,
             'current': _relative_project_path(target),
             'currentAbsolute': str(target),
             'parent': parent,
             'folders': folders,
+            'folderEntries': folder_entries,
+            'warning': list_warning,
             'projectRoot': str(root),
             'home': home_path,
+            'desktop': desktop_str,
+            'pythonExecutable': sys.executable,
+            'fdaHint': (
+                'If folders stay empty after granting Full Disk Access to Terminal, also add '
+                f'this Python binary in System Settings → Privacy & Security → Full Disk Access: {sys.executable}'
+            ),
         })
     except Exception as e:
         import traceback
@@ -5236,7 +5358,8 @@ def save_pipeline():
             'created_at': datetime.now().isoformat(),
         }
         
-        pipeline_file = PROJECT_ROOT / 'pipeline_config.json'
+        pipeline_file = _pipeline_config_path()
+        ACCOUNT_DATA_DIR.mkdir(parents=True, exist_ok=True)
         with open(pipeline_file, 'w', encoding='utf-8') as f:
             json.dump(pipeline_config, f, indent=2)
         
@@ -5346,9 +5469,9 @@ def get_causal_rating_options():
 def load_pipeline():
     """Load pipeline configuration."""
     try:
-        pipeline_file = PROJECT_ROOT / 'pipeline_config.json'
+        pipeline_file = _pipeline_config_path()
         if not pipeline_file.exists():
-            return jsonify({'success': False, 'error': 'No pipeline configuration found'}), 404
+            return jsonify({'success': False, 'error': 'No pipeline configuration found', 'pipeline': None})
         
         with open(pipeline_file, 'r', encoding='utf-8') as f:
             pipeline_config = json.load(f)
@@ -6159,7 +6282,7 @@ def get_step_input_variants(step_index):
         if not item_ids:
             return jsonify({'success': False, 'error': 'item_ids query param required'}), 400
 
-        data = enumerate_step_input_variants(step_type, item_ids, input_path)
+        data = enumerate_step_input_variants(step_type, item_ids, input_path, step=step)
         return jsonify({
             'success': True,
             'step_index': step_index,
@@ -6451,11 +6574,12 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             if not transcript:
                 if not input_dir or not input_dir.exists():
                     return jsonify({'success': False, 'error': f'Story transcript not found for {item_id}'}), 404
-                for pattern in [f"{item_id}.txt", f"{item_id}*.txt", f"*{item_id}*.txt"]:
+                for pattern in [f"{item_id}.txt", f"{item_id}*.txt", f"{item_id}*.csv", f"{item_id}*.tsv", f"{item_id}*.xlsx", f"*{item_id}*.txt", f"*{item_id}*.csv", f"*{item_id}*.xlsx"]:
                     matches = list(input_dir.glob(pattern))
                     matches = [f for f in matches if not is_user_edit_file(f.name)]
                     if matches:
-                        transcript = matches[0].read_text(encoding='utf-8').strip()
+                        from helpers.flexible_io import read_document_text
+                        transcript = read_document_text(matches[0])
                         break
             if not transcript:
                 return jsonify({'success': False, 'error': f'Story transcript not found for {item_id}'}), 404
@@ -6530,6 +6654,8 @@ def execute_step(item_id, step_index):
         
         print(f"Starting single-item processing for {step_type} (item: {item_id})")
         print(f"  Input: {input_path}")
+        for field, env_var, resolved in _resolve_step_extra_input_dirs(step):
+            print(f"  {field}: {step.get(field, '')} -> {env_var}={resolved}")
         print(f"  Output: {output_path}")
         if method:
             print(f"  Method: {method}")
@@ -6658,12 +6784,7 @@ def execute_step(item_id, step_index):
                 env['ANTHROPIC_API_KEY'] = api_key
                 print("DEBUG: API key set from request")
         
-        if input_path:
-            input_full_path = PROJECT_ROOT / input_path if not Path(input_path).is_absolute() else Path(input_path)
-            env['BATCH_INPUT_DIR'] = str(input_full_path)
-        if output_path:
-            output_full_path = PROJECT_ROOT / output_path if not Path(output_path).is_absolute() else Path(output_path)
-            env['BATCH_OUTPUT_DIR'] = str(output_full_path)
+        _apply_step_path_env(env, step)
         env['BATCH_STEP_TYPE'] = step_type
         env['BATCH_ITEM_ID'] = item_id  # This is the only difference from batch_process
 
@@ -6959,6 +7080,8 @@ def batch_process(step_type):
         
         print(f"Starting batch processing for {step_type} using {script_name}")
         print(f"  Input: {input_path}")
+        for field, env_var, resolved in _resolve_step_extra_input_dirs(step_config):
+            print(f"  {field}: {step_config.get(field, '')} -> {env_var}={resolved}")
         print(f"  Output: {output_path}")
         if method:
             print(f"  Method: {method}")
@@ -6969,12 +7092,7 @@ def batch_process(step_type):
         # Set environment variables for scripts to use
         import os
         env = os.environ.copy()
-        if input_path:
-            input_full_path = PROJECT_ROOT / input_path if not Path(input_path).is_absolute() else Path(input_path)
-            env['BATCH_INPUT_DIR'] = str(input_full_path)
-        if output_path:
-            output_full_path = PROJECT_ROOT / output_path if not Path(output_path).is_absolute() else Path(output_path)
-            env['BATCH_OUTPUT_DIR'] = str(output_full_path)
+        _apply_step_path_env(env, step_config)
         env['BATCH_STEP_TYPE'] = step_type
         
         # Add method argument if provided
@@ -7163,7 +7281,10 @@ def check_gemma_environment_api():
 
 def get_pipeline_config():
     """Get pipeline configuration from file."""
-    pipeline_file = PROJECT_ROOT / 'pipeline_config.json'
+    pipeline_file = _pipeline_config_path()
+    if not pipeline_file.exists():
+        # Backwards compatibility: config may still live beside the package.
+        pipeline_file = _LEGACY_PIPELINE_FILE
     if not pipeline_file.exists():
         return None
     

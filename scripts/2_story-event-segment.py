@@ -1183,8 +1183,9 @@ def process_story_transcript(transcript_path, story_name, output_dir='data/3_sto
     output_path.mkdir(parents=True, exist_ok=True)
 
     try:
-        with open(transcript_path, 'r', encoding='utf-8') as f:
-            story_text = f.read().strip()
+        from helpers.flexible_io import read_document_text
+
+        story_text = read_document_text(transcript_path)
     except Exception as e:
         print(f"  Error reading transcript file: {e}")
         return False
@@ -1269,10 +1270,12 @@ def process_all_story_transcripts(input_dir=None, output_dir=None, method='fine'
     if not input_path.exists():
         msg = f"Input directory not found: {input_dir}"
         print(f"Error: {msg}")
-        print(f"  Please place story transcript files (.txt) in {input_dir}")
+        print(f"  Please place story transcript files (.txt, .csv, .tsv, .xlsx) in {input_dir}")
         raise RuntimeError(msg)
 
-    transcript_files = sorted(input_path.glob('*.txt'))
+    from helpers.flexible_io import TRANSCRIPT_EXTENSIONS, glob_extensions
+
+    transcript_files = glob_extensions(input_path, TRANSCRIPT_EXTENSIONS)
 
     batch_item_id = os.environ.get('BATCH_ITEM_ID', None)
     if batch_item_id:
@@ -1300,11 +1303,11 @@ def process_all_story_transcripts(input_dir=None, output_dir=None, method='fine'
 
     if not transcript_files:
         msg = (
-            f"No .txt files found in {input_dir}"
+            f"No transcript files found in {input_dir}"
             + (f" matching BATCH_ITEM_ID={batch_item_id}" if batch_item_id else "")
         )
         print(msg)
-        print(f"  Please place story transcript files (.txt) in {input_dir}")
+        print(f"  Please place story transcript files (.txt, .csv, .tsv, .xlsx) in {input_dir}")
         raise RuntimeError(msg)
 
     print(f"Found {len(transcript_files)} story transcript file(s) to process")
