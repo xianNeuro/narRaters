@@ -6,7 +6,7 @@
 #   3. Owner: xianNeuro, repo: narRaters, workflow: python-publish.yml, environment: pypi
 #   4. GitHub → Settings → Environments → New environment "pypi" (optional protection rules)
 #
-# Release: bump version in pyproject.toml, tag (e.g. v0.1.0), publish the GitHub Release.
+# Release: bump version in pyproject.toml, run helpers/sync_download_links.py, tag (e.g. v0.3.5), publish the GitHub Release.
 
 name: Upload Python Package
 

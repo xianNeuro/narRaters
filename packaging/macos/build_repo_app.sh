@@ -99,6 +99,19 @@ if [[ -z "$REPO_ROOT" ]]; then
   done
 fi
 
+# Also accept versioned release folders (e.g. narRaters-0.3.5 from the tag ZIP).
+if [[ -z "$REPO_ROOT" ]]; then
+  for base in "$HOME" "$HOME/Downloads" "$HOME/Desktop" "$HOME/Documents"; do
+    for candidate in "$base"/narRaters-[0-9]*; do
+      [[ -d "$candidate" ]] || continue
+      if is_narraters_root "$candidate"; then
+        REPO_ROOT="$candidate"
+        break 2
+      fi
+    done
+  done
+fi
+
 # 3. Still not found — show a helpful dialog with copy-paste commands.
 if [[ -z "$REPO_ROOT" ]]; then
   /usr/bin/osascript <<'APPLESCRIPT'
@@ -115,6 +128,7 @@ This usually means one of these is true:
 Easiest fix — open Terminal and paste ONE of these (depending on
 where the unzipped folder is):
 
+    cd ~/Downloads/narRaters-0.3.5 && bash install.sh
     cd ~/Downloads/narRaters-main && bash install.sh
     cd ~/Desktop/narRaters-main && bash install.sh
     cd ~/narRaters && bash install.sh
