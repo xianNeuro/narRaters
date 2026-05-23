@@ -128,6 +128,8 @@ Works for audio or text, stories or other long narratives (including movie annot
 
 ## Quick start
 
+### Double-click launcher (ZIP download)
+
 1. **[Download the ZIP](https://github.com/xianNeuro/narRaters/archive/refs/heads/main.zip)** from this repo (green **Code ▾** → **Download ZIP**) and unzip it.
 2. **Open the launcher:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
    - **macOS** if Gatekeeper blocks you:
@@ -135,6 +137,30 @@ Works for audio or text, stories or other long narratives (including movie annot
      - If there is **no Open** entry or launching still fails: **System Settings** → **Privacy & Security** → scroll to **Security**. After macOS rejects the app once, look for **`narRater` was blocked…** (wording varies) and click **Allow Anyway** or **Open Anyway**, authenticate, then open **`narRater.app`** again (that control may disappear after ~an hour — try launching once more to refresh it).
      - More (including stripping quarantine from a downloaded ZIP): [Installation](#installation).
 3. **A browser tab opens at `http://127.0.0.1:5000`** with bundled examples already loaded — start clicking.
+
+### Via terminal (PyPI)
+
+1. **Check Python** — you need **3.10 or newer**:
+
+```bash
+python --version
+```
+
+If that fails or shows an older version, try `python3 --version` or install [Python 3.10+](https://www.python.org/downloads/).
+
+2. **Install or upgrade** from PyPI and confirm it finishes without errors:
+
+```bash
+python3 -m pip install narraters --upgrade
+```
+
+You can verify with `narraters --version`.
+
+3. **Start the web UI** — your browser should open to the pipeline builder:
+
+```bash
+narraters serve
+```
 
 > Needs **[Python 3.10+](https://www.python.org/downloads/)**. If anything fails, jump to [Installation](#installation) for the full walkthrough and troubleshooting.
 

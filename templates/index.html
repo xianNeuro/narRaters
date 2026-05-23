@@ -4781,7 +4781,11 @@
             } catch (error) {
                 console.error('Change-rater error:', error);
             } finally {
-                window.location.href = '/pipeline-config';
+                try {
+                    localStorage.removeItem('narrative-rater-name');
+                    localStorage.removeItem('narrative-pipeline');
+                } catch (e) { /* ignore */ }
+                window.location.href = '/pipeline-config?edit=1';
             }
         }
         

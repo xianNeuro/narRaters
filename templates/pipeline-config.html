@@ -2706,24 +2706,26 @@
             console.log('Initializing pipeline configuration page...');
             clearInspectionNotificationDismissed();
             
-            // Load current pipeline from server when reconfiguring from dashboard (reserve flow for edit)
-            try {
-                const response = await fetch('/api/pipeline/load');
-                const data = await response.json();
-                if (data.success && data.pipeline && data.pipeline.steps && data.pipeline.steps.length > 0) {
-                    // Pre-seed stepCounter from the highest valid id present so
-                    // expandPipelineStep doesn't hand out duplicate ids.
-                    const existingIds = data.pipeline.steps
-                        .map(s => (typeof s.id === 'number' && Number.isFinite(s.id)) ? s.id : -1)
-                        .filter(n => n >= 0);
-                    stepCounter = existingIds.length ? Math.max(...existingIds) + 1 : 0;
-                    pipelineSteps = data.pipeline.steps.map(expandPipelineStep);
-                    stepCounter = Math.max(stepCounter, ...pipelineSteps.map(s => s.id)) + 1;
-                    savePipeline();
-                    console.log('Loaded existing pipeline with', pipelineSteps.length, 'steps for editing');
+            // Load saved pipeline only when explicitly reconfiguring (?edit=1 from Change Rater).
+            const reconfigure = new URLSearchParams(window.location.search).get('edit') === '1';
+            if (reconfigure) {
+                try {
+                    const response = await fetch('/api/pipeline/load');
+                    const data = await response.json();
+                    if (data.success && data.pipeline && data.pipeline.steps && data.pipeline.steps.length > 0) {
+                        const existingIds = data.pipeline.steps
+                            .map(s => (typeof s.id === 'number' && Number.isFinite(s.id)) ? s.id : -1)
+                            .filter(n => n >= 0);
+                        stepCounter = existingIds.length ? Math.max(...existingIds) + 1 : 0;
+                        pipelineSteps = data.pipeline.steps.map(expandPipelineStep);
+                        stepCounter = Math.max(stepCounter, ...pipelineSteps.map(s => s.id)) + 1;
+                        console.log('Loaded existing pipeline with', pipelineSteps.length, 'steps for editing');
+                    }
+                } catch (e) {
+                    console.warn('Could not load pipeline (will start empty):', e);
                 }
-            } catch (e) {
-                console.warn('Could not load pipeline (will start empty):', e);
+            } else {
+                pipelineSteps = [];
             }
             
             // Populate palette step details
@@ -2767,8 +2769,6 @@
         }
 
         // --- Rater name (replaces login) ---------------------------------
-        const RATER_LS_KEY = 'narrative-rater-name';
-
         function getRaterName() {
             const el = document.getElementById('rater-name-input');
             return el ? el.value.trim() : '';
@@ -2777,15 +2777,14 @@
         function initRaterName() {
             const el = document.getElementById('rater-name-input');
             if (!el) return;
+            el.value = '';
             try {
-                const saved = localStorage.getItem(RATER_LS_KEY);
-                if (saved && !el.value) el.value = saved;
-            } catch (e) { /* localStorage may be unavailable */ }
+                localStorage.removeItem('narrative-rater-name');
+            } catch (e) { /* ignore */ }
             updateConfirmState();
         }
 
         function onRaterNameInput() {
-            try { localStorage.setItem(RATER_LS_KEY, getRaterName()); } catch (e) {}
             updateConfirmState();
         }
 
@@ -3417,7 +3416,7 @@
         }
         
         function savePipeline() {
-            localStorage.setItem('narrative-pipeline', JSON.stringify(pipelineSteps));
+            /* pipeline is persisted only via Continue → /api/pipeline/save */
         }
         
         function resetPipeline() {
