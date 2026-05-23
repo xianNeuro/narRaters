@@ -17,6 +17,11 @@ Two operating modes are supported:
    and ``helpers/`` under the ``narraters`` package directory. In that layout
    ``repo_root()`` equals ``package_root()`` (the installed ``narraters/``
    folder next to ``paths.py``).
+
+``workspace_root()`` is separate: it is where ``data/`` and ``output/`` paths
+resolve (often the user's project folder after ``pip install``, via cwd or
+``NARRATERS_PROJECT_ROOT``). Do not use ``workspace_root()`` to locate bundled
+scripts or the Flask server.
 """
 
 from __future__ import annotations
@@ -31,41 +36,45 @@ def package_root() -> Path:
 
 
 def repo_root() -> Path:
-    """The repository root, containing legacy scripts/, server/, templates/, etc.
+    """Directory containing bundled scripts/, server/, templates/, static/.
 
-    - **Standalone macOS app:** ``NARRATERS_PROJECT_ROOT`` (runtime copy under
-      Application Support).
-    - **Wheel / sdist layout:** bundled assets live next to this module
-      (``…/site-packages/narraters/{scripts,server,...}``).
-    - **Editable clone:** walk up from ``src/narraters/`` to the directory
-      that contains ``pyproject.toml``.
+    - **Standalone macOS app:** ``NARRATERS_PROJECT_ROOT`` when it is the runtime
+      copy that includes ``server/`` (full app bundle layout).
+    - **Wheel / sdist layout:** ``…/site-packages/narraters/`` with bundled assets.
+    - **Editable clone:** directory that contains ``pyproject.toml``.
     """
     env_root = os.environ.get("NARRATERS_PROJECT_ROOT", "").strip()
     if env_root:
-        return Path(env_root).resolve()
+        p = Path(env_root).expanduser().resolve()
+        if (p / "server").is_dir() and (p / "scripts").is_dir():
+            return p
     here = package_root()
     if (here / "scripts").is_dir() and (here / "server").is_dir():
-        installed_root = here
-    else:
-        installed_root = here
+        return here
+    for candidate in (here.parent.parent, here.parent, here):
+        if (candidate / "pyproject.toml").exists():
+            return candidate
+    return here
+
+
+def workspace_root() -> Path:
+    """Directory for ``data/`` and ``output/`` path resolution (may differ from ``repo_root()``)."""
     try:
-        from helpers.software_paths import looks_like_narraters_workspace, resolve_runtime_project_root
-        return resolve_runtime_project_root(script_dir=installed_root / "server")
+        from helpers.software_paths import resolve_runtime_project_root
+
+        return resolve_runtime_project_root(script_dir=repo_root() / "server")
     except ImportError:
         pass
     cwd = Path.cwd().resolve()
     for candidate in (cwd, *cwd.parents):
         if (candidate / "data").is_dir() or (candidate / "output").is_dir():
             return candidate
-    for candidate in (here.parent.parent, here.parent, here):
-        if (candidate / "pyproject.toml").exists():
-            return candidate
-    return installed_root
+    return repo_root()
 
 
 def project_root() -> Path:
-    """Alias for repo_root() — matches the variable name used in server/web-interface.py."""
-    return repo_root()
+    """Alias for ``workspace_root()`` (data/output paths)."""
+    return workspace_root()
 
 
 def scripts_dir() -> Path:
@@ -90,7 +99,7 @@ def ensure_repo_on_path() -> None:
     """Insert repo_root() at sys.path[0] so legacy `import helpers`, `import server` work.
 
     The legacy scripts and the Flask app both rely on being able to import
-    sibling top-level packages (helpers, etc.) from the repo root. This shim
+    sibling top-level packages (helpers, etc.) from the package root. This shim
     makes that work when the CLI is launched from anywhere.
     """
     import sys

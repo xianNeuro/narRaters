@@ -11,7 +11,22 @@ def looks_like_narraters_workspace(path: Path) -> bool:
         p = path.resolve()
     except OSError:
         return False
-    return (p / "data").is_dir() or (p / "output").is_dir()
+    data = p / "data"
+    out = p / "output"
+    if data.is_dir() and out.is_dir():
+        return True
+    if (p / "pyproject.toml").is_file() and data.is_dir():
+        return True
+    # Recognisable narRaters data layout without requiring both trees.
+    for sub in (
+        "data/3_story_events",
+        "data/5_recall_texts",
+        "data/2_story_transcript",
+        "output/recall_parsed",
+    ):
+        if (p / sub).is_dir():
+            return True
+    return False
 
 
 def resolve_runtime_project_root(*, script_dir: Path | None = None) -> Path:
