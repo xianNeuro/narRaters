@@ -45,11 +45,22 @@ def repo_root() -> Path:
         return Path(env_root).resolve()
     here = package_root()
     if (here / "scripts").is_dir() and (here / "server").is_dir():
-        return here
+        installed_root = here
+    else:
+        installed_root = here
+    try:
+        from helpers.software_paths import looks_like_narraters_workspace, resolve_runtime_project_root
+        return resolve_runtime_project_root(script_dir=installed_root / "server")
+    except ImportError:
+        pass
+    cwd = Path.cwd().resolve()
+    for candidate in (cwd, *cwd.parents):
+        if (candidate / "data").is_dir() or (candidate / "output").is_dir():
+            return candidate
     for candidate in (here.parent.parent, here.parent, here):
         if (candidate / "pyproject.toml").exists():
             return candidate
-    return here.parent.parent
+    return installed_root
 
 
 def project_root() -> Path:

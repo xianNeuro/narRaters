@@ -69,6 +69,17 @@ Works for audio or text, stories or other long narratives (including movie annot
   </tr>
 </table>
 
+<p><strong>Or via terminal</strong> (Python 3.10+; no ZIP download). Run from the folder that contains your <code>data/</code> and <code>output/</code> directories (or set <code>NARRATERS_PROJECT_ROOT</code> to that path):</p>
+
+```bash
+python --version                              # must show 3.10 or newer
+python3 -m pip install narraters --upgrade    # wait for “Successfully installed”
+cd /path/to/your/project                      # folder with data/ and output/
+narraters serve                               # browser opens to the pipeline builder
+```
+
+Then continue with **steps 2–3** above — pick your pipeline, run steps on the dashboard, review, and export.
+
 > **First time?** Follow the illustrated **[Tutorial PDF](narRater_Tutorial.pdf)** or jump to [Quick start](#quick-start) for install troubleshooting.
 
 ---

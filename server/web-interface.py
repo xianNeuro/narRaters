@@ -32,18 +32,18 @@ class _LazyPandas:
 
 pd = _LazyPandas()
 
-# Get project root directory (one level up from server/)
-# Use absolute path to avoid issues with working directory
+# Package root: bundled templates, scripts, static (pip wheel or source checkout).
 SCRIPT_DIR = Path(__file__).resolve().parent
-_env_root = os.environ.get("NARRATERS_PROJECT_ROOT", "").strip()
-PROJECT_ROOT = Path(_env_root).resolve() if _env_root else SCRIPT_DIR.parent
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+PACKAGE_ROOT = SCRIPT_DIR.parent
+if str(PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_ROOT))
 
-# Scripts under scripts/ add the parent dir to sys.path so `import helpers` works.
-# This process must do the same: sys.path[0] is often server/, not the repo root.
-_root = str(PROJECT_ROOT)
-if _root not in sys.path:
-    sys.path.insert(0, _root)
+from helpers.software_paths import resolve_runtime_project_root
+
+# Workspace root: where data/ and output/ live (may differ after ``pip install``).
+WORKSPACE_ROOT = resolve_runtime_project_root(script_dir=SCRIPT_DIR)
+PROJECT_ROOT = WORKSPACE_ROOT
+SCRIPTS_DIR = PACKAGE_ROOT / "scripts"
 
 from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
 from helpers.feedback_links import (
@@ -68,11 +68,11 @@ from helpers.step_types import (
 )
 
 
-# Change to project root directory
-os.chdir(str(PROJECT_ROOT))
+# Run pipeline subprocesses from the data workspace; serve UI assets from PACKAGE_ROOT.
+os.chdir(str(WORKSPACE_ROOT))
 
-# Initialize Flask app with template folder in project root
-app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'templates'))
+# Initialize Flask app with template folder in the package root
+app = Flask(__name__, template_folder=str(PACKAGE_ROOT / 'templates'))
 
 
 def _load_or_create_session_secret() -> bytes:
@@ -220,7 +220,7 @@ ACCOUNT_DATA_DIR = _resolve_account_data_dir()
 USERS_FILE = ACCOUNT_DATA_DIR / "users.json"
 
 # Legacy locations from earlier in-package storage (migrated on first run).
-_LEGACY_USERS_FILE = PROJECT_ROOT / "server" / "users.json"
+_LEGACY_USERS_FILE = PACKAGE_ROOT / "server" / "users.json"
 
 
 def _migrate_legacy_user_file_once():
@@ -249,7 +249,7 @@ def _pipeline_config_path():
     return ACCOUNT_DATA_DIR / "pipeline_config.json"
 
 
-_LEGACY_PIPELINE_FILE = PROJECT_ROOT / "pipeline_config.json"
+_LEGACY_PIPELINE_FILE = PACKAGE_ROOT / "pipeline_config.json"
 
 
 def _migrate_legacy_pipeline_config_once():
@@ -555,7 +555,7 @@ def get_all_edit_versions(directory, base_prefix, middle='', ext='.txt'):
 # Same rationale as USERS_FILE: keep user-specific account/activity data in the per-user
 # data dir (``~/.narraters/manage/`` by default) rather than inside the installed package.
 MANAGE_DIR = ACCOUNT_DATA_DIR / "manage"
-_LEGACY_MANAGE_DIR = PROJECT_ROOT / "manage"
+_LEGACY_MANAGE_DIR = PACKAGE_ROOT / "manage"
 
 
 def _migrate_legacy_manage_dir_once():
@@ -645,12 +645,12 @@ def log_user_edit(username, edit_type, subject_id, filename):
 SUPPORTED_AUDIO_EXTENSIONS = ('.wav', '.mp3', '.mp4', '.m4a', '.flac', '.ogg', '.webm', '.aac')
 
 # Directory paths (relative to project root)
-DATA_DIR = PROJECT_ROOT / 'data'
-STORY_EVENTS_DIR = PROJECT_ROOT / 'data' / '3_story_events'
-STORY_TRANSCRIPT_DIR = PROJECT_ROOT / 'data' / '2_story_transcript'
-STORY_AUDIO_DIR = PROJECT_ROOT / 'data' / '1_story_audio'
-RECALL_AUDIO_DIR = PROJECT_ROOT / 'data' / '4_recall_audio'
-OUTPUT_DIR = PROJECT_ROOT / 'output'
+DATA_DIR = WORKSPACE_ROOT / 'data'
+STORY_EVENTS_DIR = WORKSPACE_ROOT / 'data' / '3_story_events'
+STORY_TRANSCRIPT_DIR = WORKSPACE_ROOT / 'data' / '2_story_transcript'
+STORY_AUDIO_DIR = WORKSPACE_ROOT / 'data' / '1_story_audio'
+RECALL_AUDIO_DIR = WORKSPACE_ROOT / 'data' / '4_recall_audio'
+OUTPUT_DIR = WORKSPACE_ROOT / 'output'
 RECALL_CORRECTED_DIR = OUTPUT_DIR / 'recall_corrected'
 RECALL_PARSED_DIR = OUTPUT_DIR / 'recall_parsed'
 RECALL_RATED_DIR = OUTPUT_DIR / 'recall_rated'
@@ -660,8 +660,8 @@ CAUSAL_RATED_DIR = OUTPUT_DIR / 'causal_rated'
 
 # Excel files to check for raw recall data
 EXCEL_FILES = [
-    f for f in (PROJECT_ROOT / 'data').glob('summary_*.xlsx')
-] if (PROJECT_ROOT / 'data').exists() else []
+    f for f in (WORKSPACE_ROOT / 'data').glob('summary_*.xlsx')
+] if (WORKSPACE_ROOT / 'data').exists() else []
 
 # Step type to default output directory (used when pipeline config has no outputPath)
 STEP_TYPE_DEFAULT_OUTPUT = {
@@ -680,7 +680,7 @@ def _resolve_path_from_config(path_str):
 
     Supports POSIX absolute paths (``/Users/...``), Windows absolute paths
     (``C:\\Users\\...``), tilde expansion (``~/Desktop/...``), and project-
-    relative paths (resolved against ``PROJECT_ROOT``).
+    relative paths (resolved against ``WORKSPACE_ROOT``).
     """
     if not path_str or not path_str.strip():
         return None
@@ -690,19 +690,20 @@ def _resolve_path_from_config(path_str):
     p_obj = Path(p).expanduser()
     if p_obj.is_absolute():
         return p_obj
-    return PROJECT_ROOT / p
+    return WORKSPACE_ROOT / p
 
 
 def _path_for_client(p):
     """Render a file/directory path as a string for the web client.
 
-    Returns a project-relative POSIX path when ``p`` lives under ``PROJECT_ROOT``;
+    Returns a project-relative POSIX path when ``p`` lives under
+    ``WORKSPACE_ROOT``;
     otherwise returns the absolute path so externally-located input/output
     folders (e.g. ones the user drag-dropped from Finder/Explorer) survive
     round-tripping through the UI.
     """
     try:
-        return str(Path(p).relative_to(PROJECT_ROOT))
+        return str(Path(p).relative_to(WORKSPACE_ROOT))
     except (ValueError, TypeError):
         return str(p)
 
@@ -753,7 +754,7 @@ def iter_story_events_search_dirs():
         candidates.append(Path(env_override).expanduser())
     candidates.extend(_iter_pipeline_config_io_dirs())
     primary = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
-    sibling_repo_events = PROJECT_ROOT.parent / 'data' / '3_story_events'
+    sibling_repo_events = WORKSPACE_ROOT.parent / 'data' / '3_story_events'
     candidates.extend([primary, STORY_EVENTS_DIR, sibling_repo_events])
     for d in candidates:
         if d is None:
@@ -1185,11 +1186,11 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
         stripped = path.strip().rstrip('/').rstrip('\\')
         p_obj = Path(stripped).expanduser() if stripped else None
         if p_obj is None or not stripped:
-            dir_path = PROJECT_ROOT
+            dir_path = WORKSPACE_ROOT
         elif p_obj.is_absolute():
             dir_path = p_obj
         else:
-            dir_path = PROJECT_ROOT / stripped
+            dir_path = WORKSPACE_ROOT / stripped
     else:
         dir_path = path
     
@@ -1557,7 +1558,8 @@ def get_dashboard_panels():
         item_type = 'story' if is_story else 'subject'
         row_label = 'Story Name' if is_story else 'Subject ID'
 
-        # Discover items only from the chain's source input path (first step's input)
+        # Discover items from the chain's source input path (first step's input),
+        # plus any extra input dirs on the first step (e.g. textMatching storyEventsPath).
         items_set = set()
         first_step = group_steps[0]
         first_step_type = step_runtime_key(first_step)
@@ -1565,6 +1567,15 @@ def get_dashboard_panels():
         if source_inp:
             discovered = discover_items_from_path(source_inp, first_step_type, is_story=is_story, scan_type='input')
             items_set.update(discovered)
+        for field, _env_var, extra_dir in _resolve_step_extra_input_dirs(first_step):
+            if field == 'storyEventsPath' and not is_story:
+                # Subjects come from parsed recall; story-events dir is reference only.
+                continue
+            discovered = discover_items_from_path(extra_dir, first_step_type, is_story=is_story, scan_type='input')
+            if items_set and discovered:
+                items_set &= discovered
+            elif discovered:
+                items_set.update(discovered)
 
         items_ordered = sorted(items_set)
 
@@ -3314,7 +3325,7 @@ def _resolve_and_validate_output_path(path_str):
     if not path_str or not str(path_str).strip():
         return None
     s = str(path_str).strip()
-    root = PROJECT_ROOT.resolve()
+    root = WORKSPACE_ROOT.resolve()
     p_in = Path(s).expanduser()
     p = (p_in if p_in.is_absolute() else (root / s)).resolve()
     try:
@@ -3628,7 +3639,7 @@ def pipeline_config():
     """Pipeline configuration page."""
     print("Rendering pipeline configuration page")
     try:
-        template_path = PROJECT_ROOT / 'templates' / 'pipeline-config.html'
+        template_path = PACKAGE_ROOT / 'templates' / 'pipeline-config.html'
         if not template_path.exists():
             return f"Error: Template not found at {template_path}", 500
         return render_template('pipeline-config.html')
@@ -3902,7 +3913,7 @@ def serve_static(filename):
     from werkzeug.exceptions import NotFound
 
     try:
-        return send_from_directory(str(PROJECT_ROOT / 'static'), filename)
+        return send_from_directory(str(PACKAGE_ROOT / 'static'), filename)
     except NotFound:
         return "File not found", 404
 
@@ -3997,8 +4008,8 @@ def get_matrix_plot_impl(item_id, is_story=False):
                 return jsonify({'error': 'No story events available'}), 400
             
             # Import plot function
-            sys.path.insert(0, str(PROJECT_ROOT))
-            sys.path.insert(0, str(PROJECT_ROOT / 'helpers'))
+            sys.path.insert(0, str(PACKAGE_ROOT))
+            sys.path.insert(0, str(PACKAGE_ROOT / 'helpers'))
             from plot_matrix_comparison import create_matrix_from_ratings
             
             # Create matrix from ratings
@@ -4160,7 +4171,7 @@ def save_corrected_text(subj_id):
                 import importlib.util
                 import sys
                 sys.path.insert(0, str(SCRIPTS_DIR))
-                sys.path.insert(0, str(PROJECT_ROOT))
+                sys.path.insert(0, str(PACKAGE_ROOT))
                 parse_file = SCRIPTS_DIR / '4_parse-texts.py'
                 spec = importlib.util.spec_from_file_location("parse_texts", parse_file)
                 parse_module = importlib.util.module_from_spec(spec)
@@ -4974,7 +4985,7 @@ def _safe_browse_dir(path_str: str, *, walk_up_to_dir: bool = False) -> Path | N
     found. This makes drag-and-drop forgiving: if the user drops a file
     from inside a folder, we use the folder.
     """
-    root = PROJECT_ROOT.resolve()
+    root = WORKSPACE_ROOT.resolve()
     raw = (path_str or '').strip()
     if not raw:
         return root if root.is_dir() else None
@@ -5077,7 +5088,7 @@ def _relative_project_path(directory: Path) -> str:
     ``PROJECT_ROOT`` (so the common case stays clean); otherwise returns the
     absolute path so external folders survive a round trip through the UI.
     """
-    root = PROJECT_ROOT.resolve()
+    root = WORKSPACE_ROOT.resolve()
     try:
         directory = directory.resolve()
     except OSError:
@@ -5106,7 +5117,7 @@ def browse_folders():
         if target is None:
             return jsonify({'success': False, 'error': 'Invalid or missing folder path'}), 400
 
-        root = PROJECT_ROOT.resolve()
+        root = WORKSPACE_ROOT.resolve()
         folders, list_warning = _list_picker_subdirs(target)
         folder_entries = []
         for name in folders:
@@ -5253,8 +5264,10 @@ def find_folder_by_name():
         #    Skip the sibling scan when we're running out of site-packages
         #    (after ``pip install``), because that "parent" is full of other
         #    Python packages and would generate noisy false matches.
-        consider(PROJECT_ROOT, 'project root')
-        project_root_str = str(PROJECT_ROOT)
+        consider(WORKSPACE_ROOT, 'project root')
+        project_root_str = str(WORKSPACE_ROOT)
+        if WORKSPACE_ROOT != PACKAGE_ROOT:
+            consider(PACKAGE_ROOT, 'package root')
         if 'site-packages' not in project_root_str and 'dist-packages' not in project_root_str:
             consider(PROJECT_ROOT.parent, 'project parent')
 
@@ -5577,7 +5590,7 @@ def process_files():
                 single_cmd = cmd + ['--input', str(file_path), '--output', str(output_dir)]
                 result = subprocess.run(
                     single_cmd,
-                    cwd=str(PROJECT_ROOT),
+                    cwd=str(WORKSPACE_ROOT),
                     env=env_with_story,
                     capture_output=True,
                     text=True,
@@ -5610,7 +5623,7 @@ def process_files():
             
             result = subprocess.run(
                 cmd,
-                cwd=str(PROJECT_ROOT),
+                cwd=str(WORKSPACE_ROOT),
                 env=env,
                 capture_output=True,
                 text=True,
@@ -5637,7 +5650,7 @@ def process_files():
             
             result = subprocess.run(
                 cmd,
-                cwd=str(PROJECT_ROOT),
+                cwd=str(WORKSPACE_ROOT),
                 env=env,
                 capture_output=True,
                 text=True,
@@ -6845,7 +6858,7 @@ def execute_step(item_id, step_index):
         # Run the script - same as batch_process
         result = subprocess.run(
             cmd,
-            cwd=str(PROJECT_ROOT),
+            cwd=str(WORKSPACE_ROOT),
             env=env,
             capture_output=True,
             text=True,
@@ -7228,7 +7241,7 @@ def batch_process(step_type):
         # Run the script
         result = subprocess.run(
             cmd,
-            cwd=str(PROJECT_ROOT),
+            cwd=str(WORKSPACE_ROOT),
             env=env,
             capture_output=True,
             text=True,
@@ -7301,7 +7314,8 @@ if __name__ == '__main__':
     _debug = _os.environ.get('FLASK_DEBUG', '0') == '1'
     if _debug:
         print("narRater - Web Viewer")
-        print(f"Project root: {PROJECT_ROOT}")
+        print(f"Workspace root: {WORKSPACE_ROOT}")
+        print(f"Package root: {PACKAGE_ROOT}")
     # Default to loopback. The web UI has open file-write and subprocess-spawn
     # endpoints; binding to 0.0.0.0 would expose them to the local network.
     # Override with NARRATERS_HOST=0.0.0.0 if LAN access is intentionally needed.

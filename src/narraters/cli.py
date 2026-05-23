@@ -260,6 +260,13 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
 
     browse_host = _loopback_browser_host(host)
     print(f"narRaters web UI starting on http://{browse_host}:{port}/pipeline-config")
+    print(f"Project root for data/ and output/ paths: {module.WORKSPACE_ROOT}")
+    if not (module.WORKSPACE_ROOT / "data").is_dir() and not (module.WORKSPACE_ROOT / "output").is_dir():
+        print(
+            "Note: no data/ or output/ folder here. cd into your project directory before "
+            "'narraters serve', or set NARRATERS_PROJECT_ROOT to that folder.",
+            file=sys.stderr,
+        )
     module.app.run(host=host, port=port, debug=debug, use_reloader=False)
     return 0
 

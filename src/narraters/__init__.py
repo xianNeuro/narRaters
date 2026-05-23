@@ -22,7 +22,7 @@ Library use
     run_serve(port=5000)
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 from narraters.paths import project_root, repo_root  # noqa: F401
 

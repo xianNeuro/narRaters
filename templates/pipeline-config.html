@@ -2127,23 +2127,17 @@
         function renderFolderPickerShortcuts() {
             const el = document.getElementById('folder-picker-shortcuts');
             if (!el) return;
-            const chips = [];
-            chips.push({ label: 'Project root', path: '' });
-            if (folderPickerState.home) {
-                chips.push({ label: 'Home', path: folderPickerState.home });
-            }
-            if (folderPickerState.desktop) {
-                chips.push({ label: 'Desktop', path: folderPickerState.desktop });
-            } else if (folderPickerState.home) {
-                chips.push({
+            const home = (folderPickerState.home || '').replace(/\\/g, '/').replace(/\/$/, '');
+            const chips = [
+                { label: 'Project root', path: '' },
+                { label: 'Home', path: home || '~' },
+                {
                     label: 'Desktop',
-                    path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Desktop'
-                });
-            }
-            if (folderPickerState.home) {
-                chips.push({ label: 'Documents', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Documents' });
-                chips.push({ label: 'Downloads', path: folderPickerState.home.replace(/\\/g, '/').replace(/\/$/, '') + '/Downloads' });
-            }
+                    path: folderPickerState.desktop || (home ? `${home}/Desktop` : '~/Desktop'),
+                },
+                { label: 'Documents', path: home ? `${home}/Documents` : '~/Documents' },
+                { label: 'Downloads', path: home ? `${home}/Downloads` : '~/Downloads' },
+            ];
             el.innerHTML = chips.map((c, idx) =>
                 `<button type="button" class="folder-picker-shortcut-btn" data-shortcut-idx="${idx}">${escapeHtml(c.label)}</button>`
             ).join('');
@@ -2157,6 +2151,22 @@
             });
         }
 
+        async function prefetchFolderPickerRoots() {
+            try {
+                const response = await fetch('/api/browse-folders?path=');
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    folderPickerState.projectRoot = data.projectRoot || folderPickerState.projectRoot;
+                    folderPickerState.home = data.home || folderPickerState.home;
+                    folderPickerState.desktop = data.desktop || folderPickerState.desktop;
+                    folderPickerState.fdaHint = data.fdaHint || folderPickerState.fdaHint;
+                    folderPickerState.pythonExecutable = data.pythonExecutable || folderPickerState.pythonExecutable;
+                }
+            } catch (e) {
+                console.warn('Could not prefetch folder picker roots:', e);
+            }
+        }
+
         function openFolderPicker(stepId, field) {
             const step = pipelineSteps.find(s => s.id === stepId);
             if (!step) return;
@@ -2164,6 +2174,7 @@
             folderPickerState.field = field;
             document.getElementById('folder-picker-title').textContent = folderPickerTitleForField(field);
             document.getElementById('folder-picker-modal').classList.add('show');
+            renderFolderPickerShortcuts();
             const startPath = (step[field] || '').trim();
             loadFolderPicker(startPath);
         }
@@ -2742,6 +2753,7 @@
             });
             
             initRaterName();
+            prefetchFolderPickerRoots();
             initPipelineDropDelegation();
             setupFolderPickerDropzone();
             installGlobalFileDropGuard();
