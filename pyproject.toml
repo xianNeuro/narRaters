@@ -1,6 +1,6 @@
 [project]
 name = "narRaters"
-version = "0.3.4"
+version = "0.3.5"
 description = "AI-assisted narrative processing with human-screening — pipeline + web UI for audio/text narratives."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -97,7 +97,11 @@ packages = ["src/narraters"]
 "templates" = "narraters/templates"
 "static" = "narraters/static"
 "helpers" = "narraters/helpers"
-"data" = "narraters/data"
+"data/1_story_audio" = "narraters/data/1_story_audio"
+"data/2_story_transcript" = "narraters/data/2_story_transcript"
+"data/3_story_events" = "narraters/data/3_story_events"
+"data/4_recall_audio/.gitkeep" = "narraters/data/4_recall_audio/.gitkeep"
+"data/5_recall_texts" = "narraters/data/5_recall_texts"
 "output" = "narraters/output"
 
 [tool.hatch.build.targets.sdist]
@@ -108,7 +112,11 @@ include = [
     "templates",
     "static",
     "helpers",
-    "data",
+    "data/1_story_audio",
+    "data/2_story_transcript",
+    "data/3_story_events",
+    "data/4_recall_audio/.gitkeep",
+    "data/5_recall_texts",
     "output",
     "README.md",
     "LICENSE",

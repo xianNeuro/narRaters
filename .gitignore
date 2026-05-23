@@ -20,8 +20,6 @@ data/**
 !data/2_story_transcript/the_siren.txt
 !data/3_story_events/pieman_edited_events.xlsx
 !data/3_story_events/the_siren_events.xlsx
-!data/4_recall_audio/the_siren_sub-01.mp4
-!data/4_recall_audio/the_siren_sub-02.mp4
 !data/5_recall_texts/the_siren_sub-01.txt
 !data/5_recall_texts/the_siren_sub-02.txt
 output/**

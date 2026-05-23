@@ -338,7 +338,7 @@ The repository ships **realistic sample inputs and outputs** under `data/` and `
 | Story audio (input) | `data/1_story_audio/` | `pieman_edited.wav` |
 | Story transcript (input) | `data/2_story_transcript/` | `pieman_edited.txt`, `the_siren.txt` |
 | Story events (input) | `data/3_story_events/` | `pieman_edited_events.xlsx`, `the_siren_events.xlsx` |
-| Recall audio (input) | `data/4_recall_audio/` | `the_siren_sub-01.mp4`, `the_siren_sub-02.mp4` |
+| Recall audio (input) | `data/4_recall_audio/` | Your own `.wav` / `.mp3` / `.m4a` / `.mp4` (not shipped publicly) |
 | Recall text (input) | `data/5_recall_texts/` | `the_siren_sub-01.txt`, `the_siren_sub-02.txt` |
 | Story transcription (output) | `output/story_audio-transcribed/` | `pieman_edited.txt` |
 | Recall transcription (output) | `output/recall_audio-transcribed/` | `the_siren_sub-01.txt`, `the_siren_sub-02.txt` |
