@@ -87,26 +87,31 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 ## See the app
 
 <p align="center">
-  <img src="docs/screenshots/workflow.gif" alt="Animated walkthrough: dashboard, recall matching, causal rating" width="920">
+  <img src="docs/screenshots/workflow.gif" alt="Animated walkthrough: dashboard, event segmentation, recall matching, causal rating" width="920">
   <br>
-  <em>① Dashboard &nbsp;→&nbsp; ② Recall matching &nbsp;→&nbsp; ③ Causal rating</em>
+  <em>① Dashboard &nbsp;→&nbsp; ② Event segmentation &nbsp;→&nbsp; ③ Recall matching &nbsp;→&nbsp; ④ Causal rating</em>
 </p>
 
 <table>
   <tr>
-    <td align="center" width="33%" valign="top">
+    <td align="center" width="25%" valign="top">
       <p><strong>① Pipeline dashboard</strong></p>
-      <img src="docs/screenshots/dashboard.png" alt="Dashboard showing text matching and causal rating status" width="100%"><br>
+      <img src="docs/screenshots/gif-dashboard.gif" alt="Animated tour of the pipeline dashboard status grid" width="100%"><br>
       <sub>See every subject/story, run steps, and open results. Green = done; click a cell to process.</sub>
     </td>
-    <td align="center" width="33%" valign="top">
-      <p><strong>② Recall matching</strong></p>
-      <img src="docs/screenshots/recall-matching.png" alt="Recall matching screen linking recall segments to story events" width="100%"><br>
+    <td align="center" width="25%" valign="top">
+      <p><strong>② Event segmentation</strong></p>
+      <img src="docs/screenshots/gif-event-segmentation.gif" alt="Animated tour of segmenting a story into events by placing boundary bars" width="100%"><br>
+      <sub>Move the cursor through the text and click to drop boundary bars. Toggle <em>binary</em> or <em>1–5</em> strength (bar colored blue→red).</sub>
+    </td>
+    <td align="center" width="25%" valign="top">
+      <p><strong>③ Recall matching</strong></p>
+      <img src="docs/screenshots/gif-recall-matching.gif" alt="Animated tour of linking recall segments to story events" width="100%"><br>
       <sub>Story events on the left; recall segments on the right. Assign which events each recall segment refers to.</sub>
     </td>
-    <td align="center" width="33%" valign="top">
-      <p><strong>③ Causal rating</strong></p>
-      <img src="docs/screenshots/causal-rating.png" alt="Causal rating grid for story events" width="100%"><br>
+    <td align="center" width="25%" valign="top">
+      <p><strong>④ Causal rating</strong></p>
+      <img src="docs/screenshots/gif-causal-rating.gif" alt="Animated tour of the causal rating grid" width="100%"><br>
       <sub>Click a grid cell to rate how strongly one story event caused another (0–3 scale).</sub>
     </td>
   </tr>
@@ -647,6 +652,9 @@ After unzipping, your `narRaters/` folder has three layers:
 - **Janice Chen** for brainstorming the causal-rating step interface and for help testing and improving package functionality.
 - **Gabi Kressin Palacios** and **Dhruva Arekar** for an additional method for the recall-matching step (matching human recall text to story events). See [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch) for human-data–validated AI-assisted recall rating.
 - **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (commercial LLM APIs were close to human raters).
+- **Sebastian Michelmann** for feedback on the event-segmentation step (see [Michelmann et al., 2023](https://arxiv.org/abs/2301.10297)).
+- **Colette Youstra** and **Quinton Covington** for testing the app's manual-rating functions.
+- **Samira Tavassoli** and **Yuye Huang** for help testing the app's segmentation and causal-reasoning functions.
 
 ---
 

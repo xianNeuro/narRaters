@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File: {{ subject_id }} - narRater</title>
     <script src="/static/theme-manager.js"></script>
+    <script src="/static/tutorial.js"></script>
     <style>
         :root {
             --bg0: #0b0d14;
@@ -56,7 +57,11 @@
             border: 1px solid var(--bdr);
             border-radius: var(--rad);
             color: var(--t0);
-            padding: 10px 20px;
+            /* Extra right padding so the "Back to Subjects" link (which sits at
+               the header's right edge via justify-content: space-between) clears
+               the two top-right fixed icons (settings ⚙️ at right:20px, tutorial
+               ? at right:70px with its "tutorial" caption underneath). */
+            padding: 10px 130px 10px 20px;
             margin-bottom: 12px;
             box-shadow: var(--shadow);
         }
@@ -920,6 +925,160 @@
         .causal-rating-picker button.crp-previous-selection {
             box-shadow: 0 0 10px 2px rgba(251, 191, 36, 0.8);
             outline: 2px solid #fbbf24;
+        }
+
+        /* ---- Bar-based segmentation (event + recall segmentation tabs) ---- */
+        .seg-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .seg-panel-header h2 { margin: 0; }
+        .seg-mode-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+            color: var(--t3);
+            user-select: none;
+        }
+        .seg-mode-toggle .seg-mode-label.active { color: var(--acc2); font-weight: 700; }
+        .seg-switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .seg-switch input { opacity: 0; width: 0; height: 0; }
+        .seg-switch .seg-slider {
+            position: absolute; cursor: pointer; inset: 0;
+            background: var(--bg3); border: 1px solid var(--bdr);
+            border-radius: 20px; transition: background 0.15s;
+        }
+        .seg-switch .seg-slider::before {
+            content: ""; position: absolute; height: 14px; width: 14px;
+            left: 3px; top: 2px; background: var(--t2);
+            border-radius: 50%; transition: transform 0.15s;
+        }
+        .seg-switch input:checked + .seg-slider { background: rgba(239, 68, 68, 0.55); }
+        .seg-switch input:checked + .seg-slider::before { transform: translateX(20px); background: #fff; }
+
+        .seg-flow {
+            line-height: 2.1;
+            position: relative;       /* containing block for the cursor bar */
+            text-align: left;
+            cursor: text;             /* vertical-bar (I-beam) cursor */
+        }
+        .seg-block {
+            display: block;
+            text-align: left;
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            font-size: 1.02em;
+            color: var(--t1);
+            word-wrap: break-word;
+        }
+        .seg-word { white-space: pre-wrap; }
+        .seg-gap {
+            display: inline;
+            white-space: pre-wrap;
+        }
+        /* A single thick red bar that smoothly follows the cursor and snaps to the
+           nearest word gap; clicking drops a boundary at its current position. */
+        .seg-cursor-bar {
+            position: absolute;
+            width: 3px;
+            background: #ef4444;
+            border-radius: 2px;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow: 0 0 6px 1px rgba(239, 68, 68, 0.6);
+            transition: left 0.07s ease-out, top 0.07s ease-out, height 0.07s ease-out;
+            z-index: 5;
+        }
+        .seg-cursor-bar.removing {
+            background: #f59e0b;
+            box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.7);
+        }
+        .seg-boundary {
+            display: inline-block;
+            position: relative;
+            width: 4px;
+            height: 1.35em;
+            vertical-align: text-bottom;
+            margin: 0 3px;
+            background: #ef4444;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+        .seg-boundary:hover { filter: brightness(1.25); box-shadow: 0 0 6px 1px rgba(255,255,255,0.45); }
+        .seg-boundary .seg-bstr {
+            position: absolute;
+            top: -1.45em;
+            left: 50%;
+            transform: translateX(-50%);
+            background: inherit;   /* match the boundary's strength color */
+            color: #fff;
+            font-size: 0.7em;
+            font-weight: 700;
+            line-height: 1.4;
+            padding: 0 5px;
+            border-radius: 3px;
+            min-width: 12px;
+            text-align: center;
+        }
+        /* 1-5 strength palette: a blue -> red ramp shared by the strength-picker
+           buttons and the placed boundary bars so the bar's color reflects its
+           strength. ss-none = an unrated boundary (neutral grey). */
+        .ss-1 { background: #3b82f6 !important; }   /* 1 - blue (weakest)  */
+        .ss-2 { background: #6872c9 !important; }   /* 2 - blue-violet     */
+        .ss-3 { background: #95639d !important; }   /* 3 - violet (mid)    */
+        .ss-4 { background: #c25370 !important; }   /* 4 - rose            */
+        .ss-5 { background: #ef4444 !important; }   /* 5 - red (strongest) */
+        .seg-boundary.ss-none { background: var(--t3); }
+        /* Strength picker: same layout as the causal-rating picker. */
+        .seg-strength-picker {
+            display: flex;
+            gap: 4px;
+            background: var(--bg1);
+            border: 1px solid var(--acc);
+            border-radius: 6px;
+            padding: 4px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        .seg-strength-picker button {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.95em;
+            color: #fff;
+            transition: transform 0.1s;
+        }
+        .seg-strength-picker button:hover { transform: scale(1.15); }
+        .seg-strength-picker .rp-clear { background: var(--bg3); color: var(--t2); font-size: 0.75em; }
+        .seg-strength-picker button.crp-previous-selection {
+            box-shadow: 0 0 10px 2px rgba(255,255,255,0.7);
+            outline: 2px solid #fff;
+        }
+        .seg-strength-picker-wrapper {
+            position: fixed;
+            z-index: 2200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .seg-strength-picker-wrapper .seg-strength-question {
+            font-size: 0.78em;
+            color: var(--t1);
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: 4px;
+            padding: 2px 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
         
         .csp-wrapper {
@@ -1966,6 +2125,11 @@
     <div class="settings-icon" onclick="openSettings()" title="Settings">
         ⚙️
     </div>
+    <!-- Tutorial toggle icon: hardcoded into the page so it appears on first
+         paint, before loadSubjectData() resolves. tutorial.js (loaded in <head>)
+         adopts this element and re-wires its click handler whenever
+         setupSubjectTutorial() runs, per-tab. -->
+    <div class="tutorial-toggle-icon" data-tutorial-key="subject:loading" title="Page tutorial — click to toggle on/off" style="right: 70px;">?<span class="tutorial-toggle-label">tutorial</span></div>
     
     <!-- Settings Modal -->
     <div id="settings-modal" class="settings-modal" onclick="closeSettingsOnBackdrop(event)">
@@ -2096,11 +2260,13 @@
                 stepParam === 'step3'
             );
             const showAudio = data.audio_file && stepInPanel(['step0_audio', 'step0_story_audio']);
-            const showRawProcessed = stepInPanel(['step1']);
+            // Recall-only tabs (correct / parse / match) are per-subject concepts; never show them
+            // in story context, where they render as empty/confusing dead-ends.
+            const showRawProcessed = !isStory && stepInPanel(['step1']);
             // parsed_texts can be null if the file is missing from the API search path while the
             // dashboard still shows complete — still show the tab when inspecting this step.
-            const showSegmented = stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
-            const showMatched = stepInPanel(['step3']);
+            const showSegmented = !isStory && stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
+            const showMatched = !isStory && stepInPanel(['step3']);
             const showCausalMatrix = data.story_events && data.story_events.length > 0 && stepInPanel(['step0_causal']);
             const showCausalMatrixMissing = stepInPanel(['step0_causal']) && !(data.story_events && data.story_events.length > 0);
             let initialTab = getInitialTab();
@@ -2209,8 +2375,20 @@
                     <div id="causal-matrix" class="tab-content ${initialTab === 'causal-matrix' ? 'active' : ''}">
                         <div class="causal-tab-layout">
                             <div class="causal-matrix-instructions">
-                                <strong>Manual Causal Rating</strong> — <strong>Click</strong> a cell to pick a causal rating (1/2/3) between <strong>cause event</strong> (column) and <strong>effect event</strong> (row). After picking, fill in reasoning and other enabled fields. Click a rated cell to view or change it; the previous selection is highlighted in yellow and can be overwritten. <strong>Hover</strong> to see event texts at the cell and on the left panel. &times; clears a rating.<br>
-                                <strong>Ratings:</strong> <span style="color:var(--t2);">0</span> = not at all &nbsp;|&nbsp; <span style="color:#93c5fd;">1</span> = slightly &nbsp;|&nbsp; <span style="color:#fbbf24;">2</span> = causally related &nbsp;|&nbsp; <span style="color:#fca5a5;">3</span> = extremely &nbsp;|&nbsp; <span style="color:var(--t0);">&#9634;</span> outline = has reasoning &nbsp;|&nbsp; &times; = clear
+                                <strong>Manual Causal Rating</strong> — rate how strongly each <span style="color:#93c5fd;">cause event</span> (column) led to each <span style="color:#fca5a5;">effect event</span> (row).<br>
+                                <strong>How to rate:</strong>
+                                &nbsp;<strong>1)</strong> Find a pair you think <em>is</em> causally related.
+                                &nbsp;<strong>2)</strong> Click that cell and pick <span style="color:#93c5fd;">1</span>&nbsp;/&nbsp;<span style="color:#fbbf24;">2</span>&nbsp;/&nbsp;<span style="color:#fca5a5;">3</span>.
+                                &nbsp;<strong>3)</strong> Skip every other pair — <span style="color:var(--t2);">0 is already the default</span>, so unrelated pairs need no input.
+                                &nbsp;<strong>4)</strong> When done, click <strong>Export Causal Ratings</strong>.<br>
+                                <strong>Scale:</strong>
+                                <span style="color:var(--t2);">0</span> not at all &nbsp;·&nbsp;
+                                <span style="color:#93c5fd;">1</span> slightly &nbsp;·&nbsp;
+                                <span style="color:#fbbf24;">2</span> causally related &nbsp;·&nbsp;
+                                <span style="color:#fca5a5;">3</span> extremely &nbsp;·&nbsp;
+                                <span style="color:var(--t0);">&#9634;</span> outline = has reasoning &nbsp;·&nbsp;
+                                <strong>&times;</strong> clears the cell.<br>
+                                <strong>Tips:</strong> <em>hover</em> any cell to see its cause/effect text · <em>click</em> a rated cell again to re-rate or edit it. When any of the checkboxes below (<strong>Reasoning</strong> / <strong>Causal Type</strong> / <strong>Semantic</strong>) is on, every rating you pick — <em>including 0 and including the same number you had before</em> — opens the prompt for those fields, prefilled with your prior answers so you can review or change them; press <strong>Enter</strong> (or click a button) to save / leave blank to skip a single field; press <strong>Esc</strong> to skip the remaining fields and keep your rating. When all those checkboxes are off, picking a rating just replaces it instantly (no prompt). <strong>×</strong> wipes the whole cell (rating + reasoning) regardless of the checkboxes. The export destination folder must exist, but it does <em>not</em> need to contain an output file beforehand — the first export creates it.
                             </div>
                             <div class="causal-flags-bar">
                                 <label><input type="checkbox" id="flag-reasoning" onchange="enableExportCausalMatrix()"> Reasoning</label>
@@ -2281,9 +2459,7 @@
                                 <p style="color: var(--t3); font-size: 0.85em; margin: 0 0 8px 0;">Full story transcript (e.g. from <code style="color: var(--t2);">data/2_story_transcript</code>). On the right: editable story segments.</p>
                                 <div class="story-scrollable">
                                     ${storyFullTextLeft ? `
-                                    <div class="text-display" style="white-space: pre-wrap; word-wrap: break-word; padding: 15px;">
-                                        ${escapeHtml(storyFullTextLeft)}
-                                    </div>
+                                    <div class="text-display" style="white-space: pre-wrap; word-wrap: break-word; padding: 15px; text-align: left; text-indent: 0;">${escapeHtml(storyFullTextLeft)}</div>
                                     ` : `
                                     <div class="text-content empty" style="padding: 20px; text-align: center;">
                                         No story transcript loaded. Add a <code style="color: var(--t2);">&lt;story&gt;.txt</code> under <code style="color: var(--t2);">data/2_story_transcript</code>, or ensure <code style="color: var(--t2);">&lt;story&gt;_events*.xlsx</code> includes segment text so the app can reconstruct the full story.
@@ -2295,31 +2471,18 @@
                                 ${panelVersionBarMarkup('Story segmentation file', 'story-events')}
                                 <div id="story-events-notification" class="story-events-notification hidden">
                                     <button class="story-events-notification-close" onclick="dismissNotification('story-events-notification-dismissed')" title="Dismiss">×</button>
-                                    <strong>Editing Story Segmentation:</strong> You can edit how this story is being segmented by either merging an event with its previous event (click on the merge button), or splitting the sentence(s) within an event into a separate event (click on the start of that sentence, and click the split button).
+                                    <strong>Editing Story Segmentation:</strong> Move the cursor through the text — a red bar follows it between words. Click to drop a segment boundary there (the following text reflows into a new box); click an existing bar to remove it. Use the toggle at the top right to switch between <strong>binary</strong> boundaries and <strong>1&ndash;5</strong> strength boundaries. In 1&ndash;5 mode, clicking a boundary opens a picker (1 = weak &rarr; 5 = strong) and the bar is colored by its strength (blue &rarr; red); the strength is written to a <strong>boundary_strength</strong> column on export.
                                 </div>
-                                <h2>Story segments</h2>
-                                <div class="rated-scrollable">
-                                    <div class="segments-container">
-                                        ${storyEvents.length > 0 ? storyEvents.map((event, idx) => `
-                                            <div class="rated-segment" data-event-index="${idx}">
-                                                <div class="rated-segment-header">
-                                                    <span class="rated-segment-number">Event ${getIntEvent(event.event)}</span>
-                                                    <div class="segment-actions">
-                                                        ${idx > 0 ? `<button class="merge-button" onclick="mergeStoryEventWithPrevious(${idx})" title="Merge with previous event">← Merge</button>` : ''}
-                                                        <button class="split-button" onclick="splitStoryEventAtCursor(${idx})" title="Split event at cursor position">Split →</button>
-                                                    </div>
-                                                </div>
-                                                <textarea class="parsed-segment-editor" 
-                                                          data-event-index="${idx}"
-                                                          onchange="updateStoryEvent(${idx}, this.value); enableExportStoryEvents();"
-                                                          oninput="resizeSegmentEditor(this); enableExportStoryEvents();">${escapeHtml(event.text)}</textarea>
-                                            </div>
-                                        `).join('') : `
-                                        <div class="text-content empty" style="padding: 20px; text-align: center;">
-                                            No story events loaded. Add <code style="color: var(--t2);">&lt;story&gt;_events*.xlsx</code> under <code style="color: var(--t2);">data/3_story_events</code> (or set <code style="color: var(--t2);">NARRATIVE_STORY_EVENTS_DIR</code>), or run the Story Event Segmentation step. Use the <strong>Story segmentation file</strong> control above this panel if versions are listed.
-                                        </div>
-                                        `}
+                                <div class="seg-panel-header">
+                                    <h2>Story segments</h2>
+                                    <div class="seg-mode-toggle" data-panel="story">
+                                        <span class="seg-mode-label seg-mode-binary active">binary</span>
+                                        <label class="seg-switch"><input type="checkbox" onchange="setSegMode('story', this.checked ? 'scale' : 'binary')"><span class="seg-slider"></span></label>
+                                        <span class="seg-mode-label seg-mode-scale">1&ndash;5</span>
                                     </div>
+                                </div>
+                                <div class="rated-scrollable">
+                                    <div class="seg-flow" data-panel="story"></div>
                                 </div>
                                 <div style="flex-shrink: 0; margin-top: 15px;">
                                     <button id="export-story-events" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths['story-events']) || ''))}" onclick="showExportModal('story-events', (typeof currentStoryEventsFile !== 'undefined' && currentStoryEventsFile) ? currentStoryEventsFile : '', function(path){ saveStoryEvents(path); }, this)">Export Edited File</button>
@@ -2403,36 +2566,26 @@
             }
             
             if (showSegmented) {
-                const storyEvents = data.story_events || [];
+                // Left panel shows the full recall text being segmented (the
+                // processed/corrected recall, falling back to the raw recall or
+                // the joined recall segments) — not the story segments.
+                const recallFullTextLeft = (data.corrected_text && String(data.corrected_text).trim())
+                    || (data.raw_recall && String(data.raw_recall).trim())
+                    || ((data.parsed_texts || []).map(function (s) { return (s.text || '').trim(); }).filter(Boolean).join('\n\n'))
+                    || '';
                 html += `
                     <div id="segmented" class="tab-content ${initialTab === 'segmented' ? 'active' : ''}">
                         <div class="story-rated-container">
                             <div class="story-panel">
-                                ${panelVersionBarMarkup('Story segmentation file', 'story-events')}
-                                <h2>Story Segments</h2>
+                                ${panelVersionBarMarkup('Processed recall file', 'recall-pipeline')}
+                                <h2>Recall text (reference)</h2>
+                                <p style="color: var(--t3); font-size: 0.85em; margin: 0 0 8px 0;">Full recall text being segmented. On the right: editable recall segments.</p>
                                 <div class="story-scrollable">
-                                    ${storyEvents.length > 0 ? `
-                                    <div class="story-events-container">
-                                        ${storyEvents.map(event => {
-                                            const eventNum = getIntEvent(event.event);
-                                            return `
-                                            <div class="story-event">
-                                                <div class="story-event-header">
-                                                    <span class="event-number">Event ${eventNum}</span>
-                                                </div>
-                                                <div class="event-text">${escapeHtml(event.text)}</div>
-                                            </div>
-                                        `;
-                                        }).join('')}
-                                    </div>
-                                    ` : data.story_transcript ? `
-                                    <div class="text-display" style="white-space: pre-wrap; word-wrap: break-word; padding: 15px;">
-                                        <div style="color: var(--t3); font-style: italic; margin-bottom: 10px; font-size: 0.9em;">Full story transcript (no event segmentation available)</div>
-                                        ${escapeHtml(data.story_transcript)}
-                                    </div>
+                                    ${recallFullTextLeft ? `
+                                    <div class="text-display" style="white-space: pre-wrap; word-wrap: break-word; padding: 15px; text-align: left; text-indent: 0;">${escapeHtml(recallFullTextLeft)}</div>
                                     ` : `
                                     <div class="text-content empty" style="padding: 20px; text-align: center;">
-                                        No story events found. Add <code style="color: var(--t2);">&lt;story&gt;_events*.xlsx</code> under <code style="color: var(--t2);">software/data/3_story_events/</code> (app root is the <code style="color: var(--t2);">software/</code> folder), or under <code style="color: var(--t2);">data/3_story_events/</code> next to <code style="color: var(--t2);">software/</code> if you keep data at the repo parent. Or set <code style="color: var(--t2);">NARRATIVE_STORY_EVENTS_DIR</code> to your events folder. Pick a version from <strong>Story segmentation file</strong> above this panel if listed.
+                                        No recall text loaded. Add a recall text under <code style="color: var(--t2);">data/5_recall_texts</code>, or run the earlier recall pipeline steps so a processed/parsed recall is available.
                                     </div>
                                     `}
                                 </div>
@@ -2441,28 +2594,18 @@
                                 ${panelVersionBarMarkup('Recall segmentation file', 'recall-pipeline')}
                                 <div id="segmented-notification" class="story-events-notification hidden">
                                     <button class="story-events-notification-close" onclick="dismissNotification('segmented-notification-dismissed')" title="Dismiss">×</button>
-                                    <strong>Editing Recall Segmentation:</strong> You can edit how the recall text is being segmented by either merging a segment with its previous segment (click on the merge button), or splitting the sentence(s) within a segment into a separate segment (click on the start of that sentence, and click the split button).
+                                    <strong>Editing Recall Segmentation:</strong> Move the cursor through the text — a red bar follows it between words. Click to drop a segment boundary there (the following text reflows into a new box); click an existing bar to remove it. Use the toggle at the top right to switch between <strong>binary</strong> boundaries and <strong>1&ndash;5</strong> strength boundaries. In 1&ndash;5 mode, clicking a boundary opens a picker (1 = weak &rarr; 5 = strong) and the bar is colored by its strength (blue &rarr; red); the strength is written to a <strong>boundary_strength</strong> column on export.
                                 </div>
-                                <h2>Recall Segments</h2>
-                                <div class="rated-scrollable">
-                                    <div class="segments-container">
-                                        ${(data.parsed_texts != null ? data.parsed_texts : []).map((segment, idx) => `
-                                            <div class="rated-segment" data-segment-index="${idx}">
-                                                <div class="rated-segment-header">
-                                                    <span class="rated-segment-number">Segment ${idx + 1}</span>
-                                                    <div class="segment-actions">
-                                                        ${idx > 0 ? `<button class="merge-button" onclick="mergeWithPrevious(${idx})" title="Merge with previous segment">← Merge</button>` : ''}
-                                                        <button class="split-button" onclick="splitSegmentAtCursor(${idx})" title="Split segment at cursor position (or press Enter)">Split →</button>
-                                                    </div>
-                                                </div>
-                                                <textarea class="parsed-segment-editor" 
-                                                          data-segment-index="${idx}"
-                                                          onchange="updateParsedSegment(${idx}, this.value); enableExportParsed();"
-                                                          oninput="resizeSegmentEditor(this); enableExportParsed();"
-                                                          onkeydown="handleSegmentKeydown(event, ${idx})">${escapeHtml(segment.text)}</textarea>
-                                            </div>
-                                        `).join('')}
+                                <div class="seg-panel-header">
+                                    <h2>Recall Segments</h2>
+                                    <div class="seg-mode-toggle" data-panel="recall">
+                                        <span class="seg-mode-label seg-mode-binary active">binary</span>
+                                        <label class="seg-switch"><input type="checkbox" onchange="setSegMode('recall', this.checked ? 'scale' : 'binary')"><span class="seg-slider"></span></label>
+                                        <span class="seg-mode-label seg-mode-scale">1&ndash;5</span>
                                     </div>
+                                </div>
+                                <div class="rated-scrollable">
+                                    <div class="seg-flow" data-panel="recall"></div>
                                 </div>
                                 <div style="flex-shrink: 0; margin-top: 15px;">
                                     <button id="export-parsed" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths.parsed) || ''))}" onclick="showExportModal('parsed', '', function(path){ saveParsedSegments(path); }, this)">Export Edited File</button>
@@ -3342,11 +3485,17 @@
         function enableExportStoryEvents() {
             const btn = document.getElementById('export-story-events');
             if (!btn) return;
-            const textareas = document.querySelectorAll('#story-events .parsed-segment-editor');
-            const currentTexts = Array.from(textareas).map(ta => (ta.value || '').trim());
-            const different = originalStoryEvents.length !== currentTexts.length ||
-                originalStoryEvents.some((t, i) => t !== (currentTexts[i] || ''));
-            btn.disabled = !different;
+            btn.disabled = !segPanelDirty('story', originalStoryEvents);
+        }
+        // Export is armed when the segmentation differs from what was loaded, or
+        // when 1-5 (scale) mode is on (which changes the exported file shape).
+        function segPanelDirty(panel, originalArr) {
+            const st = segState[panel];
+            if (!st) return false;
+            if (st.mode === 'scale') return true;
+            const texts = getSegmentsForExport(panel).map(s => s.text);
+            if (originalArr.length !== texts.length) return true;
+            return originalArr.some((t, i) => t !== (texts[i] || ''));
         }
         function enableExportAudio() {
             const btn = document.getElementById('export-audio');
@@ -3364,11 +3513,7 @@
         function enableExportParsed() {
             const btn = document.getElementById('export-parsed');
             if (!btn) return;
-            const textareas = document.querySelectorAll('#segmented .parsed-segment-editor');
-            const currentTexts = Array.from(textareas).map(ta => (ta.value || '').trim());
-            const different = originalParsedTexts.length !== currentTexts.length ||
-                originalParsedTexts.some((t, i) => t !== (currentTexts[i] || ''));
-            btn.disabled = !different;
+            btn.disabled = !segPanelDirty('recall', originalParsedTexts);
         }
         function enableExportRated() {
             const btn = document.getElementById('export-rated');
@@ -3385,6 +3530,324 @@
         let ratedTextsData = [];
         let storyEventsData = [];
         let parsedTextsData = [];
+
+        // ---- Bar-based segmentation state (event + recall segmentation tabs) ----
+        // For each panel: fullText is an immutable joined string; boundaries is a
+        // list of {offset, strength} placed at word-start character offsets in
+        // fullText; mode is 'binary' or 'scale' (1-5).
+        let segState = { story: null, recall: null };
+        let segPickerCtx = { panel: null, offset: null, exists: false };
+
+        function segSourceData(panel) {
+            return panel === 'story' ? storyEventsData : parsedTextsData;
+        }
+
+        // Build fullText from the loaded segments and seed a boundary at each
+        // existing inter-segment break, then render. Re-called on every data load.
+        function initSegmenter(panel) {
+            const container = document.querySelector(`.seg-flow[data-panel="${panel}"]`);
+            if (!container) return;
+            const segs = segSourceData(panel)
+                .map(s => ((s && s.text) || '').trim())
+                .filter(Boolean);
+            let fullText = '';
+            const boundaries = [];
+            segs.forEach((seg, i) => {
+                if (i > 0) {
+                    fullText += ' ';
+                    boundaries.push({ offset: fullText.length, strength: null });
+                }
+                fullText += seg;
+            });
+            segState[panel] = { fullText: fullText, boundaries: boundaries, mode: 'binary' };
+            // Reset toggle UI to binary on (re)load.
+            const toggle = document.querySelector(`.seg-mode-toggle[data-panel="${panel}"]`);
+            if (toggle) {
+                const input = toggle.querySelector('input[type="checkbox"]');
+                if (input) input.checked = false;
+            }
+            // Attach delegated click + cursor-bar handlers (guarded against double-add).
+            if (!container._segBound) {
+                container.addEventListener('click', e => onSegFlowClick(panel, e));
+                container.addEventListener('mousemove', e => onSegFlowMouseMove(panel, e));
+                container.addEventListener('mouseleave', () => hideSegCursorBar(panel));
+                container._segBound = true;
+            }
+            updateSegModeLabels(panel);
+            renderSegmenter(panel);
+        }
+
+        function renderSegmenter(panel) {
+            const container = document.querySelector(`.seg-flow[data-panel="${panel}"]`);
+            const st = segState[panel];
+            if (!container || !st) return;
+            if (!st.fullText) {
+                const msg = panel === 'story'
+                    ? 'No story events loaded. Add a story events file under data/3_story_events, or run the Story Event Segmentation step.'
+                    : 'No recall segments loaded. Run the parsing step or add a parsed recall file.';
+                container.innerHTML = `<div class="text-content empty" style="padding: 20px; text-align: center;">${escapeHtml(msg)}</div>`;
+                container._segBar = null;
+                container._segSnapOffset = null;
+                return;
+            }
+            const offsets = st.boundaries.slice().sort((a, b) => a.offset - b.offset);
+            const points = [0, ...offsets.map(b => b.offset), st.fullText.length];
+            let html = '';
+            for (let i = 0; i < points.length - 1; i++) {
+                const start = points[i];
+                const end = points[i + 1];
+                const slice = st.fullText.slice(start, end);
+                html += `<div class="seg-block">${renderSegBlockInner(slice, start)}`;
+                // Boundary that ends this block (all but the last block).
+                if (i < offsets.length) {
+                    const b = offsets[i];
+                    const strHtml = (st.mode === 'scale')
+                        ? `<span class="seg-bstr">${b.strength != null ? b.strength : '?'}</span>`
+                        : '';
+                    // In 1-5 mode color the bar by its strength (blue -> red); a
+                    // boundary without an assigned strength gets the neutral class.
+                    const bCls = (st.mode === 'scale')
+                        ? (b.strength != null ? `seg-boundary ss-${b.strength}` : 'seg-boundary ss-none')
+                        : 'seg-boundary';
+                    html += `<span class="${bCls}" data-offset="${b.offset}" title="Click to ${st.mode === 'scale' ? 'change strength / remove' : 'remove'} this boundary">${strHtml}</span>`;
+                }
+                html += `</div>`;
+            }
+            container.innerHTML = html;
+            // innerHTML wiped any previous bar; create a fresh cursor bar.
+            const bar = document.createElement('div');
+            bar.className = 'seg-cursor-bar';
+            container.appendChild(bar);
+            container._segBar = bar;
+            container._segSnapOffset = null;
+            container._segSnapIsBoundary = false;
+        }
+
+        // Render a block slice as word spans separated by clickable gap zones.
+        // The gap before a word carries that word's absolute start offset; the
+        // block's first word has no preceding gap (that position is already a
+        // boundary or the text start).
+        function renderSegBlockInner(slice, baseOffset) {
+            let out = '';
+            const re = /\S+/g;
+            let m;
+            let first = true;
+            let lastEnd = 0;
+            while ((m = re.exec(slice)) !== null) {
+                const wordStart = baseOffset + m.index;
+                if (first) {
+                    first = false;
+                } else {
+                    // Whitespace run between previous word and this one becomes a gap.
+                    const gapText = slice.slice(lastEnd, m.index) || ' ';
+                    out += `<span class="seg-gap" data-offset="${wordStart}">${escapeHtml(gapText)}</span>`;
+                }
+                out += `<span class="seg-word">${escapeHtml(m[0])}</span>`;
+                lastEnd = m.index + m[0].length;
+            }
+            return out;
+        }
+
+        // Click places (or removes) a boundary at the snapped bar position — the
+        // spot the floating red bar is showing — so the drop is immediate and
+        // matches what the user sees, even though the native cursor is hidden.
+        function onSegFlowClick(panel, e) {
+            const st = segState[panel];
+            if (!st) return;
+            const container = e.currentTarget;
+            const offset = container._segSnapOffset;
+            if (offset == null) return;
+            if (container._segSnapIsBoundary) {
+                if (st.mode === 'scale') openSegStrengthPicker(panel, offset, e.clientX, e.clientY, true);
+                else removeSegBoundary(panel, offset);
+                return;
+            }
+            if (st.boundaries.some(b => b.offset === offset)) return;
+            if (st.mode === 'scale') openSegStrengthPicker(panel, offset, e.clientX, e.clientY, false);
+            else addSegBoundary(panel, offset, null);
+        }
+
+        // rAF-throttled: track the latest pointer position, then snap the red bar
+        // to the nearest word gap (or existing boundary) on the next frame.
+        function onSegFlowMouseMove(panel, e) {
+            const container = e.currentTarget;
+            container._segLastXY = { x: e.clientX, y: e.clientY };
+            if (container._segRaf) return;
+            container._segRaf = requestAnimationFrame(function () {
+                container._segRaf = null;
+                positionSegCursorBar(panel, container);
+            });
+        }
+
+        function positionSegCursorBar(panel, container) {
+            const bar = container._segBar;
+            const xy = container._segLastXY;
+            if (!bar || !xy) return;
+            // Candidate snap points: every word gap plus every placed boundary.
+            const cands = container.querySelectorAll('.seg-gap, .seg-boundary');
+            if (!cands.length) { hideSegCursorBar(panel); return; }
+            let best = null, bestScore = Infinity;
+            cands.forEach(function (el) {
+                const r = el.getBoundingClientRect();
+                const cx = (r.left + r.right) / 2;
+                const cy = (r.top + r.bottom) / 2;
+                const onLine = xy.y >= r.top && xy.y <= r.bottom;
+                const dy = onLine ? 0 : Math.abs(xy.y - cy);
+                const score = dy * 1000 + Math.abs(xy.x - cx);
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = { r: r, cx: cx, offset: parseInt(el.dataset.offset, 10), isBoundary: el.classList.contains('seg-boundary') };
+                }
+            });
+            if (!best) { hideSegCursorBar(panel); return; }
+            const crect = container.getBoundingClientRect();
+            bar.style.left = (best.cx - crect.left - 1.5) + 'px';
+            bar.style.top = (best.r.top - crect.top) + 'px';
+            bar.style.height = best.r.height + 'px';
+            bar.style.opacity = '1';
+            // Tint amber when hovering an existing boundary (click = remove).
+            bar.classList.toggle('removing', !!best.isBoundary);
+            container._segSnapOffset = best.offset;
+            container._segSnapIsBoundary = !!best.isBoundary;
+        }
+
+        function hideSegCursorBar(panel) {
+            const container = document.querySelector(`.seg-flow[data-panel="${panel}"]`);
+            if (!container || !container._segBar) return;
+            container._segBar.style.opacity = '0';
+            container._segSnapOffset = null;
+            container._segSnapIsBoundary = false;
+        }
+
+        function addSegBoundary(panel, offset, strength) {
+            const st = segState[panel];
+            if (!st) return;
+            if (!st.boundaries.some(b => b.offset === offset)) {
+                st.boundaries.push({ offset: offset, strength: strength });
+            }
+            renderSegmenter(panel);
+            armSegExport(panel);
+        }
+
+        function removeSegBoundary(panel, offset) {
+            const st = segState[panel];
+            if (!st) return;
+            st.boundaries = st.boundaries.filter(b => b.offset !== offset);
+            renderSegmenter(panel);
+            armSegExport(panel);
+        }
+
+        function setSegBoundaryStrength(panel, offset, strength) {
+            const st = segState[panel];
+            if (!st) return;
+            const b = st.boundaries.find(x => x.offset === offset);
+            if (b) b.strength = strength;
+            renderSegmenter(panel);
+            armSegExport(panel);
+        }
+
+        function setSegMode(panel, mode) {
+            const st = segState[panel];
+            if (!st) return;
+            st.mode = mode;
+            updateSegModeLabels(panel);
+            closeSegStrengthPicker();
+            renderSegmenter(panel);
+            armSegExport(panel);
+        }
+
+        function updateSegModeLabels(panel) {
+            const st = segState[panel];
+            const toggle = document.querySelector(`.seg-mode-toggle[data-panel="${panel}"]`);
+            if (!toggle) return;
+            const scale = st && st.mode === 'scale';
+            const bin = toggle.querySelector('.seg-mode-binary');
+            const sca = toggle.querySelector('.seg-mode-scale');
+            if (bin) bin.classList.toggle('active', !scale);
+            if (sca) sca.classList.toggle('active', scale);
+        }
+
+        function armSegExport(panel) {
+            if (panel === 'story') enableExportStoryEvents();
+            else enableExportParsed();
+        }
+
+        // Slice fullText at the boundaries into trimmed segments. Each segment
+        // carries the strength of the boundary that ENDS it; the last has null.
+        function getSegmentsForExport(panel) {
+            const st = segState[panel];
+            if (!st || !st.fullText) return [];
+            const offsets = st.boundaries.slice().sort((a, b) => a.offset - b.offset);
+            const points = [0, ...offsets.map(b => b.offset), st.fullText.length];
+            const out = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                const text = st.fullText.slice(points[i], points[i + 1]).trim();
+                if (!text) continue;
+                const strength = (i < offsets.length) ? offsets[i].strength : null;
+                out.push({ text: text, strength: strength });
+            }
+            return out;
+        }
+
+        // ---- 1-5 boundary-strength picker (reuses the causal-rating-picker look) ----
+        function openSegStrengthPicker(panel, offset, clientX, clientY, exists) {
+            segPickerCtx = { panel: panel, offset: offset, exists: exists };
+            let el = document.getElementById('seg-strength-picker');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'seg-strength-picker';
+                el.className = 'seg-strength-picker-wrapper';
+                document.body.appendChild(el);
+            }
+            const st = segState[panel];
+            const cur = exists ? ((st.boundaries.find(b => b.offset === offset) || {}).strength) : null;
+            let btns = '';
+            for (let n = 1; n <= 5; n++) {
+                const sel = (cur === n) ? ' crp-previous-selection' : '';
+                btns += `<button class="ss-${n}${sel}" onclick="pickSegStrength(${n})">${n}</button>`;
+            }
+            const clearAction = exists ? 'removeSegBoundaryFromPicker()' : 'closeSegStrengthPicker()';
+            btns += `<button class="rp-clear" onclick="${clearAction}" title="${exists ? 'Remove boundary' : 'Cancel'}">&times;</button>`;
+            el.innerHTML = `<div class="seg-strength-question">Boundary strength (1 = weak → 5 = strong)</div><div class="seg-strength-picker">${btns}</div>`;
+            el.style.display = 'flex';
+            // Position near the click, then clamp into the viewport.
+            const rect = el.getBoundingClientRect();
+            let left = clientX - rect.width / 2;
+            let top = clientY + 12;
+            left = Math.max(8, Math.min(left, window.innerWidth - rect.width - 8));
+            if (top + rect.height > window.innerHeight - 8) top = clientY - rect.height - 12;
+            el.style.left = left + 'px';
+            el.style.top = Math.max(8, top) + 'px';
+        }
+
+        function pickSegStrength(n) {
+            const { panel, offset, exists } = segPickerCtx;
+            if (panel == null) return;
+            if (exists) setSegBoundaryStrength(panel, offset, n);
+            else addSegBoundary(panel, offset, n);
+            closeSegStrengthPicker();
+        }
+
+        function removeSegBoundaryFromPicker() {
+            const { panel, offset } = segPickerCtx;
+            if (panel != null) removeSegBoundary(panel, offset);
+            closeSegStrengthPicker();
+        }
+
+        function closeSegStrengthPicker() {
+            const el = document.getElementById('seg-strength-picker');
+            if (el) el.style.display = 'none';
+            segPickerCtx = { panel: null, offset: null, exists: false };
+        }
+
+        // Dismiss the picker when clicking elsewhere (not on the picker, a gap, or a bar).
+        document.addEventListener('mousedown', function (e) {
+            const el = document.getElementById('seg-strength-picker');
+            if (!el || el.style.display === 'none') return;
+            if (e.target.closest('#seg-strength-picker')) return;
+            if (e.target.closest('.seg-gap') || e.target.closest('.seg-boundary')) return;
+            closeSegStrengthPicker();
+        });
         let originalStoryEvents = [];
         let originalCorrectedText = '';
         let originalAudioTranscription = '';
@@ -3415,7 +3878,10 @@
             const reason = cell.getAttribute('data-reasoning') || '';
             const hasReason = reason && reason !== 'manual entry' ? ' has-reasoning' : '';
             cell.className = 'causal-matrix-cell rating-' + rat + hasReason;
-            cell.textContent = (rat !== undefined && rat !== null && rat !== '') ? rat : '';
+            // Match the initial-render behavior: 0 is the implicit default, so display
+            // it as an empty cell. This makes the &times; "clear" button actually
+            // remove the number from the matrix instead of leaving a "0" behind.
+            cell.textContent = (rat > 0) ? String(rat) : '';
         }
         
         function clearCausalHoverLabels() {
@@ -3425,10 +3891,69 @@
             if (left) left.remove();
         }
         
+        // Single document-level "outside-click" handler reference for the rating
+        // picker. The handler is registered in showCausalRatingPicker* below and
+        // *must* be torn down here whenever the picker goes away — otherwise a
+        // stale handler (with a closure pointing at a now-detached wrapper) is
+        // left listening on the document. The next time a *new* picker is opened
+        // and the user clicks one of its buttons, the stale handler runs first,
+        // sees its detached wrapper has a zero-size bounding rect (so any click
+        // looks "outside"), and calls clearCausalRatingPicker() — which removes
+        // the brand-new picker before the click reaches the button. End result:
+        // the user's pick on "0" (or any other rating) appears to silently fail
+        // and they have to click again. Tracking the handler in module scope so
+        // it can always be removed makes that race impossible.
+        var _causalRatingPickerOutsideHandler = null;
+
         function clearCausalRatingPicker() {
+            if (_causalRatingPickerOutsideHandler) {
+                document.removeEventListener('mousedown', _causalRatingPickerOutsideHandler, true);
+                _causalRatingPickerOutsideHandler = null;
+            }
             var wrapper = document.getElementById('causal-rating-picker-el');
             if (wrapper) wrapper.remove();
             window._causalPickerCell = null;
+        }
+
+        // Wire each rating button to call pickCausalRating with the cell captured
+        // in a closure here — not via the mutable window._causalPickerCell global.
+        // This is the fix for the "re-rate doesn't take effect on the second cell
+        // I re-click" bug: even if some other code path (an outside-click handler,
+        // a stale listener, a fast user click landing between state transitions,
+        // etc.) clears the global before the button click resolves, the closure
+        // reference still points at the exact cell this picker was built for, so
+        // the rating is always applied to the cell the user is looking at. Also
+        // stops the click from propagating further so it can't accidentally
+        // re-trigger any cell-level handlers behind / around the picker.
+        function _bindCausalRatingPickerButtons(wrapperEl, targetCell) {
+            if (!wrapperEl || !targetCell) return;
+            var buttons = wrapperEl.querySelectorAll('.causal-rating-picker button[data-rating]');
+            buttons.forEach(function(btn) {
+                var rating = parseInt(btn.getAttribute('data-rating'), 10);
+                if (isNaN(rating)) return;
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    pickCausalRating(rating, targetCell);
+                });
+            });
+        }
+
+        // The rating picker's inner question/event-box areas use
+        // `pointer-events: none` so clicks pass through them to whatever element
+        // is underneath — usually a different matrix cell, which would falsely
+        // trigger the outside-click handler (closing the picker, then re-opening
+        // it for the cell behind). This left users feeling like the picker
+        // "glitched" and required multiple clicks to change a rating. Treat any
+        // click whose coordinates fall inside the picker's bounding rect as an
+        // inside-click, regardless of e.target.
+        function _causalPickerClickInside(wrapperEl, e) {
+            if (!wrapperEl) return false;
+            if (wrapperEl.contains(e.target)) return true;
+            var r = wrapperEl.getBoundingClientRect();
+            var x = e.clientX, y = e.clientY;
+            if (x == null || y == null) return false;
+            return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
         }
         
         function endCausalRatingSession() {
@@ -3812,21 +4337,27 @@
             var wrapper = document.createElement('div');
             wrapper.className = 'crp-wrapper crp-next-to-effect';
             wrapper.id = 'causal-rating-picker-el';
-            wrapper.innerHTML = eventBoxes + '<div class="crp-question-overlay">' + q + '</div><div class="causal-rating-picker"><button class="' + btn0cls + '" onclick="pickCausalRating(0)">0</button><button class="' + btn1cls + '" onclick="pickCausalRating(1)">1</button><button class="' + btn2cls + '" onclick="pickCausalRating(2)">2</button><button class="' + btn3cls + '" onclick="pickCausalRating(3)">3</button><button class="rp-clear" onclick="pickCausalRating(-1)">&times;</button></div>';
+            wrapper.innerHTML = eventBoxes + '<div class="crp-question-overlay">' + q + '</div><div class="causal-rating-picker"><button class="' + btn0cls + '" data-rating="0">0</button><button class="' + btn1cls + '" data-rating="1">1</button><button class="' + btn2cls + '" data-rating="2">2</button><button class="' + btn3cls + '" data-rating="3">3</button><button class="rp-clear" data-rating="-1">&times;</button></div>';
             wrapper.style.left = (rect.right + 8) + 'px';
             wrapper.style.top = (rect.top + rect.height / 2) + 'px';
             wrapper.style.transform = 'translateY(-50%)';
             document.body.appendChild(wrapper);
-            function onClickOutside(e) {
-                if (!wrapper.contains(e.target) && e.target !== effectEl && !effectEl.contains(e.target)) {
+            _bindCausalRatingPickerButtons(wrapper, cell);
+            _causalRatingPickerOutsideHandler = function(e) {
+                if (!_causalPickerClickInside(wrapper, e) && e.target !== effectEl && !effectEl.contains(e.target)) {
                     clearCausalRatingPicker();
-                    document.removeEventListener('mousedown', onClickOutside, true);
                     endCausalRatingSession();
                 }
-            }
-            setTimeout(function() { document.addEventListener('mousedown', onClickOutside, true); }, 10);
+            };
+            var thisHandler = _causalRatingPickerOutsideHandler;
+            setTimeout(function() {
+                // Only attach if no newer picker has replaced us in the meantime.
+                if (_causalRatingPickerOutsideHandler === thisHandler) {
+                    document.addEventListener('mousedown', thisHandler, true);
+                }
+            }, 10);
         }
-        
+
         function handleCausalCellClick(cell) {
             if (cell.classList.contains('diagonal')) return;
             var causeFilter = window._causalCauseFilter;
@@ -3890,20 +4421,26 @@
             var wrapper = document.createElement('div');
             wrapper.className = 'crp-wrapper';
             wrapper.id = 'causal-rating-picker-el';
-            wrapper.innerHTML = eventBoxes + '<div class="crp-question-overlay">' + q + '</div><div class="causal-rating-picker"><button class="' + btn0cls + '" onclick="pickCausalRating(0)">0</button><button class="' + btn1cls + '" onclick="pickCausalRating(1)">1</button><button class="' + btn2cls + '" onclick="pickCausalRating(2)">2</button><button class="' + btn3cls + '" onclick="pickCausalRating(3)">3</button><button class="rp-clear" onclick="pickCausalRating(-1)">&times;</button></div>';
+            wrapper.innerHTML = eventBoxes + '<div class="crp-question-overlay">' + q + '</div><div class="causal-rating-picker"><button class="' + btn0cls + '" data-rating="0">0</button><button class="' + btn1cls + '" data-rating="1">1</button><button class="' + btn2cls + '" data-rating="2">2</button><button class="' + btn3cls + '" data-rating="3">3</button><button class="rp-clear" data-rating="-1">&times;</button></div>';
             wrapper.style.left = (rect.left + rect.width / 2) + 'px';
             wrapper.style.top = (rect.top + rect.height / 2) + 'px';
             wrapper.style.transform = 'translate(-50%, -50%)';
             document.body.appendChild(wrapper);
-            function onClickOutside(e) {
-                if (!wrapper.contains(e.target) && e.target !== cell) {
+            _bindCausalRatingPickerButtons(wrapper, cell);
+            _causalRatingPickerOutsideHandler = function(e) {
+                if (!_causalPickerClickInside(wrapper, e) && e.target !== cell) {
                     clearCausalRatingPicker();
-                    document.removeEventListener('mousedown', onClickOutside, true);
                     if (cell.classList && cell.classList.contains('cr-coarse-pseudo') && cell.parentNode) cell.remove();
                     endCausalRatingSession();
                 }
-            }
-            setTimeout(function() { document.addEventListener('mousedown', onClickOutside, true); }, 10);
+            };
+            var thisHandler = _causalRatingPickerOutsideHandler;
+            setTimeout(function() {
+                // Only attach if no newer picker has replaced us in the meantime.
+                if (_causalRatingPickerOutsideHandler === thisHandler) {
+                    document.addEventListener('mousedown', thisHandler, true);
+                }
+            }, 10);
         }
         
         var _coarseNestedClickTimer = null;
@@ -3980,8 +4517,14 @@
             showCausalRatingPicker(pseudo);
         }
         
-        function pickCausalRating(rating) {
-            var cell = window._causalPickerCell;
+        // Optional second arg `targetCell` lets the picker's button click handlers
+        // pass the cell via a closure captured when the picker was *built*. That
+        // closure is the authoritative reference — it can never drift even if
+        // window._causalPickerCell is cleared, replaced, or mid-transition when
+        // the click fires. The window var is kept only as a fallback for legacy
+        // inline call paths and for outside callers that just want to dismiss.
+        function pickCausalRating(rating, targetCell) {
+            var cell = targetCell || window._causalPickerCell;
             if (!cell) return;
             var prevRating = parseInt(cell.getAttribute('data-rating')) || 0;
             var coarsePairKey = cell.getAttribute('data-nested-coarse-pair');
@@ -4022,43 +4565,57 @@
             cell.setAttribute('data-rating', rating);
             if (!isCoarsePseudo) updateCellDisplay(cell);
             enableExportCausalMatrix();
+
+            // Re-rating / popup policy (kept consistent for fine and coarse
+            // matrices):
+            //   • If ANY qualitative flag (Reasoning / Causal Type / Semantic /
+            //     Referential / Contextual) is checked, every rating pick on a
+            //     cell — including 0, including picks that don't change the
+            //     number — opens the qualitative popup so the user can review
+            //     and edit every enabled question for that pair. Values already
+            //     saved on the cell are prefilled; press Enter / a button to
+            //     advance or Esc to skip the remaining steps.
+            //   • If a cell already has saved qualitative answers but no flag
+            //     is currently checked, picking any rating still opens the
+            //     popup so the prior answers can be viewed / amended / cleared
+            //     (otherwise they'd be unreachable).
+            //   • If no flags are checked and no prior qualitative data exists,
+            //     no popup opens — picking a rating just replaces it instantly
+            //     (the fast path for purely numeric rating sessions).
+            // To wipe a cell entirely (rating + reasoning + type + semantic),
+            // use ×; that bypasses the popup unconditionally.
+            var hasFlags = (document.getElementById('flag-reasoning') && document.getElementById('flag-reasoning').checked) ||
+                (document.getElementById('flag-causal-type') && document.getElementById('flag-causal-type').checked) ||
+                (document.getElementById('flag-referential') && document.getElementById('flag-referential').checked) ||
+                (document.getElementById('flag-contextual') && document.getElementById('flag-contextual').checked) ||
+                (document.getElementById('flag-semantic') && document.getElementById('flag-semantic').checked);
+            var hasExistingQualitative =
+                !!(cell.getAttribute('data-reasoning') || '') ||
+                !!(cell.getAttribute('data-causal-type') || '') ||
+                (parseInt(cell.getAttribute('data-semantic')) || 0) > 0 ||
+                (parseInt(cell.getAttribute('data-referential')) || 0) > 0 ||
+                (parseInt(cell.getAttribute('data-contextual')) || 0) > 0;
+            var shouldOpenPopup = hasFlags || hasExistingQualitative;
+
             if (isCoarsePseudo) {
-                if (rating > 0) {
-                    var hasFlagsC = (document.getElementById('flag-reasoning') && document.getElementById('flag-reasoning').checked) ||
-                        (document.getElementById('flag-causal-type') && document.getElementById('flag-causal-type').checked) ||
-                        (document.getElementById('flag-referential') && document.getElementById('flag-referential').checked) ||
-                        (document.getElementById('flag-contextual') && document.getElementById('flag-contextual').checked) ||
-                        (document.getElementById('flag-semantic') && document.getElementById('flag-semantic').checked);
-                    if (hasFlagsC) {
-                        window._causalPopupPrevRating = prevRating;
-                        window._causalPopupAnchorEl = null;
-                        openCausalPopup(cell, prevRating > 0);
-                    } else {
-                        finalizeCoarseNestedRatingFromPseudo(cell);
-                    }
+                if (shouldOpenPopup) {
+                    window._causalPopupPrevRating = prevRating;
+                    window._causalPopupAnchorEl = null;
+                    openCausalPopup(cell, prevRating > 0);
                 } else {
                     finalizeCoarseNestedRatingFromPseudo(cell);
                 }
                 return;
             }
-            if (rating > 0) {
-                var hasFlags = (document.getElementById('flag-reasoning') && document.getElementById('flag-reasoning').checked) ||
-                    (document.getElementById('flag-causal-type') && document.getElementById('flag-causal-type').checked) ||
-                    (document.getElementById('flag-referential') && document.getElementById('flag-referential').checked) ||
-                    (document.getElementById('flag-contextual') && document.getElementById('flag-contextual').checked) ||
-                    (document.getElementById('flag-semantic') && document.getElementById('flag-semantic').checked);
-                if (hasFlags) {
-                    window._causalPopupPrevRating = prevRating;
-                    window._causalPopupAnchorEl = (window._causalListSelection && window._causalListSelection.effect) ? document.getElementById('ce-item-' + cell.getAttribute('data-effect')) : null;
-                    openCausalPopup(cell, prevRating > 0);
-                } else {
-                    if (window._causalCauseFilter && window._causalRatedEffectsInColumn) {
-                        window._causalRatedEffectsInColumn.add(cell.getAttribute('data-effect'));
-                        applyCausalEventListSelection();
-                    }
-                    endCausalRatingSession();
-                }
+            if (shouldOpenPopup) {
+                window._causalPopupPrevRating = prevRating;
+                window._causalPopupAnchorEl = (window._causalListSelection && window._causalListSelection.effect) ? document.getElementById('ce-item-' + cell.getAttribute('data-effect')) : null;
+                openCausalPopup(cell, prevRating > 0);
             } else {
+                if (rating > 0 && window._causalCauseFilter && window._causalRatedEffectsInColumn) {
+                    window._causalRatedEffectsInColumn.add(cell.getAttribute('data-effect'));
+                    applyCausalEventListSelection();
+                }
                 endCausalRatingSession();
             }
         }
@@ -4105,7 +4662,23 @@
             var flagRef = document.getElementById('flag-referential') && document.getElementById('flag-referential').checked;
             var flagCtx = document.getElementById('flag-contextual') && document.getElementById('flag-contextual').checked;
             var flagSemantic = document.getElementById('flag-semantic') && document.getElementById('flag-semantic').checked;
-            
+
+            // Always re-include a step for any field that already has a value on
+            // this cell, even if its checkbox flag is currently off. Otherwise a
+            // user who entered reasoning once (with the Reasoning flag on) and
+            // later toggled the flag off — or who simply re-clicks the cell to
+            // amend their answer — would have no way to view or change the
+            // previously-saved reason. Picking the same rating, a different
+            // rating, or even rating 0 on the cell now always re-presents the
+            // same set of qualitative questions, prefilled with the existing
+            // answers, so the user can edit (or blank out) any of them.
+            var hasReasoningVal = !!(reasoning && reasoning !== 'manual entry');
+            var hasTypeVal = !!causalType;
+            var hasSemanticVal = semantic > 0;
+            flagReasoning = flagReasoning || hasReasoningVal;
+            flagType = flagType || hasTypeVal;
+            flagSemantic = flagSemantic || hasSemanticVal;
+
             if (!flagReasoning && !flagType && !flagRef && !flagCtx && !flagSemantic) return;
             
             var causeText = causeData ? causeData.text : '';
@@ -4182,6 +4755,10 @@
             if (_causalStepPickerOutsideHandler) {
                 document.removeEventListener('mousedown', _causalStepPickerOutsideHandler, true);
                 _causalStepPickerOutsideHandler = null;
+            }
+            if (_causalStepPickerEscHandler) {
+                document.removeEventListener('keydown', _causalStepPickerEscHandler, true);
+                _causalStepPickerEscHandler = null;
             }
             var picker = document.getElementById('causal-step-picker-el');
             if (picker) picker.remove();
@@ -4266,11 +4843,50 @@
             
             _causalStepPickerOutsideHandler = function(e) {
                 var currentPicker = document.getElementById('causal-step-picker-el');
-                if (currentPicker && !currentPicker.contains(e.target) && e.target !== cell) {
+                if (currentPicker && !_causalPickerClickInside(currentPicker, e) && e.target !== cell) {
                     closeCausalPopup(true);
                 }
             };
-            setTimeout(function() { document.addEventListener('mousedown', _causalStepPickerOutsideHandler, true); }, 10);
+            var thisHandler = _causalStepPickerOutsideHandler;
+            setTimeout(function() {
+                // Only attach if no newer step picker has replaced us in the meantime,
+                // so we never end up with two copies of the same handler bound.
+                if (_causalStepPickerOutsideHandler === thisHandler) {
+                    document.addEventListener('mousedown', thisHandler, true);
+                }
+            }, 10);
+            _ensureCausalStepEscHandler();
+        }
+
+        // Esc anywhere while the optional step picker is open = skip the remaining
+        // steps, keep whatever cell values already exist, and commit the new rating.
+        // This lets the user re-rate an already-rated cell without being forced back
+        // through every flagged field on each correction. Capture phase so the
+        // textarea's keydown listener doesn't swallow it first.
+        var _causalStepPickerEscHandler = null;
+        function _ensureCausalStepEscHandler() {
+            if (_causalStepPickerEscHandler) return;
+            _causalStepPickerEscHandler = function(e) {
+                if (e.key !== 'Escape') return;
+                var picker = document.getElementById('causal-step-picker-el');
+                if (!picker) return;
+                e.preventDefault();
+                e.stopPropagation();
+                skipRemainingCausalSteps();
+            };
+            document.addEventListener('keydown', _causalStepPickerEscHandler, true);
+        }
+
+        function skipRemainingCausalSteps() {
+            // Jump past every remaining step so applyCausalPopupValuesAndClose()
+            // commits only what the user has answered so far. Keys the user never
+            // touched stay `undefined` in window._causalPopupValues, and
+            // applyCausalPopupValuesAndClose only overwrites cell attributes whose
+            // key is `!== undefined`, so the cell's pre-existing reasoning /
+            // causal_type / semantic values are preserved as-is.
+            if (!window._causalPopupSteps) { closeCausalPopup(); return; }
+            window._causalPopupStepIndex = window._causalPopupSteps.length;
+            showCausalStepPicker();
         }
         
         function pickCausalStepDirectFromBtn(btn) {
@@ -5368,18 +5984,16 @@
             statusDiv.style.display = 'block';
             
             try {
-                // Collect all event data
-                const events = [];
-                const textareas = document.querySelectorAll('#story-events .parsed-segment-editor');
-                textareas.forEach((textarea, idx) => {
-                    const eventIndex = parseInt(textarea.getAttribute('data-event-index'));
-                    const eventNum = eventIndex + 1; // Events are 1-indexed
-                    events.push({
-                        event: eventNum,
-                        text: textarea.value.trim()
-                    });
+                // Collect events from the bar-based segmenter. Each event is the
+                // text between boundaries; in 1-5 mode it also carries the strength
+                // of the boundary that ends it.
+                const scaleMode = segState.story && segState.story.mode === 'scale';
+                const events = getSegmentsForExport('story').map((seg, idx) => {
+                    const e = { event: idx + 1, text: seg.text };
+                    if (scaleMode) e.boundary_strength = (seg.strength != null) ? seg.strength : '';
+                    return e;
                 });
-                
+
                 const body = { events: events };
                 if (outputPath) body.output_path = outputPath;
                 const response = await fetch(`/api/subject/${subjectId}/save-story-events`, {
@@ -6225,25 +6839,16 @@
             statusDiv.style.display = 'block';
             
             try {
-                // Collect all segment data - get all editors and sort by index
-                const segments = [];
-                const editors = document.querySelectorAll('.parsed-segment-editor');
-                editors.forEach(editor => {
-                    if (!editor.disabled) {
-                        const idx = parseInt(editor.getAttribute('data-segment-index'));
-                        const text = editor.value.trim();
-                        if (text) {  // Only include non-empty segments
-                            segments.push({
-                                index: idx,
-                                text: text
-                            });
-                        }
-                    }
+                // Collect segments from the bar-based segmenter. Each segment is the
+                // text between boundaries; in 1-5 mode it also carries the strength
+                // of the boundary that ends it.
+                const scaleMode = segState.recall && segState.recall.mode === 'scale';
+                const segments = getSegmentsForExport('recall').map((seg, idx) => {
+                    const s = { index: idx, text: seg.text };
+                    if (scaleMode) s.boundary_strength = (seg.strength != null) ? seg.strength : '';
+                    return s;
                 });
-                
-                // Sort by index to ensure correct order
-                segments.sort((a, b) => a.index - b.index);
-                
+
                 const body = { segments: segments };
                 if (outputPath) body.output_path = outputPath;
                 const response = await fetch(`/api/subject/${subjectId}/save-parsed`, {
@@ -6425,7 +7030,13 @@
                 
                 renderContent(data);
                 populatePanelVersionSelects();
-                
+                // Initialize the bar-based segmenters from the freshly loaded data.
+                initSegmenter('story');
+                initSegmenter('recall');
+                // Kick off the page tutorial once the panels exist. setupSubjectTutorial()
+                // is idempotent (autoStart re-installs the toggle without duplicating it).
+                setTimeout(setupSubjectTutorial, 400);
+
                 // Show notification if initial tab has one; resize segment editors to fit content after layout
                 const initialTab = getInitialTab();
                 setTimeout(() => {
@@ -6472,7 +7083,265 @@
         }
         
         loadSubjectData();
-        
+
+        // Per-tab tutorial registry for the inspection page. Each pipeline-step
+        // tab (story-events, segmented, matched, causal-matrix, raw-processed,
+        // audio-transcription) gets its own walkthrough — and its own
+        // localStorage completion flag — so a first-time visit to *any* tab
+        // re-runs the walk for that tab specifically. Switching tabs while the
+        // tutorial is closed will silently start the next tab's walk if the
+        // user hasn't seen it yet; the top-right (?) icon always restarts the
+        // tutorial for the currently-active tab.
+        var SUBJECT_TAB_TUTORIALS = {
+            'story-events': function () {
+                return [
+                    {
+                        target: '#story-events .rated-panel',
+                        title: 'Story segments — main panel',
+                        body: 'This right-side panel is where you edit the <strong>story segmentation</strong>. ' +
+                              'Each box is one story event; the panel shows the segments as they\'ll be exported.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#story-events .seg-flow[data-panel="story"]',
+                        title: 'Click to add / remove a boundary',
+                        body: 'Move your cursor through the text — a red bar follows it between words. ' +
+                              '<strong>Click</strong> at the position to drop a new segment boundary (the text after it ' +
+                              'reflows into a new box). Click an existing red bar to remove it.',
+                        placement: 'auto'
+                    },
+                    {
+                        target: '#story-events .seg-mode-toggle',
+                        title: 'Optional: 1–5 boundary strength',
+                        body: 'Switch from <strong>binary</strong> to <strong>1–5</strong> to rate how strong each ' +
+                              'boundary is. In 1–5 mode, clicking a boundary opens a picker (1 = weak → 5 = strong); ' +
+                              'the bar color reflects the strength and is written to a <code>boundary_strength</code> column on export.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#story-events .story-panel',
+                        title: 'Story text — reference (left panel)',
+                        body: 'This is the raw story transcript for your reference. It is read-only — ' +
+                              'just there so you can see the full story while editing segments on the right.',
+                        placement: 'right'
+                    },
+                    {
+                        target: '#export-story-events',
+                        title: 'Export your edits',
+                        body: 'When the segments look right, click <strong>Export Edited File</strong> to save ' +
+                              'your version. The original automated output is never overwritten — your edits ' +
+                              'land under <code>output/</code> tagged with your rater name.',
+                        placement: 'top'
+                    }
+                ];
+            },
+            'segmented': function () {
+                return [
+                    {
+                        target: '#segmented .rated-panel',
+                        title: 'Recall segments — main panel',
+                        body: 'This right-side panel is the <strong>recall parsing</strong> work area. Each box ' +
+                              'is one segmented recall clause as it\'ll be exported.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#segmented .seg-flow[data-panel="recall"]',
+                        title: 'Click to add / remove a boundary',
+                        body: 'Move the cursor through the text — a red bar follows between words. ' +
+                              '<strong>Click</strong> to drop a new boundary; click an existing red bar to remove it.',
+                        placement: 'auto'
+                    },
+                    {
+                        target: '#segmented .seg-mode-toggle',
+                        title: 'Optional: 1–5 boundary strength',
+                        body: 'Toggle to <strong>1–5</strong> mode to rate each boundary\'s strength ' +
+                              '(1 = weak → 5 = strong). The rating is exported as a <code>boundary_strength</code> column.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#segmented .story-panel',
+                        title: 'Corrected recall (reference)',
+                        body: 'Read-only view of the corrected recall text — the source you are segmenting. ' +
+                              'Edits happen on the right.',
+                        placement: 'right'
+                    },
+                    {
+                        target: '#export-parsed',
+                        title: 'Export your edits',
+                        body: 'Save your segmentation with <strong>Export Edited File</strong> — your version ' +
+                              'goes under <code>output/</code> tagged with your rater name.',
+                        placement: 'top'
+                    }
+                ];
+            },
+            'matched': function () {
+                return [
+                    {
+                        target: '#matched .story-panel',
+                        title: 'Story events (left)',
+                        body: 'The list of story events that your recall segments should be matched to. ' +
+                              'Each event is a drop target — drag a recall segment from the right and drop it here.',
+                        placement: 'right'
+                    },
+                    {
+                        target: '#matched .rated-panel',
+                        title: 'Parsed recall segments (right)',
+                        body: 'Your recall, broken into segments. <strong>Drag</strong> each segment onto the ' +
+                              'matching story event on the left to record the match. Unmatched segments stay here.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#export-rated',
+                        title: 'Export the matches',
+                        body: 'Once you\'ve matched everything you want, click <strong>Export Edited File</strong>. ' +
+                              'The exported file pairs each recall segment with its matched story event id.',
+                        placement: 'top'
+                    }
+                ];
+            },
+            'causal-matrix': function () {
+                return [
+                    {
+                        target: '#causal-matrix .causal-matrix-instructions',
+                        title: 'How to rate (read me first)',
+                        body: 'A quick refresher: click a cell to pick a rating <strong>1 / 2 / 3</strong>; leave ' +
+                              '0 for unrelated pairs; use <strong>×</strong> to wipe a cell. With the optional ' +
+                              'Reasoning / Causal Type / Semantic checkboxes on, every click also opens a prompt ' +
+                              'prefilled with your previous answers.',
+                        placement: 'auto'
+                    },
+                    {
+                        target: '#causal-matrix .causal-matrix-wrapper',
+                        title: 'The causal matrix (main panel)',
+                        body: 'Each cell is one <em>cause</em> (column) × <em>effect</em> (row) pair. <strong>Hover</strong> ' +
+                              'to see the cause/effect texts; <strong>click</strong> a cell to rate it.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#causal-matrix .causal-events-panel',
+                        title: 'Story events (reference)',
+                        body: 'List of all story events with their text — useful for context while rating. ' +
+                              'Click an event to filter the matrix by that cause column.',
+                        placement: 'right'
+                    },
+                    {
+                        target: '#causal-matrix .causal-flags-bar',
+                        title: 'Optional fields',
+                        body: 'Turn on Reasoning / Causal Type / Semantic to be prompted for those after each rating. ' +
+                              'See the instructions above for keyboard shortcuts.',
+                        placement: 'bottom'
+                    },
+                    {
+                        target: '#export-causal-matrix',
+                        title: 'Export the matrix',
+                        body: 'Saves only the pairs with rating > 0 (plus any qualitative columns you enabled). ' +
+                              'The destination folder just needs to exist — no preexisting file required.',
+                        placement: 'top'
+                    }
+                ];
+            },
+            'raw-processed': function () {
+                return [
+                    {
+                        target: '#raw-processed .side-by-side-panel:first-child',
+                        title: 'Raw recall (left)',
+                        body: 'The original raw recall text exactly as it came in — for reference only.',
+                        placement: 'right'
+                    },
+                    {
+                        target: '#raw-processed .side-by-side-panel:last-child',
+                        title: 'Corrected recall (right, editable)',
+                        body: 'The auto-corrected version. Type directly here to fine-tune the corrections; ' +
+                              'the spell/grammar step makes only minimal edits and may miss things — your ' +
+                              'edits are saved with your rater name on export.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#export-corrected',
+                        title: 'Export your edits',
+                        body: 'Save your hand-corrected version as a new file under <code>output/</code>.',
+                        placement: 'top'
+                    }
+                ];
+            },
+            'audio-transcription': function () {
+                return [
+                    {
+                        target: '#audio-transcription .side-by-side-panel:first-child',
+                        title: 'Audio + auto-transcription (left)',
+                        body: 'Play the audio with the player at the top; the read-only transcription below ' +
+                              'highlights the word at the audio cursor so you can follow along.',
+                        placement: 'right'
+                    },
+                    {
+                        target: '#audio-transcription-editor',
+                        title: 'Editable transcription (right)',
+                        body: 'Type here to fix what the auto-transcription got wrong. Clicking inside the text ' +
+                              'jumps the audio cursor to that word so you can re-listen as you edit.',
+                        placement: 'left'
+                    },
+                    {
+                        target: '#export-audio',
+                        title: 'Export your transcription',
+                        body: 'Saves your corrected transcription under <code>output/</code> with your rater name.',
+                        placement: 'top'
+                    }
+                ];
+            }
+        };
+
+        // Detect which inspection tab is currently active and return its id; or
+        // 'subject-inspection' as a generic fallback if nothing is active yet.
+        function _currentSubjectTabKey() {
+            var active = document.querySelector('.tab-content.active');
+            return (active && active.id) || 'subject-inspection';
+        }
+
+        // Build a fresh step list for the currently-active tab. The fns in
+        // SUBJECT_TAB_TUTORIALS are called at run time so selectors that depend
+        // on per-data-load IDs always match the live DOM.
+        function _currentSubjectTabSteps() {
+            var key = _currentSubjectTabKey();
+            var factory = SUBJECT_TAB_TUTORIALS[key];
+            return factory ? factory() : [];
+        }
+
+        // Install the (?) toggle once and start the current tab's walkthrough if
+        // the user hasn't already completed it. Re-invoking is safe — installToggle
+        // replaces the old icon and start() teardown+rebuild keeps state clean.
+        function setupSubjectTutorial() {
+            if (!window.Tutorial) return;
+            var tabKey = _currentSubjectTabKey();
+            var pageKey = 'subject:' + tabKey;
+            var steps = _currentSubjectTabSteps();
+            // Always install the toggle so the user has a manual restart, even
+            // for tabs we haven't defined steps for (it'll just be inert).
+            window.Tutorial.installToggle(pageKey, { steps: steps, right: '70px' });
+            if (steps.length && !window.Tutorial.isCompleted(pageKey)) {
+                requestAnimationFrame(function () { window.Tutorial.start(pageKey, steps); });
+            }
+        }
+
+        // Tab switches retarget the tutorial: stop the current walk (without
+        // marking the old tab completed — switching away mid-tour shouldn't
+        // count as "I learned this"), then run setupSubjectTutorial again so
+        // the (?) icon and auto-start now reflect the new tab.
+        (function () {
+            var origShowTab = window.showTab;
+            if (typeof origShowTab === 'function') {
+                window.showTab = function (tabName) {
+                    var result = origShowTab.apply(this, arguments);
+                    // Defer one frame so the new tab content (and any per-tab
+                    // initialization in origShowTab) has rendered.
+                    requestAnimationFrame(function () {
+                        if (window.Tutorial) window.Tutorial.stop(false);
+                        setupSubjectTutorial();
+                    });
+                    return result;
+                };
+            }
+        })();
+
         let selectedTheme = null;
         
         // Settings Modal Functions

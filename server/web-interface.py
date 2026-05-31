@@ -71,8 +71,19 @@ from helpers.step_types import (
 # Run pipeline subprocesses from the data workspace; serve UI assets from PACKAGE_ROOT.
 os.chdir(str(WORKSPACE_ROOT))
 
-# Initialize Flask app with template folder in the package root
-app = Flask(__name__, template_folder=str(PACKAGE_ROOT / 'templates'))
+# Initialize Flask app with template + static folders pinned to the package root.
+# Both must be explicit: the module is loaded under the synthetic name
+# ``narraters._legacy_server``, so Flask cannot derive its root path and would
+# otherwise fall back to the current working directory (which we just chdir'd to
+# WORKSPACE_ROOT). That made Flask's built-in ``static`` endpoint serve from
+# ``WORKSPACE_ROOT/static`` (the user's data folder, no static/ there) and shadow
+# the routes below — so every asset 404'd whenever the project root differed from
+# the package (the documented ``pip install`` / NARRATERS_PROJECT_ROOT flows).
+app = Flask(
+    __name__,
+    template_folder=str(PACKAGE_ROOT / 'templates'),
+    static_folder=str(PACKAGE_ROOT / 'static'),
+)
 
 
 def _load_or_create_session_secret() -> bytes:
@@ -4516,14 +4527,22 @@ def save_parsed_segments(subj_id):
         
         # Build NEW dataframe from the edited segments
         # This handles merged/split/edited segments properly
+        # When the segmenter is in 1-5 mode each segment carries a
+        # boundary_strength (strength of the boundary that ends it); write it to
+        # a third column only when present.
+        any_strength = any('boundary_strength' in seg for seg in segments_sorted)
         new_segments = []
         for seg in segments_sorted:
             text = seg.get('text', '').strip()
             if text:  # Only include non-empty segments
-                new_segments.append({
+                row = {
                     'recall_in_temporal_order': text,
                     'recalled_events': ''  # Clear old matches - will be re-rated
-                })
+                }
+                if any_strength:
+                    bs = seg.get('boundary_strength', '')
+                    row['boundary_strength'] = '' if bs is None else str(bs)
+                new_segments.append(row)
         
         # Create new dataframe with the updated segments
         new_df = pd.DataFrame(new_segments)
@@ -4537,7 +4556,10 @@ def save_parsed_segments(subj_id):
         
         # Ensure correct column order to match pipeline output format
         if 'recalled_events' in new_df.columns and 'recall_in_temporal_order' in new_df.columns:
-            new_df = new_df[['recalled_events', 'recall_in_temporal_order']]
+            cols = ['recalled_events', 'recall_in_temporal_order']
+            if any_strength and 'boundary_strength' in new_df.columns:
+                cols.append('boundary_strength')
+            new_df = new_df[cols]
         
         # Clean data before saving - ensure all columns are strings and handle NaN
         # Convert all columns to string type to avoid type issues
@@ -4583,7 +4605,8 @@ def save_parsed_segments(subj_id):
         
         # FORWARD CASCADE: Tab 2 → Tab 3 (does NOT update Tab 1)
         try:
-            rated_df = _auto_rate_parsed_df(subj_id, new_df)
+            # boundary_strength is a segmentation-only column; keep it out of the rated file.
+            rated_df = _auto_rate_parsed_df(subj_id, new_df.drop(columns=['boundary_strength'], errors='ignore'))
             if rated_df is not None:
                 rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
                 rated_dir.mkdir(parents=True, exist_ok=True)
@@ -4645,15 +4668,24 @@ def save_story_events(subj_id):
         else:
             file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Create dataframe from events
+        # Create dataframe from events. In 1-5 mode each event carries a
+        # boundary_strength (strength of the boundary that ends it); it is added
+        # as a third column after the original columns are preserved below.
+        any_strength = any('boundary_strength' in event for event in events)
         events_data = []
         for event in events:
             events_data.append({
                 'event': event.get('event', ''),
                 'story_texts': event.get('text', '')
             })
-        
+
         new_df = pd.DataFrame(events_data)
+        strength_values = None
+        if any_strength:
+            strength_values = []
+            for event in events:
+                bs = event.get('boundary_strength', '')
+                strength_values.append('' if bs is None else str(bs))
         
         # Try to preserve other columns from original file if it exists
         events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
@@ -4674,7 +4706,12 @@ def save_story_events(subj_id):
                 new_df = new_df.reindex(columns=original_df.columns, fill_value='')
             except Exception as e:
                 print(f"Warning: Could not read original file to preserve columns: {e}")
-        
+
+        # Append the segmentation strength column last (after original-column
+        # preservation, which would otherwise drop a new column via reindex).
+        if strength_values is not None:
+            new_df['boundary_strength'] = strength_values
+
         # Save to file
         try:
             new_df.to_excel(file_path, index=False, engine='openpyxl')
@@ -6600,7 +6637,13 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
                 'event': [1],
                 'story_texts': [transcript]
             })
-            out_file = output_dir / f"{item_id}_events.xlsx"
+            # Write a method-suffixed file (like clause/fine/coarse/api) instead of the
+            # canonical {item_id}_events.xlsx. Using the bare name would overwrite an
+            # existing segmented events file with this single-event starter — violating
+            # the "never overwrite without a suffix" versioning rule — and would not be
+            # recognised as a completed 'manual' run by the dashboard's method scan,
+            # which keys off the {item_id}_events-*.xlsx pattern.
+            out_file = output_dir / f"{item_id}_events-manual.xlsx"
             df.to_excel(out_file, index=False, engine='openpyxl')
             return jsonify({'success': True, 'message': f'Story transcript placed as single event for manual segmentation'})
         

@@ -2786,14 +2786,28 @@
             return el ? el.value.trim() : '';
         }
 
+        // Pre-fill the rater-name input. With ?edit=1 (Reconfigure Pipeline
+        // from the dashboard) we keep the existing rater so the user can amend
+        // it instead of retyping. Without ?edit=1 (the fresh Change-Rater flow)
+        // we start blank as before.
         function initRaterName() {
             const el = document.getElementById('rater-name-input');
             if (!el) return;
-            el.value = '';
-            try {
-                localStorage.removeItem('narrative-rater-name');
-            } catch (e) { /* ignore */ }
-            updateConfirmState();
+            const reconfigure = new URLSearchParams(window.location.search).get('edit') === '1';
+            if (reconfigure) {
+                // Ask the server for the active rater (the session is the
+                // authoritative source — localStorage might be stale or wiped).
+                fetch('/api/verify-auth').then(function (r) { return r.json(); }).then(function (data) {
+                    if (data && data.success && data.username) {
+                        el.value = data.username;
+                    }
+                    updateConfirmState();
+                }).catch(function () { updateConfirmState(); });
+            } else {
+                el.value = '';
+                try { localStorage.removeItem('narrative-rater-name'); } catch (e) { /* ignore */ }
+                updateConfirmState();
+            }
         }
 
         function onRaterNameInput() {

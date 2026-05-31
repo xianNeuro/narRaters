@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>narRater - Web Viewer</title>
     <script src="/static/theme-manager.js"></script>
+    <script src="/static/tutorial.js"></script>
     <style>
         :root {
             --bg0: #0b0d14;
@@ -1925,6 +1926,9 @@
     <div class="settings-icon" onclick="openSettings()" title="Settings" data-function="Open settings (theme and preferences)" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">
         ⚙️
     </div>
+    <!-- Tutorial toggle icon: hardcoded so it appears on first paint. tutorial.js
+         adopts this element when setupDashboardTutorial() runs after data load. -->
+    <div class="tutorial-toggle-icon" data-tutorial-key="dashboard:loading" title="Page tutorial — click to toggle on/off" style="right: 180px;">?<span class="tutorial-toggle-label">tutorial</span></div>
     
     <!-- Settings Modal -->
     <div id="settings-modal" class="settings-modal" onclick="closeSettingsOnBackdrop(event)">
@@ -1959,7 +1963,9 @@
             </div>
         </div>
     </div>
-    <button class="logout-btn" onclick="handleLogout()" data-function="Change rater / reconfigure pipeline" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Change Rater</button>
+    <!-- Header button shows the current rater name (click to change rater /
+         reconfigure pipeline). Falls back to "Change Rater" when no rater is set yet. -->
+    <button class="logout-btn" onclick="handleLogout()" data-function="Click to change rater or reconfigure pipeline (currently signed in as {{ logged_in_username or 'guest' }})" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">{{ logged_in_username or 'Change Rater' }}</button>
     
     <div id="dashboard-resize-wrapper" class="dashboard-resize-wrapper">
         <div class="resize-handle resize-handle-left" id="resize-handle-left" title="Drag to resize dashboard width"></div>
@@ -1970,7 +1976,10 @@
             <p>Processing Pipeline Dashboard</p>
             <div class="header-actions" id="header-pipeline-actions" style="display: none;">
                 <span class="pipeline-info-text"><strong>Active Pipeline:</strong> <span id="pipeline-steps-count">0</span> steps configured</span>
-                <button class="btn-reconfigure" onclick="window.location.href='/pipeline-config'" data-function="Change pipeline steps and order" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Reconfigure Pipeline</button>
+                <!-- ?edit=1 tells pipeline-config.html to *keep* the existing
+                     pipeline + rater name (so the user can amend them) instead
+                     of starting from a blank slate. -->
+                <button class="btn-reconfigure" onclick="window.location.href='/pipeline-config?edit=1'" data-function="Edit pipeline steps / rater name (existing values are preserved)" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Reconfigure Pipeline</button>
                 <button class="btn-reconfigure" id="batch-process-btn" onclick="showBatchProcessDialog()" style="background: #28a745;" data-function="Run selected steps for all subjects" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Batch Process</button>
             </div>
         </div>
@@ -2156,7 +2165,7 @@
                 </div>
                 <div class="method-selection-buttons">
                     <button class="btn-method btn-method-cancel" onclick="closeMethodSelectionModal()" data-function="Cancel and close" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Cancel</button>
-                    <button class="btn-method btn-method-confirm" id="confirm-method-btn" onclick="confirmMethodSelection()" data-function="Run this step with selected method" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Confirm & Run</button>
+                    <button class="btn-method btn-method-confirm" id="confirm-method-btn" onclick="confirmMethodSelection()" data-function="Run this step with selected method" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Start Process</button>
                 </div>
             </div>
         </div>
@@ -3653,19 +3662,25 @@
         
         // Define which steps have multiple methods and/or optional flags
         const stepsWithMultipleMethods = {
+            // Manual is the ONLY default method for every pipeline step now.
+            // - isDefault: true sits on every `manual` entry and on nothing else.
+            // - No other label suggests "default" / preselected status.
+            // - The render path in showMethodSelectionModal also re-sorts methods
+            //   so Manual always lands at the top of the option list and is the
+            //   pre-selected radio when the modal opens.
             'audioTranscribe:story': {
                 methods: [
-                    {
-                        id: 'auto',
-                        label: 'Automatic (WhisperX / Whisper)',
-                        description: 'Transcribes audio using WhisperX (preferred) or Whisper. No API key required.',
-                        requiresApiKey: false,
-                        isDefault: true
-                    },
                     {
                         id: 'manual',
                         label: 'Manual',
                         description: 'Creates an empty transcript file for you to type or paste the transcription manually.',
+                        requiresApiKey: false,
+                        isDefault: true
+                    },
+                    {
+                        id: 'auto',
+                        label: 'Automatic (WhisperX / Whisper)',
+                        description: 'Transcribes audio using WhisperX (preferred) or Whisper. No API key required.',
                         requiresApiKey: false
                     }
                 ],
@@ -3676,16 +3691,16 @@
             'audioTranscribe:recall': {
                 methods: [
                     {
-                        id: 'auto',
-                        label: 'Automatic (WhisperX / Whisper)',
-                        description: 'Transcribes audio using WhisperX (preferred) or Whisper. No API key required.',
+                        id: 'manual',
+                        label: 'Manual',
+                        description: 'Creates an empty transcript file for you to type or paste the transcription manually.',
                         requiresApiKey: false,
                         isDefault: true
                     },
                     {
-                        id: 'manual',
-                        label: 'Manual',
-                        description: 'Creates an empty transcript file for you to type or paste the transcription manually.',
+                        id: 'auto',
+                        label: 'Automatic (WhisperX / Whisper)',
+                        description: 'Transcribes audio using WhisperX (preferred) or Whisper. No API key required.',
                         requiresApiKey: false
                     }
                 ],
@@ -3696,22 +3711,22 @@
             'sentenceCorrect': {
                 methods: [
                     {
-                        id: 'auto',
-                        label: 'Automatic (Rule-Based)',
-                        description: 'Applies spell-check, grammar fixes, run-on sentence correction, and punctuation cleanup automatically.',
+                        id: 'manual',
+                        label: 'Manual',
+                        description: 'Copies the raw input text to the output folder so you can manually correct it in the detail view.',
                         requiresApiKey: false,
                         isDefault: true
                     },
                     {
-                        id: 'gemma-ollama',
-                        label: 'Gemma 4 (Ollama, local)',
-                        description: 'Uses scripts/prompt/spell_gram.txt via Ollama (default model tag gemma4:e4b). Optional override in the Ollama field below.',
+                        id: 'auto',
+                        label: 'Automatic (Rule-Based)',
+                        description: 'Applies spell-check, grammar fixes, run-on sentence correction, and punctuation cleanup automatically.',
                         requiresApiKey: false
                     },
                     {
-                        id: 'manual',
-                        label: 'Manual',
-                        description: 'Copies the raw input text to the output folder so you can manually correct it in the detail view.',
+                        id: 'gemma-ollama',
+                        label: 'Gemma 4 (Ollama, local)',
+                        description: 'Uses scripts/prompt/spell_gram.txt via Ollama (model tag gemma4:e4b). Optional override in the Ollama field below.',
                         requiresApiKey: false
                     }
                 ],
@@ -3722,28 +3737,35 @@
             'textParsing': {
                 methods: [
                     {
-                        id: 'auto',
-                        label: 'Automatic (Clause-Based)',
-                        description: 'Splits corrected recall text into segments at clause boundaries automatically.',
+                        id: 'manual',
+                        label: 'Manual',
+                        description: 'Places the full corrected text as one segment so you can manually split it in the detail view.',
                         requiresApiKey: false,
                         isDefault: true
                     },
                     {
-                        id: 'gemma-ollama',
-                        label: 'Gemma 4 (Ollama, local)',
-                        description: 'Uses scripts/prompt/recall_parse_clause.txt with local Ollama (default gemma4:e4b). Output filename includes the method tag.',
+                        id: 'auto',
+                        label: 'Automatic (Clause-Based)',
+                        description: 'Splits corrected recall text into segments at clause boundaries automatically.',
                         requiresApiKey: false
                     },
                     {
-                        id: 'manual',
-                        label: 'Manual',
-                        description: 'Places the full corrected text as one segment so you can manually split it in the detail view.',
+                        id: 'gemma-ollama',
+                        label: 'Gemma 4 (Ollama, local)',
+                        description: 'Uses scripts/prompt/recall_parse_clause.txt with local Ollama (model tag gemma4:e4b). Output filename includes the method tag.',
                         requiresApiKey: false
                     }
                 ]
             },
             'eventSegment': {
                 methods: [
+                    {
+                        id: 'manual',
+                        label: 'Manual',
+                        description: 'Places the full story transcript as one event so you can manually segment it using split/merge in the detail view.',
+                        requiresApiKey: false,
+                        isDefault: true
+                    },
                     {
                         id: 'clause',
                         label: 'Clause Level',
@@ -3752,10 +3774,9 @@
                     },
                     {
                         id: 'fine',
-                        label: 'Fine-Grained Events (Default)',
+                        label: 'Fine-Grained Events',
                         description: 'Each action, state change, dialogue line, or shift in topic/location/time/emotion starts a new event.',
-                        requiresApiKey: false,
-                        isDefault: true
+                        requiresApiKey: false
                     },
                     {
                         id: 'coarse',
@@ -3769,20 +3790,21 @@
                         description: 'Uses a language model API for segmentation. Select model and prompt version below.',
                         requiresApiKey: true,
                         requiresModelPrompt: true
-                    },
-                    {
-                        id: 'manual',
-                        label: 'Manual',
-                        description: 'Places the full story transcript as one event so you can manually segment it using split/merge in the detail view.',
-                        requiresApiKey: false
                     }
                 ]
             },
             'textMatching': {
                 methods: [
                     {
+                        id: 'manual',
+                        label: 'Manual',
+                        description: 'Copies parsed segments with empty event matches so you can manually assign events in the detail view.',
+                        requiresApiKey: false,
+                        isDefault: true
+                    },
+                    {
                         id: 'test-mode',
-                        label: 'Test Mode (Default)',
+                        label: 'Test Mode',
                         description: 'Uses basic keyword matching. No API key required.',
                         requiresApiKey: false
                     },
@@ -3794,22 +3816,16 @@
                         requiresModelPrompt: true
                     },
                     {
-                        id: 'manual',
-                        label: 'Manual',
-                        description: 'Copies parsed segments with empty event matches so you can manually assign events in the detail view.',
-                        requiresApiKey: false
-                    },
-                    {
                         id: 'gemma-ollama',
                         label: 'Gemma 4 E4B (Ollama, local)',
-                        description: 'Same batch JSON prompt as the cloud API path (scripts/prompt/recall_rating.txt), answered by your local Ollama model (default gemma4:e4b). Optional tag in the Ollama field below. No Anthropic key required.',
+                        description: 'Same batch JSON prompt as the cloud API path (scripts/prompt/recall_rating.txt), answered by your local Ollama model (model tag gemma4:e4b). Optional tag in the Ollama field below. No Anthropic key required.',
                         requiresApiKey: false,
                         requiresRmatchOptions: false
                     },
                     {
                         id: 'rmatch',
                         label: 'rMatch (Hugging Face, local)',
-                        description: 'Uses the PyPI rmatch package (GabrielKP/rMatch) with a local Hugging Face causal-LM. WARNING: default model google/gemma-4-31B-it is ~18 GB; even with 4-bit quantization it needs ~16 GB RAM and inference on CPU/MPS can take many minutes. Smaller HF models (e.g. google/gemma-2-2b-it) trade accuracy for speed/footprint. Requires HF_TOKEN.',
+                        description: 'Uses the PyPI rmatch package (GabrielKP/rMatch) with a local Hugging Face causal-LM. WARNING: model google/gemma-4-31B-it is ~18 GB; even with 4-bit quantization it needs ~16 GB RAM and inference on CPU/MPS can take many minutes. Smaller HF models (e.g. google/gemma-2-2b-it) trade accuracy for speed/footprint. Requires HF_TOKEN.',
                         requiresApiKey: false,
                         requiresRmatchOptions: true
                     }
@@ -3818,11 +3834,17 @@
             'causalRating': {
                 methods: [
                     {
-                        id: 'linguistic',
-                        label: 'Linguistic (Default)',
-                        description: 'Rule-based causal scoring using causal connectives, entity continuity, and action-consequence verb patterns. No API key required. Uses spaCy if installed.',
+                        id: 'manual',
+                        label: 'Manual',
+                        description: 'Creates an empty causal rating file so you can manually enter event pairs and ratings.',
                         requiresApiKey: false,
                         isDefault: true
+                    },
+                    {
+                        id: 'linguistic',
+                        label: 'Linguistic',
+                        description: 'Rule-based causal scoring using causal connectives, entity continuity, and action-consequence verb patterns. No API key required. Uses spaCy if installed.',
+                        requiresApiKey: false
                     },
                     {
                         id: 'api',
@@ -3830,12 +3852,6 @@
                         description: 'Uses a language model API for causal rating. Select model below. Requires API key.',
                         requiresApiKey: true,
                         requiresModelPrompt: true
-                    },
-                    {
-                        id: 'manual',
-                        label: 'Manual',
-                        description: 'Creates an empty causal rating file so you can manually enter event pairs and ratings.',
-                        requiresApiKey: false
                     }
                 ]
             }
@@ -3955,10 +3971,22 @@
             populateInputVariants(stepIndex, [itemId], document.getElementById('input-variant-section'), 'input-variant')
                 .catch(e => console.warn('populateInputVariants error:', e));
             
+            // Render order: put the "Manual" method at the very top so users
+            // immediately see manual editing as the first / default option.
+            // Original stepConfig is not mutated — sort a local copy so the
+            // declarative configs remain authoritative everywhere else.
+            const orderedMethods = hasMethods
+                ? [...stepConfig.methods].sort((a, b) => {
+                    if (a.id === 'manual' && b.id !== 'manual') return -1;
+                    if (b.id === 'manual' && a.id !== 'manual') return 1;
+                    return 0;
+                })
+                : [];
+
             let methodsHtml = '';
             let firstSelectableMethod = null;
             if (hasMethods) {
-                stepConfig.methods.forEach((method, index) => {
+                orderedMethods.forEach((method, index) => {
                     const cm = completedMethods[method.id];
                     const isCompleted = cm && cm.completed;
                     const isApi = method.requiresApiKey || (cm && cm.is_api);
@@ -4015,10 +4043,17 @@
             document.getElementById('step-options-container').innerHTML = optionsHtml;
             
             if (hasMethods) {
-                const defaultMethod = stepConfig.methods.find(m => m.isDefault && !completedMethods[m.id]?.completed);
-                const fallback = firstSelectableMethod || (stepConfig.methods[0] && stepConfig.methods[0].id);
-                if (defaultMethod) {
-                    selectMethod(defaultMethod.id);
+                // Default selection: prefer "Manual" (matches the top-of-list
+                // ordering above) whenever it is present and not disabled. Fall
+                // back to the previously declared default and, beyond that, to
+                // the first selectable method.
+                const manualMethod = orderedMethods.find(m => m.id === 'manual' && !completedMethods[m.id]?.completed);
+                const declaredDefault = orderedMethods.find(m => m.isDefault && !completedMethods[m.id]?.completed);
+                const fallback = firstSelectableMethod || (orderedMethods[0] && orderedMethods[0].id);
+                if (manualMethod) {
+                    selectMethod(manualMethod.id);
+                } else if (declaredDefault) {
+                    selectMethod(declaredDefault.id);
                 } else if (fallback) {
                     selectMethod(fallback);
                 }
@@ -4759,7 +4794,80 @@
                 return;
             }
             console.log('Container found, calling loadSubjectsWithStatus()...');
-            loadSubjectsWithStatus();
+            loadSubjectsWithStatus().then(function () {
+                // Defer enough for the panel layout / status grid render to settle;
+                // the tutorial framework uses MutationObserver to wait for elements
+                // it can't yet find, so this is mostly to make the first highlight
+                // land on the just-painted UI rather than the loading state.
+                setTimeout(setupDashboardTutorial, 600);
+            }).catch(function () {
+                setTimeout(setupDashboardTutorial, 600);
+            });
+        }
+
+        // Walkthrough for the dashboard page: status cell → Start Process button →
+        // inspection icon. Each step auto-advances on the matching user action so
+        // the tutorial mirrors what the user is actually doing. Closing the
+        // tutorial (× or finishing the last step) persists a completed flag so it
+        // doesn't reappear next time; the top-right (?) icon re-runs it on demand.
+        function setupDashboardTutorial() {
+            console.log('setupDashboardTutorial: window.Tutorial =', !!window.Tutorial,
+                        'progress-bar-status count =', document.querySelectorAll('.progress-bar-status').length);
+            if (!window.Tutorial) return;
+            var steps = [
+                {
+                    // The colored "Not Started / Running / Completed" bar in each cell —
+                    // that's the click target that opens the method-selection modal
+                    // (via onclick="executeStep(...)"). The little inspection square
+                    // to the right is a *different* element (.status-square).
+                    target: '#table-container .progress-bar-status',
+                    title: 'The status grid',
+                    body: 'Each row is a subject/story and each column is a pipeline step. ' +
+                          'Click any <strong>colored status bar</strong> (this one) to configure and ' +
+                          'run that step. Grey = not started, green = done, orange = in progress.',
+                    placement: 'auto',
+                    completeOn: { event: 'click', target: '.progress-bar-status' }
+                },
+                {
+                    waitFor: '#method-options-container .method-option',
+                    target: '#method-options-container .method-option',  // first .method-option = top of list (Manual)
+                    title: 'Pick a method',
+                    body: 'The top option (<strong>Manual</strong>) is preselected by default — it just ' +
+                          'copies the raw input so you can hand-edit it. Click any other option to switch, ' +
+                          'or hit <strong>Next →</strong> to keep Manual.',
+                    placement: 'right',
+                    waitingBody: 'Click any colored status bar above to open the method picker; ' +
+                                 'I\'ll point out the next thing as soon as it opens.'
+                    // No completeOn — clicking the already-preselected Manual option does
+                    // nothing visible, so it would be confusing to require it. Let the
+                    // user advance with the Next button (or pick a different method,
+                    // which also doesn't auto-advance — they read, then hit Next).
+                },
+                {
+                    waitFor: '#confirm-method-btn',
+                    target: '#confirm-method-btn',
+                    title: 'Start Process',
+                    body: 'Click <strong>Start Process</strong> to run the step with the method you picked. ' +
+                          'The modal closes when the step finishes.',
+                    placement: 'top',
+                    completeOn: { event: 'click', target: '#confirm-method-btn' }
+                },
+                {
+                    waitFor: '#table-container .status-square.complete.output-link',
+                    target: '#table-container .status-square.complete.output-link',
+                    title: 'Open the inspection page',
+                    body: 'When a step is done, the small square to the right of the status bar turns into ' +
+                          'a file icon. Click it to open the inspection page for that subject — ' +
+                          'where you can review and manually edit that step\'s output.',
+                    placement: 'auto',
+                    waitingBody: 'Run a step first and I\'ll point out the inspection icon ' +
+                                 'as soon as it appears on a finished cell.',
+                    completeOn: { event: 'click', target: '.status-square.complete.output-link' }
+                }
+            ];
+            // Settings icon is at right:20px and "Change Rater" button is at
+            // right:70px, so the tutorial icon goes left of both.
+            window.Tutorial.autoStart('dashboard', steps, { iconRight: '180px' });
         }
         
         // Wait for DOM to be ready
