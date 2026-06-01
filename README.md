@@ -1,4 +1,14 @@
 <p align="center">
+  <strong>README</strong> &nbsp;·&nbsp;
+  <a href="docs/install.md">Install</a> &nbsp;·&nbsp;
+  <a href="docs/input-data.md">Input data</a> &nbsp;·&nbsp;
+  <a href="docs/web-interface.md">Web interface</a> &nbsp;·&nbsp;
+  <a href="docs/troubleshooting.md">Troubleshooting</a> &nbsp;·&nbsp;
+  <a href="docs/command-line.md">Command-line</a> &nbsp;·&nbsp;
+  <a href="LICENSE">License</a>
+</p>
+
+<p align="center">
   <img src="static/app-icon.png" alt="narRaters app icon" width="128" height="128">
 </p>
 
@@ -25,16 +35,6 @@
   <a href="https://github.com/xianNeuro/narRaters/issues">🐛 Issues</a>
   ·
   <a href="https://github.com/xianNeuro/narRaters/issues/new?template=feedback">💬 Feedback</a>
-</p>
-
-<p align="center">
-  <strong>README</strong> &nbsp;·&nbsp;
-  <a href="docs/install.md">Install</a> &nbsp;·&nbsp;
-  <a href="docs/input-data.md">Input data</a> &nbsp;·&nbsp;
-  <a href="docs/web-interface.md">Web interface</a> &nbsp;·&nbsp;
-  <a href="docs/troubleshooting.md">Troubleshooting</a> &nbsp;·&nbsp;
-  <a href="docs/command-line.md">Command-line</a> &nbsp;·&nbsp;
-  <a href="LICENSE">License</a>
 </p>
 
 <br>
