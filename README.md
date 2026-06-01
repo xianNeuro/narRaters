@@ -27,30 +27,6 @@
   <a href="https://github.com/xianNeuro/narRaters/issues/new?template=feedback">💬 Feedback</a>
 </p>
 
-## Table of contents
-
-- [What is narRaters?](#what-is-narraters)
-- [Get started in 3 steps](#get-started-in-3-steps)
-- [See the app](#see-the-app)
-- [Quick start](#quick-start)
-- [Installation](#installation)
-- [Where to put your data](#where-to-put-your-data)
-- [Using the web interface](#using-the-web-interface)
-- [Troubleshooting](#troubleshooting)
-- [Pipeline overview](#pipeline-overview)
-- [Command-line pipeline](#command-line-pipeline)
-- [Research background](CONTRIBUTING.md) — citations and prompt templates
-- [Library / Python use](#library--python-use)
-- [Project layout](#project-layout)
-- [Further reading](#further-reading)
-- [Author](#author)
-- [Acknowledgements](#acknowledgements)
-- [License](#license)
-
-> On GitHub, **README**, **Contributing** (research background & prompt templates), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
-
-<br>
-
 ## What is narRaters?
 
 **narRaters** (*narrative* + *raters*) is an open-source software on [GitHub (xianNeuro/narRaters)](https://github.com/xianNeuro/narRaters) that helps process complex narratives (e.g., audio book, text-based stories, interviews, conversations, etc.) for memory, language processing, causal reasoning, and LLM research.
@@ -102,7 +78,7 @@ narraters serve                               # browser opens to the pipeline bu
 
 Then continue with **steps 2–3** above — pick your pipeline, run steps on the dashboard, review, and export.
 
-> **First time?** Follow the illustrated **[Tutorial PDF](narRater_Tutorial.pdf)** or jump to [Quick start](#quick-start) for setup and troubleshooting.
+> **First time?** Follow the illustrated **[Tutorial PDF](narRater_Tutorial.pdf)** or see [Installation](#installation) and [Troubleshooting](#troubleshooting).
 
 ---
 
@@ -141,70 +117,94 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 
 ---
 
-## Quick start
+## Table of contents
 
-### Double-click launcher (ZIP download)
+<ul>
+<li><a href="#what-is-narraters">What is narRaters?</a></li>
+<li><a href="#get-started-in-3-steps">Get started in 3 steps</a></li>
+<li><a href="#see-the-app">See the app</a></li>
+<li><a href="#installation">Installation</a>
+<ul style="padding-left: 0.5em;">
+<li><a href="#zip-download-double-click-launcher">ZIP download (double-click launcher)</a></li>
+<li><a href="#pypi-terminal">PyPI (terminal)</a></li>
+<li><a href="#alternate-install-command-line">Alternate install (command line)</a></li>
+<li><a href="#using-the-web-ui">Using the web UI</a></li>
+</ul></li>
+<li><a href="#where-to-put-your-data">Where to put your data</a>
+<ul style="padding-left: 0.5em;">
+<li><a href="#example-inputoutput-data">Example input/output data</a></li>
+</ul></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#pipeline-overview">Pipeline overview</a></li>
+<li><a href="#command-line-pipeline">Command-line pipeline</a>
+<ul style="padding-left: 0.5em;">
+<li><a href="#step-1--transcribe-audio--text">Step 1 — <code>transcribe</code></a></li>
+<li><a href="#step-2--segment-story--events">Step 2 — <code>segment</code></a></li>
+<li><a href="#step-3--correct-spell--grammar-fixes">Step 3 — <code>correct</code></a></li>
+<li><a href="#step-4--parse-recall-text--clause-level-segments">Step 4 — <code>parse</code></a></li>
+<li><a href="#step-5--match-recall-segments--story-events">Step 5 — <code>match</code></a></li>
+<li><a href="#step-6--rate-causal-relationships-between-event-pairs">Step 6 — <code>rate</code></a></li>
+</ul></li>
+<li><a href="CONTRIBUTING.md">Contributing tab</a>
+<ul style="padding-left: 0.5em;">
+<li><a href="CONTRIBUTING.md">Research background</a></li>
+<li><a href="CONTRIBUTING.md#prompt-templates">Prompt templates</a></li>
+<li><a href="CONTRIBUTING.md#author">Author</a></li>
+<li><a href="CONTRIBUTING.md#acknowledgements">Acknowledgements</a></li>
+</ul></li>
+<li><a href="#library--python-use">Library / Python use</a></li>
+<li><a href="#project-layout">Project layout</a>
+<ul style="padding-left: 0.5em;">
+<li><a href="#folder-structure">Folder structure</a></li>
+</ul></li>
+<li><a href="#further-reading">Further reading</a></li>
+<li><a href="#license">License</a></li>
+</ul>
 
-1. **[Download the ZIP (v0.3.8)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.8.zip)** — latest release snapshot — and unzip it. (Or use green **Code ▾** → **Download ZIP** on GitHub for the current `main` branch.)
-2. **Open the launcher:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
-   - **macOS** if Gatekeeper blocks you:
-     - Try **Finder** → **control-click** **`narRater.app`** → **Open** → **Open** in the warning dialog (when those choices exist).
-     - If there is **no Open** entry or launching still fails: **System Settings** → **Privacy & Security** → scroll to **Security**. After macOS rejects the app once, look for **`narRater` was blocked…** (wording varies) and click **Allow Anyway** or **Open Anyway**, authenticate, then open **`narRater.app`** again (that control may disappear after ~an hour — try launching once more to refresh it).
-     - More (including stripping quarantine from a downloaded ZIP): [Installation](#installation) and [Troubleshooting](#troubleshooting).
-3. **A browser tab opens at `http://127.0.0.1:5000`** with bundled examples already loaded — start clicking.
-
-### Via terminal (PyPI)
-
-1. **Check Python** — you need **3.10 or newer**:
-
-```bash
-python --version
-```
-
-If that fails or shows an older version, try `python3 --version` or install [Python 3.10+](https://www.python.org/downloads/).
-
-2. **Install or upgrade** from PyPI and confirm it finishes without errors:
-
-```bash
-python3 -m pip install narraters --upgrade
-```
-
-You can verify with `narraters --version`.
-
-3. **Start the web UI** — your browser should open to the pipeline builder:
-
-```bash
-narraters serve
-```
-
-> Needs **[Python 3.10+](https://www.python.org/downloads/)**. If anything fails, see [Troubleshooting](#troubleshooting) or the full [Installation](#installation) walkthrough below.
+> On GitHub, **README**, **Contributing** (research background, prompt templates, author &amp; acknowledgements), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
 
 ---
 
 ## Installation
 
-**Step 1 — Install [Python 3.10 or newer](https://www.python.org/downloads/).**  Windows: check **“Add python.exe to PATH”** in the Python installer.
+Needs **[Python 3.10+](https://www.python.org/downloads/)**. Windows: check **“Add python.exe to PATH”** in the Python installer. If anything fails, see **[Troubleshooting](#troubleshooting)**.
 
-**Step 2 — Download the project.** Use the **[release ZIP (v0.3.8)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.8.zip)** link in [Quick start](#quick-start), or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) click the green **Code ▾** button → **Download ZIP**, then unzip wherever you like (e.g. `~/Downloads/`, your desktop, `~/Documents/`). You'll get a folder called **`narRaters-0.3.8`** (release ZIP), **`narRaters-main`** (default GitHub ZIP), or **`narRaters`** if you used `git clone`. Everything below assumes you're inside that folder.
+### ZIP download (double-click launcher)
 
-**Step 3 — Launch the app by double-clicking the right file for your OS.**
+1. **[Download the ZIP (v0.3.8)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.8.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.8`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
+2. **Launch:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
+3. Your browser opens **`http://127.0.0.1:5000/pipeline-config`** with bundled examples. Put your data in **`data/`**. Restart later by double-clicking the same launcher.
 
-| Your OS | Double-click… | What happens |
-|---------|---------------|--------------|
-| **macOS** | **`narRater.app`** | Sets up a Python virtual environment, installs dependencies, opens your browser |
-| **Windows** | **`narRaters_installer.bat`** | Same flow, in a Command Prompt window |
-| **Linux** | open Terminal in the folder, run `bash install.sh` | Same flow (Linux has no double-click convention here) |
+**macOS Gatekeeper or quarantine issues?** See **[Troubleshooting](#troubleshooting)**.
 
-**Step 4 — Done.** Your browser opens **`http://127.0.0.1:5000/pipeline-config`**. Put your data in **`data/`** inside the project folder (bundled examples are already there). Restart later by double-clicking the same file.
+### PyPI (terminal)
 
-Install problems? See **[Troubleshooting](#troubleshooting)**.
+```bash
+python --version                              # must show 3.10 or newer
+python3 -m pip install narraters --upgrade    # use python3 -m pip, not bare pip
+narraters serve                               # browser opens to the pipeline builder
+```
+
+On first launch, example **`data/`** and **`output/`** folders are copied into whatever directory you run from (unless you already have a project folder, or set **`NARRATERS_PROJECT_ROOT`**). Package: [`narraters`](https://pypi.org/project/narraters/) (all lowercase). For launchers and the tutorial PDF, use the ZIP install above.
+
+<details>
+<summary><b>Full PyPI setup (venv from scratch)</b></summary>
+
+```bash
+python3 --version        # must be 3.10 or newer
+mkdir -p ~/narRaters-demo && cd ~/narRaters-demo
+python3 -m venv .venv
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
+python3 -m pip install --upgrade pip
+python3 -m pip install narraters --upgrade
+narraters serve
+```
+</details>
 
 ### Alternate install (command line)
 
-For users who prefer the terminal, or who want to install the app without keeping the project folder around. Two flavors — pick whichever you prefer.
-
 <details>
-<summary><b>(a) <code>git clone</code> + <code>install.sh</code> (gets you the project folder, with bundled examples)</b></summary>
+<summary><b><code>git clone</code> + <code>install.sh</code> (project folder with bundled examples)</b></summary>
 
 ```bash
 # macOS / Linux
@@ -217,26 +217,6 @@ cd %USERPROFILE% && git clone https://github.com/xianNeuro/narRaters.git && cd n
 ```
 
 This is what `narRater.app` does under the hood, just without the click. `git: command not found`? On macOS: `xcode-select --install`. On Windows: install [Git for Windows](https://git-scm.com/download/win).
-</details>
-
-<details>
-<summary><b>(b) PyPI (bundled examples — copied into your current folder on first <code>narraters serve</code>)</b></summary>
-
-Use this if you already have a working Python venv and just want the **`narraters`** command. On first launch, example **`data/`** and **`output/`** folders are copied into whatever directory you run from (unless you already have a project folder, or set **`NARRATERS_PROJECT_ROOT`**).
-
-Always use **`python3 -m pip`**, not bare `pip` — on macOS, `pip` often points at an old Python and will say *“no matching distribution”*.
-
-```bash
-python3 --version        # must be 3.10 or newer
-mkdir -p ~/narRaters-demo && cd ~/narRaters-demo
-python3 -m venv .venv
-source .venv/bin/activate     # Windows: .venv\Scripts\activate
-python3 -m pip install --upgrade pip
-python3 -m pip install narraters --upgrade
-narraters serve
-```
-
-Package: [`narraters`](https://pypi.org/project/narraters/) (all lowercase). For the full project folder (launchers, tutorial PDF, etc.), use the ZIP or git clone install above.
 </details>
 
 <details>
@@ -273,6 +253,35 @@ python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -e 
 Build the standalone macOS app for icon testing: `bash packaging/macos/build_app_bundle.sh`.  Build the slim repo-root launcher: `bash packaging/macos/build_repo_app.sh`.
 </details>
 
+### Using the web UI
+
+The app runs at **`http://127.0.0.1:5000`**. First visit opens **pipeline configuration**; if you already saved a pipeline, you land on the **dashboard**.
+
+| Screen | Route | What you do there |
+|--------|--------|-------------------|
+| **Pipeline setup** | `/pipeline-config` | Drag steps into **Pipeline Flow**, set per-step **folders**, enter a **rater name** (or 🎲). **Continue** saves config and opens the dashboard. |
+| **Dashboard** | `/` | Grid: **rows** = subjects or stories, **columns** = steps. **Click a cell** to run that step (pick **method / model / prompt** when offered). **Batch** runs one step across all rows. |
+| **Detail view** | `/subject/…` or `/story/…` | **Tabs** per step for **one** row. Use the **version** dropdown to compare automated output vs your **`{id}_{ratername}-edit`** saves, then **edit** and **save**. |
+
+**Flow:** setup → dashboard (bulk runs) → open a row to **inspect, hand-correct, or compare versions**.
+
+<details>
+<summary><b><code>narraters serve</code> options</b></summary>
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--port` | `5000` | Another port if `5000` is busy |
+| `--host` | `127.0.0.1` | Bind address; use `0.0.0.0` only on a **trusted** network |
+| `--no-browser` | off | Do not open a browser tab (SSH, headless) |
+| `--debug` | off | Flask debug / auto-reload while hacking on the server |
+
+```bash
+narraters serve --port 8080 --no-browser
+```
+</details>
+
+Before a step would load **Whisper**, **Gemma via Ollama**, **rMatch**, or other heavy local models, the UI runs a **RAM / disk preflight** and may suggest a lighter method (`rules`, `test`, `clause`) if the run looks unsafe for your machine.
+
 ---
 
 ## Where to put your data
@@ -289,7 +298,7 @@ After [installation](#installation), place files so the paths match what you con
 
 Outputs are written under `output/` — one subdirectory per step (`output/recall_corrected/`, `output/recall_parsed/`, `output/recall_rated/`, …). A smaller alternate layout lives in **`demo/data/`** (lighthouse story, three recall `.txt` files).
 
-### Bundled examples (`pieman_edited`, `the_siren`)
+### Example input/output data
 
 The repository ships **realistic sample inputs and outputs** under `data/` and `output/` so you can see accepted naming and file types before adding your own study. Your private files in those folders stay untracked (see `.gitignore`); only the examples below are committed.
 
@@ -315,49 +324,6 @@ The repository ships **realistic sample inputs and outputs** under `data/` and `
 
 ---
 
-## Using the web interface
-
-The app is a **local Flask site** at **`http://127.0.0.1:5000`**. After the initial install, restart it any time by:
-
-| How | Where |
-|-----|-------|
-| Double-click **`narRater.app`** | macOS, repo root |
-| Double-click **`narRaters_installer.bat`** | Windows, repo root |
-| `narraters serve` in Terminal | any OS — opens your browser automatically |
-
-On first visit you see **pipeline configuration**; if a pipeline was already saved, you land on the **dashboard**.
-
-### `narraters serve` options
-
-| Flag | Default | Purpose |
-|---|---|---|
-| `--port` | `5000` | Another port if `5000` is busy |
-| `--host` | `127.0.0.1` | Bind address; use `0.0.0.0` only on a **trusted** network (the UI runs subprocesses on your machine) |
-| `--no-browser` | off | Do not open a browser tab (SSH, headless) |
-| `--debug` | off | Flask debug / auto-reload while hacking on the server |
-
-```bash
-narraters serve --port 8080 --no-browser
-```
-
-### Navigating the three main screens
-
-Use this table as a mental map; URLs are for bookmarking or support.
-
-| Screen | Route | What you do there |
-|--------|--------|-------------------|
-| **Pipeline setup** | `/pipeline-config` | Drag steps from **Available Steps** into **Pipeline Flow**, set per-step **folders**, enter a **rater name** (or 🎲). **Continue** unlocks only when there is a **name** and **at least one step**; it saves config and opens the dashboard. |
-| **Dashboard** | `/` | Grid: **rows** = subjects or stories, **columns** = steps. **Click a cell** to run that step for that row (pick **method / model / prompt / variant** if the step offers them). **Batch** actions run one step across all rows. **Change rater** returns to setup. |
-| **Detail view** | `/subject/…` or `/story/…` | **Tabs** per pipeline step for **one** row. Read outputs, use the **version** dropdown to compare the latest automated file vs your **`{id}_{ratername}-edit`** saves, **edit**, **save**. Use **`-edit`** files for downstream analysis. |
-
-**Flow:** setup → dashboard (bulk status + runs) → open a row when you need to **inspect, hand-correct, or compare versions**. You can return to setup anytime to add steps or change paths.
-
-### Heavy local models
-
-Before a step that would load **Whisper**, **Gemma via Ollama**, **rMatch** embeddings, or **local Transformers**, the app runs a **RAM / disk / model** preflight. If the run is likely unsafe for your machine, a **popup** explains why and can **switch you to a lighter method** (for example `rules`, `test`, `clause`). The check does **not** download or start a model just to decide, so it should not wedge the system. Capable machines with models already installed often see no popup.
-
----
-
 ## Troubleshooting
 
 | If you see… | Do this |
@@ -365,11 +331,9 @@ Before a step that would load **Whisper**, **Gemma via Ollama**, **rMatch** embe
 | `Python 3.10+ required` | Install [Python 3.10+](https://www.python.org/downloads/), close and reopen any Terminal, run again. |
 | Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead (IPv6/IPv4 quirk on some Macs). |
 | **macOS:** Gatekeeper / “cannot check for malicious software” / no **Open** in the right-click menu | **1.** In **Finder**, try **control-click** **`narRater.app`** → **Open**, then confirm **Open** if the dialog offers it — [Apple’s Gatekeeper overrides](https://support.apple.com/guide/mac-help/mh40617/mac). **2.** If that path is missing or still blocks: **System Settings** → **Privacy & Security** → scroll to **Security** — after a failed launch, macOS often shows **`narRater` was blocked** (wording varies) with **Allow Anyway** or **Open Anyway**; click it, enter your password, then launch **`narRater.app`** again (that button may only appear for a limited time after the block). **3.** Downloaded folder still quarantined: in Terminal, `xattr -dr com.apple.quarantine /path/to/narRaters-main`, then try **1** or **2** again. |
-| **macOS:** “narRater couldn't find the narRaters project folder” | macOS **App Translocation** ran the app from a temp copy. Run `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main` (adjust path) and double-click again, or use the [command-line install](#alternate-install-command-line). |
+| **macOS:** “narRater couldn't find the narRaters project folder” | macOS **App Translocation** ran the app from a temp copy. Run `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main` (adjust path) and double-click again, or use [git clone install](#alternate-install-command-line). |
 | **Windows:** SmartScreen warns about `narRaters_installer.bat` | Click **More info** → **Run anyway**. |
 | Port 5000 already in use | The installer auto-tries 5001–5010 and prints the URL. To free 5000: macOS → System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
-
-For the full install walkthrough (ZIP, PyPI, optional extras), see **[Installation](#installation)**.
 
 ---
 
@@ -545,46 +509,118 @@ Direct per-step imports are planned for a future release; for now, programmatic 
 
 ## Project layout
 
-After unzipping, your `narRaters/` folder has three layers:
+After unzipping, everything lives under a single **`narRaters/`** project root. Expand the branches below for paths, contents, and naming conventions.
 
-**1. What you click and read** — at the top of the folder so it's the first thing you see.
+### Folder structure
 
-| File / folder | Purpose |
-|---|---|
-| `README.md`, `LICENSE`, `CONTRIBUTING.md` | this file, the license, and research background / prompt templates |
-| `narRater_Tutorial.pdf` | illustrated end-user tutorial |
-| `narRater.app` | macOS double-click launcher |
-| `narRaters_installer.bat` | Windows double-click launcher |
-| `install.sh` | macOS / Linux command-line installer |
-| `data/` | your inputs (bundled `pieman_edited` + `the_siren` examples) |
-| `output/` | pipeline outputs (sample outputs for the same examples) |
+<details>
+<summary><strong>narRaters/</strong> — project root (launchers &amp; docs at top level)</summary>
 
-**2. App machinery** — runs the pipeline; usually no need to open these.
+```
+narRaters/
+├── README.md, LICENSE, CONTRIBUTING.md     # docs (GitHub tabs)
+├── narRater_Tutorial.pdf                   # illustrated web UI tour
+├── narRater.app                            # macOS double-click launcher
+├── narRaters_installer.bat                 # Windows launcher
+├── install.sh                              # macOS / Linux installer
+├── pyproject.toml                          # package metadata & pip extras
+├── SETUP_API.md, .env.example              # API key setup
+├── data/                                   # ▾ inputs
+├── output/                                 # ▾ pipeline outputs
+├── scripts/                                # ▾ six pipeline backends
+├── server/web-interface.py                 # Flask web UI
+├── templates/, static/                     # web UI HTML / CSS / JS / icon
+├── src/narraters/                          # pip package (cli, paths)
+├── helpers/                                # shared utilities & smoke tests
+├── docs/                                   # GitHub Pages site & README assets
+├── demo/                                   # smaller lighthouse example
+└── packaging/macos/                        # app bundle / DMG build scripts
+```
 
-| File / folder | Purpose |
-|---|---|
-| `pyproject.toml` | package metadata, deps, console scripts |
-| `src/narraters/` | installed package (`cli.py` entry point, `paths.py` repo-root resolution) |
-| `scripts/` | the six pipeline scripts (`1_audio-transcribe.py` … `6_causal-rater.py`) and `prompt/` templates |
-| `server/web-interface.py` | Flask web UI (routes, subprocess orchestration) |
-| `templates/`, `static/` | HTML / CSS / JS / icon for the web UI |
-| `helpers/` | shared utilities (disk/RAM preflight, plotting, smoke-test scripts) |
+<details>
+<summary><code>data/</code> — inputs (<a href="#where-to-put-your-data">where to put your files</a>)</summary>
 
-**3. Build & extras** — only relevant if you're packaging or contributing.
+```
+data/
+├── 1_story_audio/              # optional Step 1 — story audio
+│   └── {story}.wav | .mp3 | .m4a
+├── 2_story_transcript/         # story text
+│   └── {story}.txt             # plain UTF-8, one story per file
+├── 3_story_events/             # pre-segmented or segmented story events
+│   └── {story}_events.xlsx     # columns: event, story_texts
+├── 4_recall_audio/             # optional Step 1 — recall audio
+│   └── {subj_id}.wav | .mp3 | .m4a | .mp4
+└── 5_recall_texts/             # recall text
+    └── {subj_id}.txt           # e.g. the_siren_sub-01.txt
+```
 
-| File / folder | Purpose |
-|---|---|
-| `packaging/macos/` | scripts that build `narRater.app` and the DMG |
-| `demo/` | smaller alternate dataset (lighthouse story) |
-| `SETUP_API.md` | API key and provider setup |
-| `.env.example` | template for local API keys (copy to `.env`) |
+Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/output data](#example-inputoutput-data).
+
+</details>
+
+<details>
+<summary><code>output/</code> — pipeline outputs (one subfolder per step)</summary>
+
+```
+output/
+├── story_audio-transcribed/    # Step 1 (story) — {story}.txt
+├── recall_audio-transcribed/   # Step 1 (recall) — {subj_id}.txt
+├── recall_corrected/           # Step 3 — {subj_id}.txt
+├── recall_parsed/              # Step 4 — {subj_id}_parsed.xlsx
+├── recall_rated/               # Step 5 — {subj_id}_{method}.xlsx
+└── causal_rated/               # Step 6 — {story}_causal-{method}.xlsx
+```
+
+**Versioning:** automated files use `{id}_{method}.ext`; hand-edited exports use `{id}_{ratername}-edit.ext` (never overwritten).
+
+</details>
+
+<details>
+<summary><code>scripts/</code> — pipeline backends (CLI &amp; web UI call these)</summary>
+
+```
+scripts/
+├── 1_audio-transcribe.py       # audioTranscribe
+├── 2_story-event-segment.py    # eventSegment
+├── 3_spell-grammar-correct.py  # sentenceCorrect
+├── 4_parse-texts.py            # textParsing
+├── 5_recall-rater.py           # textMatching
+├── 6_causal-rater.py           # causalRating
+└── prompt/                     # LLM prompt templates (.txt)
+    ├── event_segment.txt
+    ├── spell_gram.txt
+    ├── recall_parse_clause.txt
+    ├── recall_rating.txt
+    └── causal_rating.txt
+```
+
+</details>
+
+<details>
+<summary><code>src/narraters/</code>, <code>server/</code>, <code>templates/</code>, <code>helpers/</code></summary>
+
+```
+src/narraters/
+├── cli.py                      # narraters command entry point
+├── paths.py                    # project-root resolution
+└── runtime_install.py          # bundled-example copy on first serve
+
+server/web-interface.py         # Flask routes & subprocess orchestration
+templates/                      # pipeline-config, dashboard, subject/story views
+static/                         # CSS, JS, app icon
+helpers/                        # disk/RAM preflight, plotting, test scripts
+```
+
+</details>
+
+</details>
 
 ---
 
 ## Further reading
 
 - **[Project home (GitHub Pages)](https://xianneuro.github.io/narRaters/)** — landing page for search and sharing.
-- **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Quick start](#quick-start).
+- **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
 
@@ -592,18 +628,13 @@ After unzipping, your `narRaters/` folder has three layers:
 
 ## Author
 
-**Xian Li** — [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com)
+See **[CONTRIBUTING.md](CONTRIBUTING.md#author)**.
 
 ---
 
 ## Acknowledgements
 
-- **Janice Chen** for brainstorming the causal-rating step interface and for help testing and improving package functionality.
-- **Gabi Kressin Palacios** and **Dhruva Arekar** for an additional method for the recall-matching step (matching human recall text to story events). See [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch) for human-data–validated AI-assisted recall rating.
-- **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (commercial LLM APIs were close to human raters).
-- **Sebastian Michelmann** for feedback on the event-segmentation step (see [Michelmann et al., 2023](https://arxiv.org/abs/2301.10297)).
-- **Colette Youstra** and **Quinton Covington** for testing the app's manual-rating functions.
-- **Samira Tavassoli** and **Yuye Huang** for help testing the app's segmentation and causal-reasoning functions.
+See **[CONTRIBUTING.md](CONTRIBUTING.md#acknowledgements)**.
 
 ---
 
