@@ -84,7 +84,10 @@ Issues = "https://github.com/xianNeuro/narRaters/issues"
 Download = "https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.7.zip"
 
 [build-system]
-requires = ["hatchling"]
+# Pin hatchling: newer releases emit Metadata-Version 2.5, which the twine in
+# the publish workflow rejects ("not a valid metadata version"). 1.26.3 emits
+# the widely-supported 2.3.
+requires = ["hatchling==1.26.3"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
