@@ -667,9 +667,27 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 
 <div style="padding-left: 0.5em">
 
-If you use narRaters in research, please cite the archived release:
+If you use narRaters in research, please cite the archived release.
+
+**Reference list (APA 7):**
 
 > Li, X. (2026). *narRaters: Naturalistic narratives processing platform* (Version 0.3.12) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
+
+Replace the version number with the release you used (see [Zenodo](https://doi.org/10.5281/zenodo.20486080) for the latest).
+
+**Examples in a manuscript:**
+
+*Methods — in-text:*
+> Narrative recall data were processed with narRaters (Li, 2026).
+
+*Methods — first mention (optional):*
+> We used narRaters (Li, 2026), an open-source pipeline for transcribing, segmenting, parsing, matching, and rating narrative recall data, with human review at each step.
+
+*Software / code availability:*
+> narRaters (Version 0.3.12) is available at https://doi.org/10.5281/zenodo.20486080.
+
+*Data processing statement:*
+> Story events, parsed recall clauses, recall-to-event matches, and causal ratings were produced with narRaters (Li, 2026; https://doi.org/10.5281/zenodo.20486080).
 
 ---
 
