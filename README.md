@@ -57,7 +57,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 <table>
   <tr>
     <td width="72" align="center"><strong>1</strong></td>
-    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.6.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.7.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
   </tr>
   <tr>
     <td align="center"><strong>2</strong></td>
@@ -146,7 +146,7 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 
 ### Double-click launcher (ZIP download)
 
-1. **[Download the ZIP (v0.3.6)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.6.zip)** — latest release snapshot — and unzip it. (Or use green **Code ▾** → **Download ZIP** on GitHub for the current `main` branch.)
+1. **[Download the ZIP (v0.3.7)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.7.zip)** — latest release snapshot — and unzip it. (Or use green **Code ▾** → **Download ZIP** on GitHub for the current `main` branch.)
 2. **Open the launcher:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
    - **macOS** if Gatekeeper blocks you:
      - Try **Finder** → **control-click** **`narRater.app`** → **Open** → **Open** in the warning dialog (when those choices exist).
@@ -219,7 +219,7 @@ For each step, the GUI runs the same backends as the CLI. **Available methods, f
 
 **Step 1 — Install [Python 3.10 or newer](https://www.python.org/downloads/).**  Windows: check **“Add python.exe to PATH”** in the Python installer.
 
-**Step 2 — Download the project.** Use the **[release ZIP (v0.3.6)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.6.zip)** link in [Quick start](#quick-start), or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) click the green **Code ▾** button → **Download ZIP**, then unzip wherever you like (e.g. `~/Downloads/`, your desktop, `~/Documents/`). You'll get a folder called **`narRaters-0.3.6`** (release ZIP), **`narRaters-main`** (default GitHub ZIP), or **`narRaters`** if you used `git clone`. Everything below assumes you're inside that folder.
+**Step 2 — Download the project.** Use the **[release ZIP (v0.3.7)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.7.zip)** link in [Quick start](#quick-start), or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) click the green **Code ▾** button → **Download ZIP**, then unzip wherever you like (e.g. `~/Downloads/`, your desktop, `~/Documents/`). You'll get a folder called **`narRaters-0.3.7`** (release ZIP), **`narRaters-main`** (default GitHub ZIP), or **`narRaters`** if you used `git clone`. Everything below assumes you're inside that folder.
 
 **Step 3 — Launch the app by double-clicking the right file for your OS.**
 
