@@ -669,7 +669,7 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 
 If you use narRaters in research, please cite the archived release:
 
-> Li, X. (2026). *narRaters* (Version 0.3.12) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
+> Li, X. (2026). *narRaters: Naturalistic narratives processing platform* (Version 0.3.12) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
 
 ---
 

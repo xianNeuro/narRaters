@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: narRaters
+title: "narRaters: Naturalistic narratives processing platform"
 message: "If you use narRaters in research, please cite it as below."
 type: software
 authors:
@@ -32,7 +32,7 @@ identifiers:
     description: "PyPI package (pip install narraters)"
 preferred-citation:
   type: software
-  title: "narRaters"
+  title: "narRaters: Naturalistic narratives processing platform"
   authors:
     - family-names: Li
       given-names: Xian
