@@ -37,6 +37,16 @@
             padding: 0;
             box-sizing: border-box;
         }
+
+        /* The inspection page is denser than the dashboard/pipeline, so default it one
+           step more compact (0.8 vs 0.9 elsewhere) — i.e. how it looks after one
+           browser Cmd/Ctrl + - press. The segmentation cursor bar is positioned in
+           layout (offsetLeft/offsetTop) space rather than viewport space, so it stays
+           aligned with the pointer at this zoom (see positionSegCursorBar). Users can
+           still change the browser zoom themselves. */
+        html {
+            zoom: 0.8;
+        }
         
         body {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -204,9 +214,13 @@
             cursor: grabbing;
         }
         
+        /* Story events that have already received a recall-match drop are
+           marked "used". Keep the dim very faint so used events stay
+           legible and visually close to the unused ones — the user is still
+           working with them. (Was: opacity 0.42 + saturate 0.55, which made
+           used events recede into the background and hard to read.) */
         #matched .story-event.story-event-used {
-            opacity: 0.42;
-            filter: saturate(0.55);
+            opacity: 0.88;
         }
         
         #matched .rated-segment.recall-match-drop-hover {
@@ -234,6 +248,7 @@
         .event-text {
             color: var(--t1);
             line-height: 1.45;
+            text-align: left;
         }
         
         .loading {
@@ -964,8 +979,17 @@
             line-height: 2.1;
             position: relative;       /* containing block for the cursor bar */
             text-align: left;
-            cursor: text;             /* vertical-bar (I-beam) cursor */
+            /* Hide the native I-beam so the red bar IS the cursor — the bar
+               below tracks the pointer X smoothly and stands in for the OS
+               cursor while the user scans the text. */
+            cursor: none;
         }
+        /* Re-show a normal cursor anywhere inside .seg-flow where a click
+           shouldn't drop a boundary (e.g. on a placed-boundary element when
+           we want it pointer-style, on segment-block padding outside of the
+           interactive line, etc.). The seg-cursor-bar takes care of the
+           visual cursor across the text itself. */
+        .seg-flow .seg-boundary { cursor: pointer; }
         .seg-block {
             display: block;
             text-align: left;
@@ -983,18 +1007,26 @@
             display: inline;
             white-space: pre-wrap;
         }
-        /* A single thick red bar that smoothly follows the cursor and snaps to the
-           nearest word gap; clicking drops a boundary at its current position. */
+        /* The red bar IS the visible cursor — it tracks the pointer 1:1.
+           Lives as a direct child of <body> (appended outside .seg-flow) so it
+           sits in the true viewport coordinate system, unaffected by the page's
+           `zoom: 0.8` or any ancestor's `transform`. left/top come directly
+           from `event.clientX/Y` and the line's getBoundingClientRect — same
+           coordinate space, no conversion math, no drift.
+           No CSS transitions: the bar should be exactly where the pointer is
+           every frame, not slide toward where the pointer was. rAF throttling
+           in JS already gives us 60 fps which is plenty smooth. */
         .seg-cursor-bar {
-            position: absolute;
+            position: fixed;
             width: 3px;
             background: #ef4444;
             border-radius: 2px;
             pointer-events: none;
             opacity: 0;
             box-shadow: 0 0 6px 1px rgba(239, 68, 68, 0.6);
-            transition: left 0.07s ease-out, top 0.07s ease-out, height 0.07s ease-out;
-            z-index: 5;
+            z-index: 9001;
+            /* Position values are written every mousemove; no transitions so
+               the bar never lags behind the pointer. */
         }
         .seg-cursor-bar.removing {
             background: #f59e0b;
@@ -1731,7 +1763,16 @@
             color: var(--t0);
             font-family: inherit;
         }
-        
+        /* Very faint placeholder so the "e.g., 1, 2, 3" hint reads as a
+           background tip rather than competing with real input. Only the
+           first segment renders the placeholder text (see the
+           ${idx === 0 ? ... : ''} guard in the template); all other event
+           inputs have no placeholder at all, so this rule only ever applies
+           to that single first-segment hint. */
+        .event-input::placeholder { color: var(--t3); opacity: 0.35; }
+        .event-input::-webkit-input-placeholder { color: var(--t3); opacity: 0.35; }
+        .event-input::-moz-placeholder { color: var(--t3); opacity: 0.35; }
+
         .event-input:focus {
             outline: none;
             border-color: var(--acc);
@@ -1761,6 +1802,55 @@
             color: var(--t1);
             line-height: 1.45;
             margin-bottom: 4px;
+            text-align: left;
+        }
+
+        /* Per-segment recall-level slider (Detail / NA / Gist), replaces the old
+           event dropdown. */
+        .gist-slider-wrap {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 1px;
+            min-width: 132px;
+        }
+        .gist-range {
+            width: 132px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: var(--acc);
+        }
+        .gist-ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.68em;
+            color: var(--t3);
+            line-height: 1;
+        }
+        .gist-ticks span { flex: 1; text-align: center; }
+        .gist-ticks span:first-child { text-align: left; }
+        .gist-ticks span:last-child { text-align: right; }
+        .gist-slider-wrap[data-level="detail"] .gist-ticks span:first-child,
+        .gist-slider-wrap[data-level="gist"] .gist-ticks span:last-child {
+            color: var(--acc2);
+            font-weight: 700;
+        }
+
+        /* Click-to-match: a selected recall segment stays highlighted while the user
+           clicks story events on the left to add/remove them. */
+        #matched .rated-segment.recall-seg-selected {
+            border-color: var(--acc);
+            box-shadow: 0 0 0 2px var(--acc);
+            background: var(--bg3);
+        }
+        #matched.seg-selecting .story-events-container .story-event { cursor: pointer; }
+        #matched.seg-selecting .story-events-container .story-event:hover {
+            border-color: var(--acc);
+            background: var(--bg3);
+        }
+        #matched .story-event.story-event-in-selected {
+            border-left-color: var(--grn);
+            box-shadow: inset 0 0 0 1px var(--grn);
         }
         
         .save-rated-button {
@@ -2662,7 +2752,7 @@
                                 ${panelVersionBarMarkup('Recall / rated file', 'recall-pipeline')}
                                 <div id="matched-notification" class="story-events-notification hidden">
                                     <button class="story-events-notification-close" onclick="dismissNotification('matched-notification-dismissed')" title="Dismiss">×</button>
-                                    <strong>Matching Recall to Story Segments:</strong> Drag events from the left list onto a recall segment to add that event number (you can drop multiple events on the same segment, and the same event onto multiple segments). You can also type event numbers (e.g., "1, 2, 3") or use the dropdown. Story events that are already matched somewhere appear faded on the left.
+                                    <strong>Matching Recall to Story Segments:</strong> Click a recall segment on the right to select it (it stays highlighted), then click story events on the left to add or remove them — scroll the left list to reach more, and click the segment again to deselect. You can still drag events onto a segment or type event numbers (e.g., "1, 2, 3"). The <strong>Detail&ndash;NA&ndash;Gist</strong> slider on each segment records how it was recalled (a <code>gist-level</code> column is exported only when any segment is moved off NA). Story events already matched somewhere appear faded on the left.
                                 </div>
                                 <h2>Recall Segments with Matched Events</h2>
                                 <div class="rated-scrollable">
@@ -2673,6 +2763,9 @@
                                             const matchedEvent = segment.matched_event || segment.matched || '';
                                             const formattedEvent = formatEventValue(matchedEvent);
                                             const segmentText = segment.text || segment.recall_in_temporal_order || '';
+                                            // Per-segment gist level: detail | NA | gist (default NA).
+                                            const gistLevel = (segment.gist_level || 'NA');
+                                            const gistVal = gistLevel === 'detail' ? 0 : (gistLevel === 'gist' ? 2 : 1);
                                             return `
                                             <div class="rated-segment" data-segment-index="${idx}">
                                                 <div class="rated-segment-header">
@@ -2680,23 +2773,20 @@
                                                     ${hasStoryEvents ? `
                                                     <div class="event-input-container">
                                                         <label class="event-input-label">Event:</label>
-                                                        <input type="text" 
-                                                               class="event-input" 
-                                                               value="${escapeHtml(formattedEvent)}" 
-                                                               placeholder="e.g., 1, 2, 3"
+                                                        <input type="text"
+                                                               class="event-input"
+                                                               value="${escapeHtml(formattedEvent)}"
+                                                               ${idx === 0 ? 'placeholder="e.g., 1, 2, 3"' : ''}
                                                                data-segment-index="${idx}"
                                                                oninput="updateRatedEvent(${idx}, this.value); enableExportRated();"
                                                                onblur="validateEventInput(${idx}, this)">
-                                                        <select class="event-dropdown" 
-                                                                onchange="setEventFromDropdown(${idx}, this.value); enableExportRated();"
-                                                                data-segment-index="${idx}">
-                                                            <option value="">Select event...</option>
-                                                            ${data.story_events.map(e => {
-                                                                const eventNum = getIntEvent(e.event);
-                                                                const isSelected = matchedEvent && matchedEvent.includes(String(eventNum));
-                                                                return `<option value="${eventNum}" ${isSelected ? 'selected' : ''}>Event ${eventNum}</option>`;
-                                                            }).join('')}
-                                                        </select>
+                                                        <div class="gist-slider-wrap" data-segment-index="${idx}" data-level="${gistLevel}" title="How is this segment recalled? Detail / NA / Gist">
+                                                            <input type="range" class="gist-range" min="0" max="2" step="1" value="${gistVal}"
+                                                                   data-segment-index="${idx}"
+                                                                   oninput="setGistLevel(${idx}, this.value); enableExportRated();"
+                                                                   aria-label="Recall level: Detail, NA, or Gist">
+                                                            <div class="gist-ticks"><span>Detail</span><span>NA</span><span>Gist</span></div>
+                                                        </div>
                                                     </div>
                                                     ` : `
                                                     <div class="event-input-container">
@@ -3515,6 +3605,13 @@
             if (!btn) return;
             btn.disabled = !segPanelDirty('recall', originalParsedTexts);
         }
+        // Read the per-segment gist levels (detail | NA | gist) in segment order.
+        function readGistLevels() {
+            return Array.from(document.querySelectorAll('.gist-range'))
+                .sort((a, b) => parseInt(a.getAttribute('data-segment-index')) - parseInt(b.getAttribute('data-segment-index')))
+                .map(r => r.value === '0' ? 'detail' : (r.value === '2' ? 'gist' : 'NA'));
+        }
+
         function enableExportRated() {
             const btn = document.getElementById('export-rated');
             if (!btn) return;
@@ -3522,9 +3619,12 @@
             const currentValues = Array.from(inputs)
                 .sort((a, b) => parseInt(a.getAttribute('data-segment-index')) - parseInt(b.getAttribute('data-segment-index')))
                 .map(inp => parseEventValue((inp.value || '').trim()));
-            const different = originalRatedEvents.length !== currentValues.length ||
+            const eventsDiff = originalRatedEvents.length !== currentValues.length ||
                 originalRatedEvents.some((v, i) => v !== (currentValues[i] || ''));
-            btn.disabled = !different;
+            const gists = readGistLevels();
+            const gistDiff = originalGistLevels.length !== gists.length ||
+                originalGistLevels.some((v, i) => v !== (gists[i] || 'NA'));
+            btn.disabled = !(eventsDiff || gistDiff);
         }
         
         let ratedTextsData = [];
@@ -3614,13 +3714,28 @@
                 html += `</div>`;
             }
             container.innerHTML = html;
-            // innerHTML wiped any previous bar; create a fresh cursor bar.
-            const bar = document.createElement('div');
-            bar.className = 'seg-cursor-bar';
-            container.appendChild(bar);
-            container._segBar = bar;
+            // The bar lives as a direct child of <body>, not inside .seg-flow.
+            // Reason: .seg-flow is nested under the page's `zoom: 0.8`, which
+            // scales every coordinate inside it — making clientX vs the bar's
+            // CSS `left` no longer the same coordinate space. Appending to the
+            // body keeps the bar in true viewport pixels (same space as
+            // clientX/Y and getBoundingClientRect), so the math is just
+            // `bar.left = clientX`. innerHTML on the container doesn't touch
+            // body-level children, so the bar survives a re-render.
+            let bar = container._segBar;
+            if (!bar || !document.body.contains(bar)) {
+                bar = document.createElement('div');
+                bar.className = 'seg-cursor-bar';
+                document.body.appendChild(bar);
+                container._segBar = bar;
+            }
+            bar.style.opacity = '0';
             container._segSnapOffset = null;
             container._segSnapIsBoundary = false;
+            // Reset the cached line-height — re-render means the panel may
+            // have re-laid-out (font-size override, resize, etc.) so we want
+            // a fresh getComputedStyle next time positionSegCursorBar runs.
+            container._segLineHeightCss = null;
         }
 
         // Render a block slice as word spans separated by clickable gap zones.
@@ -3679,36 +3794,84 @@
             });
         }
 
+        // Walk a word's siblings to find the nearest gap/boundary on one side.
+        function segAdjacentCand(word, dir) {
+            let n = (dir === 'prev') ? word.previousElementSibling : word.nextElementSibling;
+            while (n) {
+                if (n.classList && (n.classList.contains('seg-gap') || n.classList.contains('seg-boundary'))) return n;
+                n = (dir === 'prev') ? n.previousElementSibling : n.nextElementSibling;
+            }
+            return null;
+        }
+
         function positionSegCursorBar(panel, container) {
             const bar = container._segBar;
             const xy = container._segLastXY;
             if (!bar || !xy) return;
-            // Candidate snap points: every word gap plus every placed boundary.
-            const cands = container.querySelectorAll('.seg-gap, .seg-boundary');
-            if (!cands.length) { hideSegCursorBar(panel); return; }
-            let best = null, bestScore = Infinity;
-            cands.forEach(function (el) {
-                const r = el.getBoundingClientRect();
-                const cx = (r.left + r.right) / 2;
-                const cy = (r.top + r.bottom) / 2;
-                const onLine = xy.y >= r.top && xy.y <= r.bottom;
-                const dy = onLine ? 0 : Math.abs(xy.y - cy);
-                const score = dy * 1000 + Math.abs(xy.x - cx);
-                if (score < bestScore) {
-                    bestScore = score;
-                    best = { r: r, cx: cx, offset: parseInt(el.dataset.offset, 10), isBoundary: el.classList.contains('seg-boundary') };
+
+            // ---- 1. Place the bar EXACTLY where the pointer is.
+            // NO element lookup, NO snapping for the visible position, NO line
+            // anchor. The bar is the cursor — so its X = clientX, its Y is
+            // centered on clientY, with a fixed height = the container's
+            // line-height. This means the bar moves pixel-for-pixel with the
+            // pointer regardless of whether the pointer is over a word, a
+            // gap, a placed boundary, segment-block padding, or any other
+            // sub-pixel sliver between elements. Previously the bar's Y/height
+            // came from whichever element elementFromPoint returned — that
+            // element changed (.seg-word vs .seg-gap vs .seg-boundary, each
+            // with slightly different bcr.top/height), which is what made
+            // the bar hop between words / segments / over boundaries.
+            //
+            // All values are written in CSS px. The page has `zoom: 0.8` on
+            // <html>, which scales *every* element on render (including
+            // position: fixed). clientX/Y are in unscaled visual viewport
+            // pixels, so we divide by zoom to map them into the CSS px space
+            // the browser will then re-scale on paint.
+            const zoomCS = parseFloat(window.getComputedStyle(document.documentElement).zoom);
+            const zoom = (isFinite(zoomCS) && zoomCS > 0) ? zoomCS : 1;
+
+            // Bar height = container's CSS line-height (e.g. 2.1em). We read
+            // it once via getComputedStyle and cache it; the segmenter font
+            // size doesn't change at runtime.
+            if (!container._segLineHeightCss) {
+                const csC = window.getComputedStyle(container);
+                let lh = parseFloat(csC.lineHeight);
+                if (!isFinite(lh) || lh <= 0) {
+                    const fs = parseFloat(csC.fontSize) || 16;
+                    lh = fs * 2.1;
                 }
-            });
-            if (!best) { hideSegCursorBar(panel); return; }
-            const crect = container.getBoundingClientRect();
-            bar.style.left = (best.cx - crect.left - 1.5) + 'px';
-            bar.style.top = (best.r.top - crect.top) + 'px';
-            bar.style.height = best.r.height + 'px';
+                container._segLineHeightCss = lh;
+            }
+            const lineHeightCss = container._segLineHeightCss;
+
+            bar.style.left   = (xy.x / zoom - 1.5) + 'px';                  // pointer X, centered on the 3-CSS-px bar
+            bar.style.top    = (xy.y / zoom - lineHeightCss / 2) + 'px';    // pointer Y, centered vertically
+            bar.style.height = lineHeightCss + 'px';
             bar.style.opacity = '1';
-            // Tint amber when hovering an existing boundary (click = remove).
-            bar.classList.toggle('removing', !!best.isBoundary);
-            container._segSnapOffset = best.offset;
-            container._segSnapIsBoundary = !!best.isBoundary;
+
+            // ---- 2. Compute the click-snap target — the gap AFTER the word
+            // the pointer is on. The visible bar position is *independent* of
+            // this snap target; it only affects what happens when the user
+            // clicks (boundary placed behind the word the user clicked).
+            const hit = document.elementFromPoint(xy.x, xy.y);
+            let snapEl = null;
+            let isBoundary = false;
+            if (hit && container.contains(hit)) {
+                const direct = hit.closest('.seg-gap, .seg-boundary');
+                if (direct) {
+                    snapEl = direct;
+                    isBoundary = direct.classList.contains('seg-boundary');
+                } else {
+                    const word = hit.closest('.seg-word');
+                    if (word) {
+                        // Boundary lands AFTER (behind) the clicked word.
+                        snapEl = segAdjacentCand(word, 'next') || segAdjacentCand(word, 'prev');
+                    }
+                }
+            }
+            bar.classList.toggle('removing', isBoundary);
+            container._segSnapOffset = snapEl ? parseInt(snapEl.dataset.offset, 10) : null;
+            container._segSnapIsBoundary = isBoundary;
         }
 
         function hideSegCursorBar(panel) {
@@ -3853,6 +4016,9 @@
         let originalAudioTranscription = '';
         let originalParsedTexts = [];
         let originalRatedEvents = [];
+        let originalGistLevels = [];
+        // Index of the recall segment currently selected for click-to-match (Item 3).
+        let selectedRecallSegmentIdx = null;
         let causalMatrixOriginal = {};
         let causalMatrixChanged = false;
         
@@ -6545,7 +6711,91 @@
                 else el.classList.remove('story-event-used');
             });
         }
-        
+
+        // ---- Item 2b: per-segment recall-level slider (Detail / NA / Gist) ----
+        function setGistLevel(segmentIndex, rangeVal) {
+            const level = (String(rangeVal) === '0') ? 'detail' : (String(rangeVal) === '2' ? 'gist' : 'NA');
+            if (!ratedTextsData[segmentIndex]) ratedTextsData[segmentIndex] = {};
+            ratedTextsData[segmentIndex].gist_level = level;
+            const wrap = document.querySelector(`.gist-slider-wrap[data-segment-index="${segmentIndex}"]`);
+            if (wrap) wrap.setAttribute('data-level', level);
+        }
+
+        // ---- Item 3: click a recall segment to select it, then click story events
+        // on the left to add/remove them; click the segment again to deselect. ----
+        function getSelectedRecallSegmentEl() {
+            return document.querySelector('#matched .rated-segment.recall-seg-selected');
+        }
+        function highlightEventsInSelectedSegment() {
+            const root = document.getElementById('matched');
+            if (!root) return;
+            root.querySelectorAll('.story-event.story-event-in-selected')
+                .forEach(e => e.classList.remove('story-event-in-selected'));
+            const segEl = getSelectedRecallSegmentEl();
+            if (!segEl) return;
+            const input = segEl.querySelector('.event-input');
+            if (!input) return;
+            const set = new Set((input.value || '').split(',')
+                .map(s => parseInt(s.trim(), 10)).filter(x => !isNaN(x)));
+            root.querySelectorAll('.story-events-container .story-event[data-story-event-num]').forEach(el => {
+                const n = parseInt(el.getAttribute('data-story-event-num'), 10);
+                if (set.has(n)) el.classList.add('story-event-in-selected');
+            });
+        }
+        function toggleEventInSegment(segmentIndex, eventNum) {
+            const input = document.querySelector(`.event-input[data-segment-index="${segmentIndex}"]`);
+            if (!input) return;
+            const cur = (input.value || '').trim();
+            let arr = cur ? cur.split(',').map(s => parseInt(s.trim(), 10)).filter(x => !isNaN(x)) : [];
+            const pos = arr.indexOf(eventNum);
+            if (pos < 0) arr.push(eventNum); else arr.splice(pos, 1);
+            arr.sort((a, b) => a - b);
+            input.value = arr.join(', ');
+            validateEventInput(segmentIndex, input);
+            enableExportRated();
+            refreshRecallMatchingUsedEventsFade();
+            highlightEventsInSelectedSegment();
+        }
+        function selectRecallSegment(segEl) {
+            const root = document.getElementById('matched');
+            if (!root || !segEl) return;
+            const idx = parseInt(segEl.getAttribute('data-segment-index'), 10);
+            const already = segEl.classList.contains('recall-seg-selected');
+            root.querySelectorAll('.rated-segment.recall-seg-selected')
+                .forEach(s => s.classList.remove('recall-seg-selected'));
+            if (already) {
+                selectedRecallSegmentIdx = null;
+                root.classList.remove('seg-selecting');
+                highlightEventsInSelectedSegment();
+                return;
+            }
+            segEl.classList.add('recall-seg-selected');
+            selectedRecallSegmentIdx = isNaN(idx) ? null : idx;
+            root.classList.add('seg-selecting');
+            highlightEventsInSelectedSegment();
+        }
+        function initRecallMatchingClickSelect() {
+            const root = document.getElementById('matched');
+            if (!root) return;
+            selectedRecallSegmentIdx = null;
+            root.classList.remove('seg-selecting');
+            root.querySelectorAll('.rated-segment').forEach(seg => {
+                if (!seg.querySelector('.event-input')) return;
+                seg.addEventListener('click', function (e) {
+                    // Ignore clicks on the segment's own controls (event field, slider, buttons).
+                    if (e.target.closest('input, textarea, select, button, .gist-slider-wrap, .event-input-label')) return;
+                    selectRecallSegment(e.currentTarget);
+                });
+            });
+            root.querySelectorAll('.story-events-container .story-event[data-story-event-num]').forEach(ev => {
+                ev.addEventListener('click', function (e) {
+                    if (selectedRecallSegmentIdx == null) return;
+                    const n = parseInt(e.currentTarget.getAttribute('data-story-event-num'), 10);
+                    if (!isNaN(n)) toggleEventInSegment(selectedRecallSegmentIdx, n);
+                });
+            });
+        }
+
         function setEventFromDropdown(segmentIndex, eventValue) {
             const input = document.querySelector(`.event-input[data-segment-index="${segmentIndex}"]`);
             if (input) {
@@ -6587,9 +6837,12 @@
                 inputs.forEach(input => {
                     const idx = parseInt(input.getAttribute('data-segment-index'));
                     const eventValue = parseEventValue(input.value.trim());
+                    const gistEl = document.querySelector(`.gist-range[data-segment-index="${idx}"]`);
+                    const gistLevel = gistEl ? (gistEl.value === '0' ? 'detail' : (gistEl.value === '2' ? 'gist' : 'NA')) : 'NA';
                     segments.push({
                         index: idx,
-                        matched_event: eventValue
+                        matched_event: eventValue,
+                        gist_level: gistLevel
                     });
                 });
                 
@@ -6611,6 +6864,7 @@
                     const btn = document.getElementById('export-rated');
                     if (btn) btn.disabled = true;
                     originalRatedEvents = segments.map(s => parseEventValue(s.matched_event != null ? String(s.matched_event) : ''));
+                    originalGistLevels = segments.map(s => (s.gist_level || 'NA'));
                     // Update local data if server returned updated data
                     if (result.updated_data && result.updated_data.rated_texts) {
                         ratedTextsData = result.updated_data.rated_texts;
@@ -7021,6 +7275,7 @@
                 originalParsedTexts = (data.parsed_texts || []).map(s => (s.text || '').trim());
                 const ratedOrParsed = (data.rated_texts && data.rated_texts.length) ? data.rated_texts : (data.parsed_texts || []);
                 originalRatedEvents = ratedOrParsed.map(s => parseEventValue((s.matched_event != null ? String(s.matched_event) : (s.matched != null ? String(s.matched) : ''))));
+                originalGistLevels = ratedOrParsed.map(s => (s.gist_level || 'NA'));
                 
                 if (data.available_versions) {
                     availableVersions = data.available_versions;
@@ -7042,6 +7297,7 @@
                 setTimeout(() => {
                     scheduleResizeSegmentEditorsAfterLayout();
                     initRecallMatchingDragDrop();
+                    initRecallMatchingClickSelect();
                     refreshRecallMatchingUsedEventsFade();
                     if (initialTab === 'story-events') {
                         showNotification('story-events-notification', 'story-events-notification-dismissed');
@@ -7179,22 +7435,26 @@
                     {
                         target: '#matched .story-panel',
                         title: 'Story events (left)',
-                        body: 'The list of story events that your recall segments should be matched to. ' +
-                              'Each event is a drop target — drag a recall segment from the right and drop it here.',
+                        body: 'The list of story events that a recall segment may refer to. ' +
+                              'Once you\'ve selected a recall segment on the right, click any event here ' +
+                              'to add it to that segment\'s match — click again to remove it.',
                         placement: 'right'
                     },
                     {
                         target: '#matched .rated-panel',
                         title: 'Parsed recall segments (right)',
-                        body: 'Your recall, broken into segments. <strong>Drag</strong> each segment onto the ' +
-                              'matching story event on the left to record the match. Unmatched segments stay here.',
+                        body: 'Your recall, broken into segments. <strong>Click a recall segment</strong> on this ' +
+                              'side to select it — it stays highlighted — then <strong>click the story event(s) ' +
+                              'on the left</strong> that this segment refers to. Click the segment again to ' +
+                              'deselect. You can also type event numbers directly (e.g. <code>1, 2, 3</code>) ' +
+                              'into each segment\'s Event input.',
                         placement: 'left'
                     },
                     {
                         target: '#export-rated',
                         title: 'Export the matches',
                         body: 'Once you\'ve matched everything you want, click <strong>Export Edited File</strong>. ' +
-                              'The exported file pairs each recall segment with its matched story event id.',
+                              'The exported file pairs each recall segment with its matched story event id(s).',
                         placement: 'top'
                     }
                 ];

@@ -36,6 +36,13 @@
             padding: 0;
             box-sizing: border-box;
         }
+
+        /* Default to a slightly more compact field of view so text and controls don't
+           dominate the screen. Kept mild (0.9) — 0.8 made the page feel cramped.
+           Users can still change the browser zoom themselves. */
+        html {
+            zoom: 0.9;
+        }
         
         body {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;

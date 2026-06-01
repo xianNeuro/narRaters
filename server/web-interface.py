@@ -2055,10 +2055,15 @@ def get_rated_texts(subj_id, file_version=None):
                             # If parsing fails, keep original string
                             pass
                 
-                segments.append({
+                seg = {
                     'text': str(parsed).strip(),
                     'matched_event': matched_str  # Frontend expects 'matched_event', not 'recalled_events'
-                })
+                }
+                # Surface the optional recall-level column so the slider reloads at the saved value.
+                if 'gist-level' in df.columns:
+                    g = str(row.get('gist-level', '') or '').strip().lower()
+                    seg['gist_level'] = g if g in ('detail', 'gist') else 'NA'
+                segments.append(seg)
         
         print(f"Loaded {len(segments)} segments from {rated_file.name}")
         return segments
@@ -4361,7 +4366,21 @@ def save_rated_events(subj_id):
                 print(f"Warning: Invalid segment index {idx} (dataframe has {len(df)} rows)")
         
         print(f"Updated {updated_count} segments out of {len(segments)} provided")
-        
+
+        # Per-segment recall level (detail | NA | gist). Only add a 'gist-level'
+        # column when at least one segment is non-NA, so ordinary matching files are
+        # left unchanged; drop a stale column if every segment is back to NA.
+        gist_by_idx = {}
+        for segment in segments:
+            g = str(segment.get('gist_level', 'NA') or 'NA').strip().lower()
+            gist_by_idx[segment.get('index')] = g if g in ('detail', 'gist') else 'NA'
+        if any(v in ('detail', 'gist') for v in gist_by_idx.values()):
+            # NA segments are left blank so the column only carries detail/gist marks.
+            df['gist-level'] = [('' if gist_by_idx.get(i, 'NA') == 'NA' else gist_by_idx[i])
+                                for i in range(len(df))]
+        elif 'gist-level' in df.columns:
+            df = df.drop(columns=['gist-level'])
+
         # Clean data before saving - ensure all columns are properly formatted
         # IMPORTANT: Do this AFTER updates to preserve the values we just set
         for col in df.columns:
@@ -4395,9 +4414,13 @@ def save_rated_events(subj_id):
             import gc
             gc.collect()
             
-            # Ensure proper column order (ratings first, then recall text)
+            # Ensure proper column order (ratings first, then recall text, then the
+            # optional gist-level column).
             if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
-                df = df[['recalled_events', 'recall_in_temporal_order']]
+                cols = ['recalled_events', 'recall_in_temporal_order']
+                if 'gist-level' in df.columns:
+                    cols.append('gist-level')
+                df = df[cols]
             
             # Try to save
             print(f"Attempting to save to: {file_path}")

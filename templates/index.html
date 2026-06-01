@@ -37,6 +37,13 @@
             padding: 0;
             box-sizing: border-box;
         }
+
+        /* Default to a slightly more compact field of view so text and controls don't
+           dominate the screen. Kept mild (0.9) — 0.8 made the dashboard feel cramped.
+           Users can still change the browser zoom themselves. */
+        html {
+            zoom: 0.9;
+        }
         
         body {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -3994,7 +4001,13 @@
                     // in Python. Allow re-running clause/fine/coarse/manual so users are not blocked after
                     // one completed run (badges still show prior output).
                     const allowRerun = stepType === 'eventSegment' || stepType === 'sentenceCorrect' || stepType === 'textParsing';
-                    const isDisabled = !allowRerun && isCompleted && !isApi;
+                    // Manual is always selectable even when completed, so the
+                    // user can re-open the modal on a completed step and still
+                    // see Manual highlighted as the default choice. Clicking
+                    // Start Process when the selection is already completed is
+                    // handled as a no-op by confirmMethodSelection — see below.
+                    const isManual = method.id === 'manual';
+                    const isDisabled = !isManual && !allowRerun && isCompleted && !isApi;
                     const trialCount = cm ? (cm.trials || 0) : 0;
                     
                     if (!isDisabled && !firstSelectableMethod) firstSelectableMethod = method.id;
@@ -4043,12 +4056,16 @@
             document.getElementById('step-options-container').innerHTML = optionsHtml;
             
             if (hasMethods) {
-                // Default selection: prefer "Manual" (matches the top-of-list
-                // ordering above) whenever it is present and not disabled. Fall
-                // back to the previously declared default and, beyond that, to
-                // the first selectable method.
-                const manualMethod = orderedMethods.find(m => m.id === 'manual' && !completedMethods[m.id]?.completed);
-                const declaredDefault = orderedMethods.find(m => m.isDefault && !completedMethods[m.id]?.completed);
+                // Default selection: ALWAYS prefer Manual, even when it's already
+                // completed. The previous "skip if completed" filter would cause
+                // the modal to silently fall through to the next method (e.g. the
+                // automatic one) whenever Manual had already produced a file —
+                // which surprised users who expected Manual to stay highlighted
+                // as the persistent default. Manual is always selectable now
+                // (see the isDisabled rule above) and the Start Process button
+                // is a no-op when the selection is already completed.
+                const manualMethod = orderedMethods.find(m => m.id === 'manual');
+                const declaredDefault = orderedMethods.find(m => m.isDefault);
                 const fallback = firstSelectableMethod || (orderedMethods[0] && orderedMethods[0].id);
                 if (manualMethod) {
                     selectMethod(manualMethod.id);
@@ -4298,10 +4315,39 @@
         async function confirmMethodSelection() {
             const stepConfig = stepsWithMultipleMethods[methodSelectionState.stepType];
             const hasMethods = stepConfig && stepConfig.methods && stepConfig.methods.length > 0;
-            
+
             if (hasMethods && !methodSelectionState.selectedMethod) {
                 alert('Please select a method.');
                 return;
+            }
+
+            // If the chosen method has already produced an output for this item
+            // (and is not an API method that supports additional trials), just
+            // close the modal. The dashboard's progress bar is already showing
+            // "complete" for this step; clicking Start Process on an already-
+            // completed selection should not re-run the script (which would
+            // either no-op silently or overwrite the user's edits). This is
+            // what lets Manual stay pre-selected as the persistent default
+            // even on completed steps without surprising the user.
+            if (hasMethods) {
+                try {
+                    const cmResp = await fetch(`/api/item/${encodeURIComponent(methodSelectionState.itemId)}/step/${methodSelectionState.stepIndex}/completed-methods`);
+                    const cmData = await cmResp.json();
+                    const completed = (cmData && cmData.success) ? (cmData.methods || {}) : {};
+                    const selMethod = stepConfig.methods.find(m => m.id === methodSelectionState.selectedMethod);
+                    const sel = completed[methodSelectionState.selectedMethod];
+                    const isSelCompleted = !!(sel && sel.completed);
+                    const isApiTrialMethod = !!(selMethod && selMethod.requiresApiKey);
+                    if (isSelCompleted && !isApiTrialMethod) {
+                        closeMethodSelectionModal();
+                        return;
+                    }
+                } catch (e) {
+                    // If the completed-methods lookup fails, fall through and let
+                    // the normal run happen — better to attempt the action than
+                    // silently swallow the click.
+                    console.warn('completed-methods check failed:', e);
+                }
             }
             
             // Get API key if needed
