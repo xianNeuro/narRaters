@@ -2465,20 +2465,8 @@
                     <div id="causal-matrix" class="tab-content ${initialTab === 'causal-matrix' ? 'active' : ''}">
                         <div class="causal-tab-layout">
                             <div class="causal-matrix-instructions">
-                                <strong>Manual Causal Rating</strong> — rate how strongly each <span style="color:#93c5fd;">cause event</span> (column) led to each <span style="color:#fca5a5;">effect event</span> (row).<br>
-                                <strong>How to rate:</strong>
-                                &nbsp;<strong>1)</strong> Find a pair you think <em>is</em> causally related.
-                                &nbsp;<strong>2)</strong> Click that cell and pick <span style="color:#93c5fd;">1</span>&nbsp;/&nbsp;<span style="color:#fbbf24;">2</span>&nbsp;/&nbsp;<span style="color:#fca5a5;">3</span>.
-                                &nbsp;<strong>3)</strong> Skip every other pair — <span style="color:var(--t2);">0 is already the default</span>, so unrelated pairs need no input.
-                                &nbsp;<strong>4)</strong> When done, click <strong>Export Causal Ratings</strong>.<br>
-                                <strong>Scale:</strong>
-                                <span style="color:var(--t2);">0</span> not at all &nbsp;·&nbsp;
-                                <span style="color:#93c5fd;">1</span> slightly &nbsp;·&nbsp;
-                                <span style="color:#fbbf24;">2</span> causally related &nbsp;·&nbsp;
-                                <span style="color:#fca5a5;">3</span> extremely &nbsp;·&nbsp;
-                                <span style="color:var(--t0);">&#9634;</span> outline = has reasoning &nbsp;·&nbsp;
-                                <strong>&times;</strong> clears the cell.<br>
-                                <strong>Tips:</strong> <em>hover</em> any cell to see its cause/effect text · <em>click</em> a rated cell again to re-rate or edit it. When any of the checkboxes below (<strong>Reasoning</strong> / <strong>Causal Type</strong> / <strong>Semantic</strong>) is on, every rating you pick — <em>including 0 and including the same number you had before</em> — opens the prompt for those fields, prefilled with your prior answers so you can review or change them; press <strong>Enter</strong> (or click a button) to save / leave blank to skip a single field; press <strong>Esc</strong> to skip the remaining fields and keep your rating. When all those checkboxes are off, picking a rating just replaces it instantly (no prompt). <strong>×</strong> wipes the whole cell (rating + reasoning) regardless of the checkboxes. The export destination folder must exist, but it does <em>not</em> need to contain an output file beforehand — the first export creates it.
+                                <strong>Manual Causal Rating</strong> — Click a cell to pick a rating (<span style="color:#93c5fd;">1</span>/<span style="color:#fbbf24;">2</span>/<span style="color:#fca5a5;">3</span>) between <span style="color:#93c5fd;">cause</span> (column) and <span style="color:#fca5a5;">effect</span> (row). With Reasoning / Causal Type / Semantic on, fill those fields after each pick. Click a rated cell to view or change it; hover for event text. <strong>×</strong> clears a cell.<br>
+                                <strong>Ratings:</strong> 0 = not at all &nbsp;·&nbsp; 1 = slightly &nbsp;·&nbsp; 2 = causally related &nbsp;·&nbsp; 3 = extremely &nbsp;·&nbsp; <span style="color:var(--t0);">&#9634;</span> outline = has reasoning &nbsp;·&nbsp; × = clear
                             </div>
                             <div class="causal-flags-bar">
                                 <label><input type="checkbox" id="flag-reasoning" onchange="enableExportCausalMatrix()"> Reasoning</label>
@@ -7463,11 +7451,8 @@
                 return [
                     {
                         target: '#causal-matrix .causal-matrix-instructions',
-                        title: 'How to rate (read me first)',
-                        body: 'A quick refresher: click a cell to pick a rating <strong>1 / 2 / 3</strong>; leave ' +
-                              '0 for unrelated pairs; use <strong>×</strong> to wipe a cell. With the optional ' +
-                              'Reasoning / Causal Type / Semantic checkboxes on, every click also opens a prompt ' +
-                              'prefilled with your previous answers.',
+                        title: 'How to rate',
+                        body: 'Click a cell for <strong>1 / 2 / 3</strong>; leave 0 for unrelated pairs. Optional checkboxes below add Reasoning / Causal Type / Semantic prompts. <strong>×</strong> clears a cell.',
                         placement: 'auto'
                     },
                     {
@@ -7487,8 +7472,7 @@
                     {
                         target: '#causal-matrix .causal-flags-bar',
                         title: 'Optional fields',
-                        body: 'Turn on Reasoning / Causal Type / Semantic to be prompted for those after each rating. ' +
-                              'See the instructions above for keyboard shortcuts.',
+                        body: 'Turn on Reasoning, Causal Type, or Semantic to be prompted after each rating.',
                         placement: 'bottom'
                     },
                     {

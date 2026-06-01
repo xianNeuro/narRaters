@@ -117,7 +117,7 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
     <td align="center" width="25%" valign="top">
       <p><strong>③ Recall matching</strong></p>
       <img src="docs/screenshots/gif-recall-matching.gif" alt="Animated tour of linking recall segments to story events" width="100%"><br>
-      <sub>Story events on the left; recall segments on the right. Assign which events each recall segment refers to.</sub>
+      <sub>Story events on the left; recall segments on the right. Click a segment, then click events to match — or type event numbers. Set Detail / NA / Gist per segment.</sub>
     </td>
     <td align="center" width="25%" valign="top">
       <p><strong>④ Causal rating</strong></p>
