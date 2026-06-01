@@ -8,7 +8,7 @@ authors:
     email: xianl.cogneuro@gmail.com
 repository-code: "https://github.com/xianNeuro/narRaters"
 url: "https://xianneuro.github.io/narRaters/"
-license: NarRaters Research and Non-Commercial License
+license-url: "https://github.com/xianNeuro/narRaters/blob/main/LICENSE"
 abstract: "Open-source pipeline and web UI for processing narrative recall data — transcription, event segmentation, spell/grammar correction, parsing, recall-to-event matching, and causal rating — with human review at each step."
 keywords:
   - narrative recall
@@ -17,7 +17,7 @@ keywords:
   - free recall
   - human rater
   - NLP
-version: 0.3.11
+version: 0.3.12
 date-released: 2026-06-01
 identifiers:
   - type: url
@@ -36,6 +36,6 @@ preferred-citation:
   authors:
     - family-names: Li
       given-names: Xian
-  version: "0.3.11"
+  version: "0.3.12"
   year: 2026
   url: "https://github.com/xianNeuro/narRaters"

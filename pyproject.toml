@@ -1,6 +1,6 @@
 [project]
 name = "narRaters"
-version = "0.3.11"
+version = "0.3.12"
 description = "AI-assisted narrative processing with human-screening — pipeline + web UI for audio/text narratives."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -81,7 +81,7 @@ Documentation = "https://github.com/xianNeuro/narRaters/blob/main/README.md"
 Repository = "https://github.com/xianNeuro/narRaters"
 Issues = "https://github.com/xianNeuro/narRaters/issues"
 "Feedback" = "https://github.com/xianNeuro/narRaters/issues/new?template=feedback"
-Download = "https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.11.zip"
+Download = "https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.12.zip"
 
 [build-system]
 # Pin hatchling: newer releases emit Metadata-Version 2.5, which the twine in
