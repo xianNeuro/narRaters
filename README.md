@@ -10,9 +10,9 @@
 
 <p align="center">
   <a href="https://pypi.org/project/narraters/"><img src="https://img.shields.io/pypi/v/narraters?label=PyPI&color=3775A9&cacheSeconds=3600" alt="PyPI version"></a>
-  <a href="https://github.com/xianNeuro/narRaters"><img src="https://img.shields.io/github/stars/xianNeuro/narRaters?logo=github&color=0969da&style=flat" alt="GitHub stars"></a>
+  <a href="https://github.com/xianNeuro/narRaters"><img src="https://badgen.net/github/stars/xianNeuro/narRaters?label=stars&icon=github" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-research%20%2F%20non--commercial-0969da?style=flat" alt="License"></a>
-  <a href="https://github.com/xianNeuro/narRaters/issues"><img src="https://img.shields.io/github/issues/xianNeuro/narRaters?color=7057ff&label=issues" alt="Issues"></a>
+  <a href="https://github.com/xianNeuro/narRaters/issues"><img src="https://badgen.net/github/open-issues/xianNeuro/narRaters?label=issues&icon=github" alt="Issues"></a>
 </p>
 
 <p align="center">
@@ -28,6 +28,8 @@
 </p>
 
 ## What is narRaters?
+
+<div style="padding-left: 0.5em">
 
 **narRaters** (*narrative* + *raters*) is an open-source software on [GitHub (xianNeuro/narRaters)](https://github.com/xianNeuro/narRaters) that helps process complex narratives (e.g., audio book, text-based stories, interviews, conversations, etc.) for memory, language processing, causal reasoning, and LLM research.
 
@@ -50,7 +52,12 @@ Works for audio or text, stories or other long narratives (including movie annot
 
 ---
 
+
+</div>
+
 ## Get started in 3 steps
+
+<div style="padding-left: 0.5em">
 
 <table>
   <tr>
@@ -82,7 +89,12 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 
 ---
 
+
+</div>
+
 ## See the app
+
+<div style="padding-left: 0.5em">
 
 <p align="center">
   <img src="docs/screenshots/workflow.gif" alt="Animated walkthrough: building a pipeline, the dashboard status grid, and rating causal links between story events" width="920">
@@ -117,7 +129,12 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 
 ---
 
+
+</div>
+
 ## Table of contents
+
+<div style="padding-left: 0.5em">
 
 <ul>
 <li><a href="#what-is-narraters">What is narRaters?</a></li>
@@ -129,12 +146,12 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="#pypi-terminal">PyPI (terminal)</a></li>
 <li><a href="#alternate-install-command-line">Alternate install (command line)</a></li>
 <li><a href="#using-the-web-ui">Using the web UI</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
 </ul></li>
 <li><a href="#where-to-put-your-data">Where to put your data</a>
 <ul style="padding-left: 0.5em;">
 <li><a href="#example-inputoutput-data">Example input/output data</a></li>
 </ul></li>
-<li><a href="#troubleshooting">Troubleshooting</a></li>
 <li><a href="#pipeline-overview">Pipeline overview</a></li>
 <li><a href="#command-line-pipeline">Command-line pipeline</a>
 <ul style="padding-left: 0.5em;">
@@ -150,7 +167,6 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="CONTRIBUTING.md">Research background</a></li>
 <li><a href="CONTRIBUTING.md#prompt-templates">Prompt templates</a></li>
 <li><a href="CONTRIBUTING.md#author">Author</a></li>
-<li><a href="CONTRIBUTING.md#acknowledgements">Acknowledgements</a></li>
 </ul></li>
 <li><a href="#library--python-use">Library / Python use</a></li>
 <li><a href="#project-layout">Project layout</a>
@@ -158,14 +174,20 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="#folder-structure">Folder structure</a></li>
 </ul></li>
 <li><a href="#further-reading">Further reading</a></li>
+<li><a href="#acknowledgements">Acknowledgements</a></li>
 <li><a href="#license">License</a></li>
 </ul>
 
-> On GitHub, **README**, **Contributing** (research background, prompt templates, author &amp; acknowledgements), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
+> On GitHub, **README**, **Contributing** (research background, prompt templates, author), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
 
 ---
 
+
+</div>
+
 ## Installation
+
+<div style="padding-left: 0.5em">
 
 Needs **[Python 3.10+](https://www.python.org/downloads/)**. Windows: check **“Add python.exe to PATH”** in the Python installer. If anything fails, see **[Troubleshooting](#troubleshooting)**.
 
@@ -282,9 +304,25 @@ narraters serve --port 8080 --no-browser
 
 Before a step would load **Whisper**, **Gemma via Ollama**, **rMatch**, or other heavy local models, the UI runs a **RAM / disk preflight** and may suggest a lighter method (`rules`, `test`, `clause`) if the run looks unsafe for your machine.
 
+### Troubleshooting
+
+| If you see… | Do this |
+|--------------|--------|
+| `Python 3.10+ required` | Install [Python 3.10+](https://www.python.org/downloads/), close and reopen any Terminal, run again. |
+| Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead (IPv6/IPv4 quirk on some Macs). |
+| **macOS:** Gatekeeper / “cannot check for malicious software” / no **Open** in the right-click menu | **1.** In **Finder**, try **control-click** **`narRater.app`** → **Open**, then confirm **Open** if the dialog offers it — [Apple’s Gatekeeper overrides](https://support.apple.com/guide/mac-help/mh40617/mac). **2.** If that path is missing or still blocks: **System Settings** → **Privacy & Security** → scroll to **Security** — after a failed launch, macOS often shows **`narRater` was blocked** (wording varies) with **Allow Anyway** or **Open Anyway**; click it, enter your password, then launch **`narRater.app`** again (that button may only appear for a limited time after the block). **3.** Downloaded folder still quarantined: in Terminal, `xattr -dr com.apple.quarantine /path/to/narRaters-main`, then try **1** or **2** again. |
+| **macOS:** “narRater couldn't find the narRaters project folder” | macOS **App Translocation** ran the app from a temp copy. Run `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main` (adjust path) and double-click again, or use [git clone install](#alternate-install-command-line). |
+| **Windows:** SmartScreen warns about `narRaters_installer.bat` | Click **More info** → **Run anyway**. |
+| Port 5000 already in use | The installer auto-tries 5001–5010 and prints the URL. To free 5000: macOS → System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
+
 ---
 
+
+</div>
+
 ## Where to put your data
+
+<div style="padding-left: 0.5em">
 
 After [installation](#installation), place files so the paths match what you configured on the **pipeline** page (defaults below are relative to the **project root**). You can **remap** any step’s input/output folders there without moving data.
 
@@ -322,22 +360,15 @@ The repository ships **realistic sample inputs and outputs** under `data/` and `
 
 **File versioning is a core feature.** Automated runs write `{subj_id}_{method}.ext` (or `{story}_…` for story-level steps); your hand-edited versions are saved as `{subj_id}_{ratername}-edit.ext` and never overwrite the originals. The web UI lets you switch between versions via a dropdown, and the `-edit` files are what you export for analysis.
 
----
-
-## Troubleshooting
-
-| If you see… | Do this |
-|--------------|--------|
-| `Python 3.10+ required` | Install [Python 3.10+](https://www.python.org/downloads/), close and reopen any Terminal, run again. |
-| Blank page on `localhost:5000` | Visit **`http://127.0.0.1:5000/pipeline-config`** instead (IPv6/IPv4 quirk on some Macs). |
-| **macOS:** Gatekeeper / “cannot check for malicious software” / no **Open** in the right-click menu | **1.** In **Finder**, try **control-click** **`narRater.app`** → **Open**, then confirm **Open** if the dialog offers it — [Apple’s Gatekeeper overrides](https://support.apple.com/guide/mac-help/mh40617/mac). **2.** If that path is missing or still blocks: **System Settings** → **Privacy & Security** → scroll to **Security** — after a failed launch, macOS often shows **`narRater` was blocked** (wording varies) with **Allow Anyway** or **Open Anyway**; click it, enter your password, then launch **`narRater.app`** again (that button may only appear for a limited time after the block). **3.** Downloaded folder still quarantined: in Terminal, `xattr -dr com.apple.quarantine /path/to/narRaters-main`, then try **1** or **2** again. |
-| **macOS:** “narRater couldn't find the narRaters project folder” | macOS **App Translocation** ran the app from a temp copy. Run `xattr -dr com.apple.quarantine ~/Downloads/narRaters-main` (adjust path) and double-click again, or use [git clone install](#alternate-install-command-line). |
-| **Windows:** SmartScreen warns about `narRaters_installer.bat` | Click **More info** → **Run anyway**. |
-| Port 5000 already in use | The installer auto-tries 5001–5010 and prints the URL. To free 5000: macOS → System Settings → General → AirDrop & Handoff → turn off **AirPlay Receiver**. |
 
 ---
+
+
+</div>
 
 ## Pipeline overview
+
+<div style="padding-left: 0.5em">
 
 **Six optional steps — use any subset, in any order.** Each step can run automatically (rules, local models, or cloud APIs) and then be reviewed in the browser.
 
@@ -370,7 +401,12 @@ For each step, the GUI runs the same backends as the CLI. **Available methods, f
 
 ---
 
+
+</div>
+
 ## Command-line pipeline
+
+<div style="padding-left: 0.5em">
 
 Each of the six steps is a separate **`narraters`** subcommand with its own **`--method`** (and related options). Use the CLI for **scripts**, **clusters**, or **reproducible** runs—**with or without** the web UI, and **with any subset** of steps your study uses. General shape:
 
@@ -496,7 +532,12 @@ Use `narraters rate --help` and the Step 6 model dropdown in the web UI for supp
 
 ---
 
+
+</div>
+
 ## Library / Python use
+
+<div style="padding-left: 0.5em">
 
 ```python
 from narraters import __version__, project_root
@@ -507,7 +548,12 @@ Direct per-step imports are planned for a future release; for now, programmatic 
 
 ---
 
+
+</div>
+
 ## Project layout
+
+<div style="padding-left: 0.5em">
 
 After unzipping, everything lives under a single **`narRaters/`** project root. Expand the branches below for paths, contents, and naming conventions.
 
@@ -617,7 +663,12 @@ helpers/                        # disk/RAM preflight, plotting, test scripts
 
 ---
 
+
+</div>
+
 ## Further reading
+
+<div style="padding-left: 0.5em">
 
 - **[Project home (GitHub Pages)](https://xianneuro.github.io/narRaters/)** — landing page for search and sharing.
 - **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
@@ -626,18 +677,30 @@ helpers/                        # disk/RAM preflight, plotting, test scripts
 
 ---
 
-## Author
 
-See **[CONTRIBUTING.md](CONTRIBUTING.md#author)**.
-
----
+</div>
 
 ## Acknowledgements
 
-See **[CONTRIBUTING.md](CONTRIBUTING.md#acknowledgements)**.
+<div style="padding-left: 0.5em">
+
+- **Janice Chen** for brainstorming the causal-rating step interface and for help testing and improving package functionality.
+- **Gabi Kressin Palacios** and **Dhruva Arekar** for an additional method for the recall-matching step (matching human recall text to story events). See [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch) for human-data–validated AI-assisted recall rating.
+- **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (commercial LLM APIs were close to human raters).
+- **Sebastian Michelmann** for feedback on the event-segmentation step (see [Michelmann et al., 2023](https://arxiv.org/abs/2301.10297)).
+- **Colette Youstra** and **Quinton Covington** for testing the app's manual-rating functions.
+- **Samira Tavassoli** and **Yuye Huang** for help testing the app's segmentation and causal-reasoning functions.
 
 ---
 
+
+</div>
+
 ## License
 
+<div style="padding-left: 0.5em">
+
 See **[LICENSE](LICENSE)** — **narRaters Research and Non-Commercial License**. Free for research, education, and other non-commercial use; commercial or for-profit use requires prior written permission. Contact [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com) for commercial licensing.
+
+
+</div>

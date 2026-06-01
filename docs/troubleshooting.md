@@ -1,3 +1,3 @@
 # Troubleshooting
 
-This content now lives in the [README](../README.md#troubleshooting).
+This content now lives in the [README](../README.md#troubleshooting) under **Installation**.
