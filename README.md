@@ -9,7 +9,7 @@
 <p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">narraters</a></p>
 
 <p align="center">
-  <a href="https://pypi.org/project/narraters/"><img src="https://img.shields.io/pypi/v/narraters?label=PyPI&color=3775A9&cacheSeconds=3600" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/narraters/"><img src="https://badgen.net/pypi/v/narraters?label=PyPI&color=3775A9" alt="PyPI version"></a>
   <a href="https://github.com/xianNeuro/narRaters"><img src="https://badgen.net/github/stars/xianNeuro/narRaters?label=stars&icon=github" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-research%20%2F%20non--commercial-0969da?style=flat" alt="License"></a>
   <a href="https://github.com/xianNeuro/narRaters/issues"><img src="https://badgen.net/github/open-issues/xianNeuro/narRaters?label=issues&icon=github" alt="Issues"></a>
