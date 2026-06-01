@@ -1,0 +1,83 @@
+{
+  "upload_type": "software",
+  "title": "narRaters",
+  "description": "Open-source pipeline and web UI for processing narrative recall data. Raw audio or text recalls run through six steps (transcription, story event segmentation, spell/grammar correction, clause parsing, recall-to-event matching, and causal rating), with human review and editing at each stage.",
+  "creators": [
+    {
+      "name": "Li, Xian",
+      "affiliation": "Princeton University",
+      "type": "ProjectLeader"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Chen, Janice",
+      "type": "Other"
+    },
+    {
+      "name": "Kressin Palacios, Gabi",
+      "type": "Other"
+    },
+    {
+      "name": "Arekar, Dhruva",
+      "type": "Other"
+    },
+    {
+      "name": "Li, Xiyu",
+      "type": "Other"
+    },
+    {
+      "name": "Michelmann, Sebastian",
+      "type": "Other"
+    },
+    {
+      "name": "Youstra, Colette",
+      "type": "Other"
+    },
+    {
+      "name": "Covington, Quinton",
+      "type": "Other"
+    },
+    {
+      "name": "Tavassoli, Samira",
+      "type": "Other"
+    },
+    {
+      "name": "Huang, Yuye",
+      "type": "Other"
+    }
+  ],
+  "keywords": [
+    "narrative recall",
+    "cognitive neuroscience",
+    "event segmentation",
+    "free recall",
+    "human rater",
+    "natural language processing",
+    "causal reasoning"
+  ],
+  "access_right": "open",
+  "license": "other",
+  "notes": "Licensed under the NarRaters Research and Non-Commercial License (see LICENSE in the repository). Free for research, education, and other non-commercial use.",
+  "language": "eng",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/xianNeuro/narRaters",
+      "relation": "isSupplementTo",
+      "scheme": "url",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "https://pypi.org/project/narraters/",
+      "relation": "isSupplementTo",
+      "scheme": "url",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "https://xianneuro.github.io/narRaters/",
+      "relation": "isDocumentedBy",
+      "scheme": "url",
+      "resource_type": "other"
+    }
+  ]
+}

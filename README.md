@@ -24,10 +24,10 @@
   ·
   <a href="https://github.com/xianNeuro/narRaters/issues">🐛 Issues</a>
   ·
+  <a href="#cite--archive">📚 Cite / archive</a>
+  ·
   <a href="https://github.com/xianNeuro/narRaters/issues/new?template=feedback">💬 Feedback</a>
 </p>
-
-## What is narRaters?
 
 <div style="padding-left: 0.5em">
 
@@ -62,7 +62,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 <table>
   <tr>
     <td width="72" align="center"><strong>1</strong></td>
-    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.9.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.10.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
   </tr>
   <tr>
     <td align="center"><strong>2</strong></td>
@@ -175,6 +175,7 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="#folder-structure">Folder structure</a></li>
 </ul></li>
 <li><a href="#further-reading">Further reading</a></li>
+<li><a href="#cite--archive">Cite / archive</a></li>
 <li><a href="#acknowledgements">Acknowledgements</a></li>
 <li><a href="#license">License</a></li>
 </ul>
@@ -194,7 +195,7 @@ Needs **[Python 3.10+](https://www.python.org/downloads/)**. Windows: check **�
 
 ### ZIP download (double-click launcher)
 
-1. **[Download the ZIP (v0.3.9)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.9.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.9`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
+1. **[Download the ZIP (v0.3.10)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.10.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.10`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
 2. **Launch:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
 3. Your browser opens **`http://127.0.0.1:5000/pipeline-config`** with bundled examples. Put your data in **`data/`**. Restart later by double-clicking the same launcher.
 
@@ -656,6 +657,25 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 - **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
+
+---
+
+
+</div>
+
+## Cite / archive
+
+<div style="padding-left: 0.5em">
+
+**Source code:** [github.com/xianNeuro/narRaters](https://github.com/xianNeuro/narRaters) · **Citation metadata:** [`CITATION.cff`](CITATION.cff)
+
+**Zenodo (archived releases):** Each [GitHub release](https://github.com/xianNeuro/narRaters/releases) can be archived on Zenodo for a citable DOI. After the first sync, add the DOI to `CITATION.cff` and this section.
+
+1. Sign in at [zenodo.org](https://zenodo.org/) (GitHub login works).
+2. Open **[Profile → GitHub](https://zenodo.org/account/settings/github/)** → **Sync now** → enable **`xianNeuro/narRaters`**.
+3. Create or re-publish a GitHub release — Zenodo ingests it automatically using [`.zenodo.json`](.zenodo.json) metadata.
+
+Once archived, the Zenodo record URL will look like `https://doi.org/10.5281/zenodo.XXXXXXX` (version DOI) with a concept DOI for all versions.
 
 ---
 

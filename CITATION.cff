@@ -16,5 +16,13 @@ keywords:
   - free recall
   - human rater
   - NLP
-version: 0.3.9
+version: 0.3.10
 date-released: 2026-06-01
+identifiers:
+  - type: url
+    value: "https://github.com/xianNeuro/narRaters"
+    description: "Source code repository"
+  # After Zenodo GitHub sync, add the version DOI, e.g.:
+  # - type: doi
+  #   value: "10.5281/zenodo.XXXXXXX"
+  #   description: "Archived release on Zenodo"
