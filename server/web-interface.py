@@ -701,6 +701,12 @@ def _resolve_path_from_config(path_str):
     p_obj = Path(p).expanduser()
     if p_obj.is_absolute():
         return p_obj
+    # Paths saved without a leading ``/`` or ``~`` (e.g. ``Dropbox/proj/...``).
+    if p.startswith(('Dropbox/', 'Users/', 'Library/')):
+        try:
+            return Path.home() / p
+        except RuntimeError:
+            pass
     return WORKSPACE_ROOT / p
 
 
@@ -1873,6 +1879,65 @@ def get_raw_recall_text(subj_id):
                 return result
 
     return None
+
+
+def _parse_recall_txt_file(file_path):
+    """Parse a recall .txt file (corrected two-line header or plain raw text)."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        if len(lines) >= 2 and lines[0].strip().endswith('.txt'):
+            text = ''.join(lines[1:]).strip()
+        elif lines:
+            text = ''.join(lines).strip()
+        else:
+            return None
+        if text.startswith('"') and text.endswith('"'):
+            text = text[1:-1]
+        if text.startswith("'") and text.endswith("'"):
+            text = text[1:-1]
+        return text or None
+    except Exception as e:
+        print(f"Error reading recall text from {file_path}: {e}")
+        return None
+
+
+def _read_recall_text_from_directory(directory, subj_id):
+    """Read recall text for *subj_id* from a directory of .txt files."""
+    dir_path = _resolve_path_from_config(directory) if isinstance(directory, str) else directory
+    if not dir_path or not Path(dir_path).exists() or not Path(dir_path).is_dir():
+        return None
+    dir_path = Path(dir_path)
+    for pattern in (f"{subj_id}.txt", f"{subj_id}_spell-*.txt", f"{subj_id}*.txt", f"*{subj_id}*.txt"):
+        matches = [f for f in dir_path.glob(pattern) if f.is_file() and not is_user_edit_file(f.name)]
+        if matches:
+            matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            text = _parse_recall_txt_file(matches[0])
+            if text:
+                return text
+    return None
+
+
+def _resolve_recall_text_for_manual(subj_id, input_dir=None):
+    """Best-effort recall text for manual scaffold steps (textParsing, textMatching, …).
+
+    Manual mode should not require an upstream automated step to have run first.
+    Try corrected output, this step's configured input folder, raw recall inputs,
+    then the conventional default folders.
+    """
+    text = get_corrected_text(subj_id)
+    if text:
+        return text
+    text = _read_recall_text_from_directory(input_dir, subj_id)
+    if text:
+        return text
+    text = get_raw_recall_text(subj_id)
+    if text:
+        return text
+    text = _read_recall_text_from_directory(get_output_dir_for_step_type('sentenceCorrect'), subj_id)
+    if text:
+        return text
+    return _read_recall_text_from_directory(RECALL_CORRECTED_DIR, subj_id)
 
 
 def get_corrected_text(subj_id, file_version=None):
@@ -3325,6 +3390,56 @@ def get_all_event_granularities(item_id):
     return None
 
 
+def _norm_path_for_compare(path) -> str:
+    """Normalize a path string for equality / prefix checks without resolve()."""
+    try:
+        return os.path.normpath(str(Path(path).expanduser()))
+    except (TypeError, ValueError, OSError):
+        return os.path.normpath(str(path))
+
+
+def _path_is_same_or_under(child, parent) -> bool:
+    """True if ``child`` equals ``parent`` or is nested under it."""
+    c = _norm_path_for_compare(child)
+    p = _norm_path_for_compare(parent)
+    if c == p:
+        return True
+    return c.startswith(p + os.sep) or c.startswith(p + '/')
+
+
+def _looks_like_user_absolute_dir(path: Path) -> bool:
+    """Heuristic for drag-dropped / typed absolute directory paths."""
+    try:
+        s = str(path.expanduser()).strip()
+    except (TypeError, ValueError):
+        return False
+    if not s or s in ('/', '.', ''):
+        return False
+    if path.is_absolute() or s.startswith('~'):
+        return True
+    if len(s) >= 2 and s[1] == ':':  # Windows drive letter
+        return True
+    return False
+
+
+def _path_is_dir_or_unstatable(path: Path) -> bool:
+    """True when ``path`` is a directory, or likely one macOS TCC blocks stat on."""
+    try:
+        return path.is_dir()
+    except PermissionError:
+        return _looks_like_user_absolute_dir(path)
+    except OSError:
+        return False
+
+
+def _resolve_path_lenient(path: Path, *, root: Path) -> Path:
+    """Resolve when possible; keep the expanded path if TCC blocks resolve()."""
+    try:
+        return path.resolve()
+    except OSError:
+        return path
+
+
 def _resolve_and_validate_output_path(path_str):
     """Resolve user-provided output path and accept paths inside any
     configured pipeline I/O directory.
@@ -3341,33 +3456,35 @@ def _resolve_and_validate_output_path(path_str):
     if not path_str or not str(path_str).strip():
         return None
     s = str(path_str).strip()
-    root = WORKSPACE_ROOT.resolve()
-    p_in = Path(s).expanduser()
-    p = (p_in if p_in.is_absolute() else (root / s)).resolve()
     try:
-        p.relative_to(root)
+        root = WORKSPACE_ROOT.resolve()
+    except OSError:
+        root = WORKSPACE_ROOT
+    p_in = Path(s).expanduser()
+    p = _resolve_path_lenient(
+        p_in if p_in.is_absolute() else (root / s),
+        root=root,
+    )
+    if _path_is_same_or_under(p, root):
         return p
-    except ValueError:
-        pass
+
+    norm_s = _norm_path_for_compare(p)
 
     # Allow paths that fall within any user-configured pipeline directory.
     config = get_pipeline_config() or {}
     for step in (config.get('steps') or []):
         for key in ('inputPath', 'outputPath'):
-            cfg_dir = _resolve_path_from_config(step.get(key, ''))
+            raw_cfg = (step.get(key) or '').strip()
+            if raw_cfg and _norm_path_for_compare(raw_cfg) == norm_s:
+                return p
+            cfg_dir = _resolve_path_from_config(raw_cfg)
             if cfg_dir is None:
                 continue
-            try:
-                p.relative_to(cfg_dir.resolve())
+            if _path_is_same_or_under(p, cfg_dir):
                 return p
-            except (ValueError, OSError):
-                continue
         for _field, _env_var, cfg_dir in _resolve_step_extra_input_dirs(step):
-            try:
-                p.relative_to(cfg_dir.resolve())
+            if _path_is_same_or_under(p, cfg_dir):
                 return p
-            except (ValueError, OSError):
-                continue
     return None
 
 
@@ -5040,38 +5157,46 @@ def _safe_browse_dir(path_str: str, *, walk_up_to_dir: bool = False) -> Path | N
     ``site-packages`` and the user's actual data lives elsewhere on the
     filesystem.
 
+    When macOS privacy (TCC) blocks ``stat``/``resolve`` on Desktop, Dropbox,
+    etc., an absolute path from drag-and-drop is still accepted so the user
+    can select it even when subfolders cannot be listed.
+
     When ``walk_up_to_dir`` is true, if the resolved path points at a file
     (or doesn't exist), walk up its parent chain until a real directory is
     found. This makes drag-and-drop forgiving: if the user drops a file
     from inside a folder, we use the folder.
     """
-    root = WORKSPACE_ROOT.resolve()
+    try:
+        root = WORKSPACE_ROOT.resolve()
+    except OSError:
+        root = WORKSPACE_ROOT
     raw = (path_str or '').strip()
     if not raw:
-        return root if root.is_dir() else None
+        return root if _path_is_dir_or_unstatable(root) else root
     p_obj = Path(raw).expanduser()
     if p_obj.is_absolute():
-        try:
-            target = p_obj.resolve()
-        except OSError:
-            return None
+        target = _resolve_path_lenient(p_obj, root=root)
     else:
         rel = raw.replace('\\', '/').strip('/')
-        target = (root / rel).resolve() if rel else root
+        target = _resolve_path_lenient(root / rel if rel else root, root=root)
 
-    if target.is_dir():
+    if _path_is_dir_or_unstatable(target):
         return target
     if not walk_up_to_dir:
+        if p_obj.is_absolute() and _looks_like_user_absolute_dir(p_obj):
+            return p_obj
         return None
     # Walk up parent chain looking for the nearest existing directory.
     cur = target
     for _ in range(64):  # paranoia cap; filesystem trees are not infinite
         parent = cur.parent
         if parent == cur:
-            return None
-        if parent.is_dir():
+            break
+        if _path_is_dir_or_unstatable(parent):
             return parent
         cur = parent
+    if p_obj.is_absolute() and _looks_like_user_absolute_dir(p_obj):
+        return p_obj
     return None
 
 
@@ -5114,7 +5239,13 @@ def _list_picker_subdirs(directory):
         return [], 'Invalid folder path'
     try:
         if not target.is_dir():
-            return [], 'Not a folder'
+            if _looks_like_user_absolute_dir(target):
+                # TCC may block stat while the user still drag-dropped a valid folder.
+                pass
+            else:
+                return [], 'Not a folder'
+    except PermissionError:
+        pass
     except OSError as e:
         return [], str(e)
     folders = []
@@ -6612,24 +6743,34 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             return jsonify({'success': True, 'message': f'Input text copied to output for manual editing ({len(raw_text)} chars)'})
         
         elif step_type == 'textParsing':
-            # Read corrected text and create single-segment parsed file
-            corrected_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
-            corrected_text = get_corrected_text(item_id)
+            # Read recall text and create single-segment parsed file for hand-editing.
+            corrected_text = _resolve_recall_text_for_manual(item_id, input_dir)
             if not corrected_text:
-                return jsonify({'success': False, 'error': f'Corrected text not found for {item_id}. Run sentenceCorrect first or use manual mode for that step.'}), 404
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'No recall text found for {item_id}. '
+                        f'Add {item_id}.txt under the sentenceCorrect input folder '
+                        f'(e.g. data/5_recall_texts/) or run sentenceCorrect first.'
+                    ),
+                }), 404
             df = pd.DataFrame({
                 'recalled_events': [''] * 1,
                 'recall_in_temporal_order': [corrected_text]
             })
             out_file = output_dir / f"{item_id}_parsed.xlsx"
             df.to_excel(out_file, index=False, engine='openpyxl', na_rep='')
-            return jsonify({'success': True, 'message': f'Corrected text placed as single segment for manual parsing'})
+            return jsonify({'success': True, 'message': f'Recall text placed as single segment for manual parsing'})
         
         elif step_type == 'textMatching':
             # Read parsed segments and create rated file with empty event matches
             parsed_texts = get_parsed_texts(item_id)
             if not parsed_texts:
-                return jsonify({'success': False, 'error': f'Parsed texts not found for {item_id}. Run textParsing first.'}), 404
+                fallback_text = _resolve_recall_text_for_manual(item_id, input_dir)
+                if fallback_text:
+                    parsed_texts = [{'text': fallback_text}]
+            if not parsed_texts:
+                return jsonify({'success': False, 'error': f'No recall text found for {item_id}. Run textParsing first or add recall text under data/5_recall_texts/.'}), 404
             segments = [seg.get('text', '') for seg in parsed_texts]
             df = pd.DataFrame({
                 'recalled_events': [''] * len(segments),

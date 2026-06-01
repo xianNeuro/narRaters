@@ -2063,6 +2063,21 @@
             return relPath;
         }
 
+        function applyFolderPickerPathFallback(absPath) {
+            const pathEl = document.getElementById('folder-picker-path');
+            const typeInput = document.getElementById('folder-picker-typein-input');
+            const upBtn = document.getElementById('folder-picker-up');
+            folderPickerState.currentPath = absPath;
+            folderPickerState.currentAbsolute = absPath;
+            const parent = parentDirOfPath(absPath);
+            folderPickerState.parentPath = (parent && parent !== absPath) ? parent : null;
+            folderPickerState.childPaths = [];
+            folderPickerState.childAbsolutes = [];
+            if (pathEl) pathEl.textContent = absPath;
+            if (typeInput && document.activeElement !== typeInput) typeInput.value = absPath;
+            if (upBtn) upBtn.disabled = !folderPickerState.parentPath;
+        }
+
         async function loadFolderPicker(path, opts) {
             const listEl = document.getElementById('folder-picker-list');
             const pathEl = document.getElementById('folder-picker-path');
@@ -2076,12 +2091,22 @@
                 const response = await fetch(url);
                 data = await response.json();
                 if (!response.ok || !data.success) {
+                    if (looksLikeAbsolutePath(path)) {
+                        applyFolderPickerPathFallback(path);
+                        listEl.innerHTML = `<div class="folder-picker-empty">${escapeHtml((data && data.error) || 'Could not list subfolders')} — you can still select this folder below.</div>`;
+                        return true;
+                    }
                     listEl.innerHTML = `<div class="folder-picker-empty">${escapeHtml((data && data.error) || 'Could not list folders')}</div>`;
-                    return;
+                    return false;
                 }
             } catch (e) {
+                if (looksLikeAbsolutePath(path)) {
+                    applyFolderPickerPathFallback(path);
+                    listEl.innerHTML = `<div class="folder-picker-empty">Could not list subfolders — you can still select this folder below.</div>`;
+                    return true;
+                }
                 listEl.innerHTML = `<div class="folder-picker-empty">Could not list folders: ${escapeHtml(String(e))}</div>`;
-                return;
+                return false;
             }
             folderPickerState.currentPath = data.current || '';
             folderPickerState.currentAbsolute = data.currentAbsolute || '';
