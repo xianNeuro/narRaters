@@ -87,9 +87,9 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 ## See the app
 
 <p align="center">
-  <img src="docs/screenshots/workflow.gif" alt="Animated walkthrough: dashboard, event segmentation, recall matching, causal rating" width="920">
+  <img src="docs/screenshots/workflow.gif" alt="Animated walkthrough: building a pipeline, the dashboard status grid, and inspecting/editing a story" width="920">
   <br>
-  <em>① Dashboard &nbsp;→&nbsp; ② Event segmentation &nbsp;→&nbsp; ③ Recall matching &nbsp;→&nbsp; ④ Causal rating</em>
+  <em>① Build a pipeline &nbsp;→&nbsp; ② Dashboard &nbsp;→&nbsp; ③ Inspect &amp; edit</em>
 </p>
 
 <table>
