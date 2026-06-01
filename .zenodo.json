@@ -5,46 +5,7 @@
   "creators": [
     {
       "name": "Li, Xian",
-      "affiliation": "Princeton University",
-      "type": "ProjectLeader"
-    }
-  ],
-  "contributors": [
-    {
-      "name": "Chen, Janice",
-      "type": "Other"
-    },
-    {
-      "name": "Kressin Palacios, Gabi",
-      "type": "Other"
-    },
-    {
-      "name": "Arekar, Dhruva",
-      "type": "Other"
-    },
-    {
-      "name": "Li, Xiyu",
-      "type": "Other"
-    },
-    {
-      "name": "Michelmann, Sebastian",
-      "type": "Other"
-    },
-    {
-      "name": "Youstra, Colette",
-      "type": "Other"
-    },
-    {
-      "name": "Covington, Quinton",
-      "type": "Other"
-    },
-    {
-      "name": "Tavassoli, Samira",
-      "type": "Other"
-    },
-    {
-      "name": "Huang, Yuye",
-      "type": "Other"
+      "affiliation": "Princeton University"
     }
   ],
   "keywords": [
@@ -59,25 +20,5 @@
   "access_right": "open",
   "license": "other",
   "notes": "Licensed under the NarRaters Research and Non-Commercial License (see LICENSE in the repository). Free for research, education, and other non-commercial use.",
-  "language": "eng",
-  "related_identifiers": [
-    {
-      "identifier": "https://github.com/xianNeuro/narRaters",
-      "relation": "isSupplementTo",
-      "scheme": "url",
-      "resource_type": "software"
-    },
-    {
-      "identifier": "https://pypi.org/project/narraters/",
-      "relation": "isSupplementTo",
-      "scheme": "url",
-      "resource_type": "software"
-    },
-    {
-      "identifier": "https://xianneuro.github.io/narRaters/",
-      "relation": "isDocumentedBy",
-      "scheme": "url",
-      "resource_type": "other"
-    }
-  ]
+  "language": "eng"
 }

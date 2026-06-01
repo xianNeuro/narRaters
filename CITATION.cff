@@ -9,6 +9,7 @@ authors:
 repository-code: "https://github.com/xianNeuro/narRaters"
 url: "https://xianneuro.github.io/narRaters/"
 license: NarRaters Research and Non-Commercial License
+abstract: "Open-source pipeline and web UI for processing narrative recall data — transcription, event segmentation, spell/grammar correction, parsing, recall-to-event matching, and causal rating — with human review at each step."
 keywords:
   - narrative recall
   - cognitive neuroscience
@@ -16,13 +17,25 @@ keywords:
   - free recall
   - human rater
   - NLP
-version: 0.3.10
+version: 0.3.11
 date-released: 2026-06-01
 identifiers:
   - type: url
     value: "https://github.com/xianNeuro/narRaters"
     description: "Source code repository"
-  # After Zenodo GitHub sync, add the version DOI, e.g.:
+  - type: url
+    value: "https://pypi.org/project/narraters/"
+    description: "PyPI package (pip install narraters)"
+  # After Zenodo GitHub sync succeeds, add:
   # - type: doi
   #   value: "10.5281/zenodo.XXXXXXX"
   #   description: "Archived release on Zenodo"
+preferred-citation:
+  type: software
+  title: "narRaters"
+  authors:
+    - family-names: Li
+      given-names: Xian
+  version: "0.3.11"
+  year: 2026
+  url: "https://github.com/xianNeuro/narRaters"
