@@ -3849,10 +3849,10 @@
             bar.style.height = lineHeightCss + 'px';
             bar.style.opacity = '1';
 
-            // ---- 2. Compute the click-snap target — the gap AFTER the word
+            // ---- 2. Compute the click-snap target — the gap BEFORE the word
             // the pointer is on. The visible bar position is *independent* of
             // this snap target; it only affects what happens when the user
-            // clicks (boundary placed behind the word the user clicked).
+            // clicks (boundary placed in front of the word the user clicked).
             const hit = document.elementFromPoint(xy.x, xy.y);
             let snapEl = null;
             let isBoundary = false;
@@ -3864,8 +3864,8 @@
                 } else {
                     const word = hit.closest('.seg-word');
                     if (word) {
-                        // Boundary lands AFTER (behind) the clicked word.
-                        snapEl = segAdjacentCand(word, 'next') || segAdjacentCand(word, 'prev');
+                        // Boundary lands BEFORE (in front of) the clicked word.
+                        snapEl = segAdjacentCand(word, 'prev') || segAdjacentCand(word, 'next');
                     }
                 }
             }

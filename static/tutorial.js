@@ -326,23 +326,36 @@
         _settleRaf = requestAnimationFrame(tick);
     }
 
-    // Product of the CSS `zoom` on an element and all its ancestors. The overlay
-    // is appended to <body>, so it inherits the page-level `zoom` set on <html>
-    // (0.8 on the inspection page, 0.9 on the dashboard/pipeline pages). A
-    // position:fixed element under `zoom` has its left/top/width/height
-    // multiplied by that zoom when rendered, yet getBoundingClientRect() already
-    // returns zoom-applied (visual) coordinates. Writing a target's rect straight
-    // onto the spotlight therefore double-applies the zoom and the outline drifts
-    // toward the top-left and shrinks. Dividing the written values by this factor
-    // cancels the inherited zoom so the rendered box lands on the target. Returns
-    // 1 on un-zoomed pages, so the math is a no-op there.
-    function effectiveZoom(el) {
-        var z = 1;
-        for (var node = el; node && node.nodeType === 1; node = node.parentElement) {
-            var cz = parseFloat(window.getComputedStyle(node).zoom);
-            if (isFinite(cz) && cz > 0) z *= cz;
+    // Measure the scale the browser actually applies to the fixed overlay
+    // elements. The overlay lives under <html style="zoom:0.x"> (0.8 on the
+    // inspection page, 0.9 on the dashboard/pipeline pages). getBoundingClientRect()
+    // always reports zoom-applied (visual) coordinates, but whether an ancestor
+    // `zoom` *also* scales the pixel values we write to a position:fixed
+    // descendant's left/top/width/height varies by browser/webview version —
+    // older builds scale it (so writes must be divided by the zoom), newer ones
+    // position fixed elements straight in the viewport (so writes must NOT be
+    // divided). Assuming the wrong convention drifts the box up-left (over-divide)
+    // or down-right (under-divide). Instead of assuming, keep a hidden 1000px
+    // probe that is a fixed child of <body> just like the spotlight/tooltip — it
+    // sees the same ancestor zoom — and read back what the browser actually
+    // rendered it as: the ratio is the true correction factor. `max-width:none`
+    // etc. keep the probe from being clamped the way the tooltip would be.
+    // Returns 1 when nothing scales the element (e.g. un-zoomed pages).
+    var _scaleProbe = null;
+    function renderedScale() {
+        if (!_scaleProbe || !_scaleProbe.isConnected) {
+            _scaleProbe = document.createElement('div');
+            _scaleProbe.style.cssText = 'position:fixed;left:0;top:0;width:1000px;' +
+                'height:1000px;max-width:none;min-width:0;max-height:none;min-height:0;' +
+                'margin:0;padding:0;border:0;visibility:hidden;pointer-events:none;z-index:-1;';
+            document.body.appendChild(_scaleProbe);
         }
-        return z || 1;
+        var r = _scaleProbe.getBoundingClientRect();
+        var sx = r.width / 1000, sy = r.height / 1000;
+        return {
+            x: (isFinite(sx) && sx > 0) ? sx : 1,
+            y: (isFinite(sy) && sy > 0) ? sy : 1
+        };
     }
 
     function positionSpotlight(target) {
@@ -351,11 +364,11 @@
         // Tight padding so the spotlight hugs the element's actual shape
         // rather than swallowing surrounding whitespace.
         var pad = 3;
-        var z = effectiveZoom(spotlight);
-        spotlight.style.left = ((rect.left - pad) / z) + 'px';
-        spotlight.style.top = ((rect.top - pad) / z) + 'px';
-        spotlight.style.width = ((rect.width + pad * 2) / z) + 'px';
-        spotlight.style.height = ((rect.height + pad * 2) / z) + 'px';
+        var s = renderedScale();
+        spotlight.style.left = ((rect.left - pad) / s.x) + 'px';
+        spotlight.style.top = ((rect.top - pad) / s.y) + 'px';
+        spotlight.style.width = ((rect.width + pad * 2) / s.x) + 'px';
+        spotlight.style.height = ((rect.height + pad * 2) / s.y) + 'px';
         // Match the target's own border-radius (a button, tab, badge, etc.
         // becomes a rounded-rectangle highlight; a square cell stays square).
         var br = '';
@@ -399,11 +412,12 @@
         if (top < 8) top = 8;
         if (top + tt.height > pageH - 8) top = pageH - 8 - tt.height;
         // left/top are computed in visual (zoom-applied) coordinates to match
-        // getBoundingClientRect/innerWidth; divide by the tooltip's inherited
-        // zoom so the rendered position matches (see effectiveZoom note above).
-        var z = effectiveZoom(tooltip);
-        tooltip.style.left = (left / z) + 'px';
-        tooltip.style.top = (top / z) + 'px';
+        // getBoundingClientRect/innerWidth; divide by the scale the browser
+        // actually applies to this fixed element so the rendered position
+        // matches (see renderedScale note above).
+        var s = renderedScale();
+        tooltip.style.left = (left / s.x) + 'px';
+        tooltip.style.top = (top / s.y) + 'px';
     }
 
     function setupCompletion(step) {
