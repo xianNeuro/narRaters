@@ -19,17 +19,17 @@ keywords:
   - NLP
 version: 0.3.12
 date-released: 2026-06-01
+doi: 10.5281/zenodo.20486080
 identifiers:
+  - type: doi
+    value: "10.5281/zenodo.20486080"
+    description: "Archived release on Zenodo"
   - type: url
     value: "https://github.com/xianNeuro/narRaters"
     description: "Source code repository"
   - type: url
     value: "https://pypi.org/project/narraters/"
     description: "PyPI package (pip install narraters)"
-  # After Zenodo GitHub sync succeeds, add:
-  # - type: doi
-  #   value: "10.5281/zenodo.XXXXXXX"
-  #   description: "Archived release on Zenodo"
 preferred-citation:
   type: software
   title: "narRaters"
@@ -38,4 +38,5 @@ preferred-citation:
       given-names: Xian
   version: "0.3.12"
   year: 2026
-  url: "https://github.com/xianNeuro/narRaters"
+  doi: "10.5281/zenodo.20486080"
+  url: "https://doi.org/10.5281/zenodo.20486080"

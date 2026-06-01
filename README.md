@@ -24,7 +24,7 @@
   ·
   <a href="https://github.com/xianNeuro/narRaters/issues">🐛 Issues</a>
   ·
-  <a href="CITATION.md">📚 Cite</a>
+  <a href="#citation">📚 Cite</a>
   ·
   <a href="https://github.com/xianNeuro/narRaters/issues/new?template=feedback">💬 Feedback</a>
 </p>
@@ -162,7 +162,6 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="#step-5--match-recall-segments--story-events">Step 5 — <code>match</code></a></li>
 <li><a href="#step-6--rate-causal-relationships-between-event-pairs">Step 6 — <code>rate</code></a></li>
 </ul></li>
-<li><a href="CITATION.md">Cite</a></li>
 <li><a href="CONTRIBUTING.md">Contributing tab</a>
 <ul style="padding-left: 0.5em;">
 <li><a href="CONTRIBUTING.md">Research background</a></li>
@@ -176,11 +175,12 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="#folder-structure">Folder structure</a></li>
 </ul></li>
 <li><a href="#further-reading">Further reading</a></li>
+<li><a href="#citation">Citation</a></li>
 <li><a href="#acknowledgements">Acknowledgements</a></li>
 <li><a href="#license">License</a></li>
 </ul>
 
-> On GitHub, **README**, **Contributing** (research background, prompt templates, acknowledgements, author), and **License** are the tabs in the bar above. **[CITATION.md](CITATION.md)** holds formatted citations (linked from this page like Contributing); [`CITATION.cff`](CITATION.cff) also adds **Cite this repository** in the repo sidebar. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
+> On GitHub, **README**, **Contributing** (research background, prompt templates, acknowledgements, author), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
 
 ---
 
@@ -657,6 +657,19 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 - **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
+
+---
+
+
+</div>
+
+## Citation
+
+<div style="padding-left: 0.5em">
+
+If you use narRaters in research, please cite the archived release:
+
+> Li, X. (2026). *narRaters* (Version 0.3.12) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
 
 ---
 
