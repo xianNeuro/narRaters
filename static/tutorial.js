@@ -326,16 +326,36 @@
         _settleRaf = requestAnimationFrame(tick);
     }
 
+    // Product of the CSS `zoom` on an element and all its ancestors. The overlay
+    // is appended to <body>, so it inherits the page-level `zoom` set on <html>
+    // (0.8 on the inspection page, 0.9 on the dashboard/pipeline pages). A
+    // position:fixed element under `zoom` has its left/top/width/height
+    // multiplied by that zoom when rendered, yet getBoundingClientRect() already
+    // returns zoom-applied (visual) coordinates. Writing a target's rect straight
+    // onto the spotlight therefore double-applies the zoom and the outline drifts
+    // toward the top-left and shrinks. Dividing the written values by this factor
+    // cancels the inherited zoom so the rendered box lands on the target. Returns
+    // 1 on un-zoomed pages, so the math is a no-op there.
+    function effectiveZoom(el) {
+        var z = 1;
+        for (var node = el; node && node.nodeType === 1; node = node.parentElement) {
+            var cz = parseFloat(window.getComputedStyle(node).zoom);
+            if (isFinite(cz) && cz > 0) z *= cz;
+        }
+        return z || 1;
+    }
+
     function positionSpotlight(target) {
         var spotlight = document.getElementById('tutorial-spotlight');
         var rect = target.getBoundingClientRect();
         // Tight padding so the spotlight hugs the element's actual shape
         // rather than swallowing surrounding whitespace.
         var pad = 3;
-        spotlight.style.left = (rect.left - pad) + 'px';
-        spotlight.style.top = (rect.top - pad) + 'px';
-        spotlight.style.width = (rect.width + pad * 2) + 'px';
-        spotlight.style.height = (rect.height + pad * 2) + 'px';
+        var z = effectiveZoom(spotlight);
+        spotlight.style.left = ((rect.left - pad) / z) + 'px';
+        spotlight.style.top = ((rect.top - pad) / z) + 'px';
+        spotlight.style.width = ((rect.width + pad * 2) / z) + 'px';
+        spotlight.style.height = ((rect.height + pad * 2) / z) + 'px';
         // Match the target's own border-radius (a button, tab, badge, etc.
         // becomes a rounded-rectangle highlight; a square cell stays square).
         var br = '';
@@ -378,8 +398,12 @@
         if (left + tt.width > pageW - 8) left = pageW - 8 - tt.width;
         if (top < 8) top = 8;
         if (top + tt.height > pageH - 8) top = pageH - 8 - tt.height;
-        tooltip.style.left = left + 'px';
-        tooltip.style.top = top + 'px';
+        // left/top are computed in visual (zoom-applied) coordinates to match
+        // getBoundingClientRect/innerWidth; divide by the tooltip's inherited
+        // zoom so the rendered position matches (see effectiveZoom note above).
+        var z = effectiveZoom(tooltip);
+        tooltip.style.left = (left / z) + 'px';
+        tooltip.style.top = (top / z) + 'px';
     }
 
     function setupCompletion(step) {
