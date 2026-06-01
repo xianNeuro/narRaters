@@ -62,7 +62,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 <table>
   <tr>
     <td width="72" align="center"><strong>1</strong></td>
-    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.8.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.9.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
   </tr>
   <tr>
     <td align="center"><strong>2</strong></td>
@@ -166,6 +166,7 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <ul style="padding-left: 0.5em;">
 <li><a href="CONTRIBUTING.md">Research background</a></li>
 <li><a href="CONTRIBUTING.md#prompt-templates">Prompt templates</a></li>
+<li><a href="CONTRIBUTING.md#acknowledgements">Acknowledgements</a></li>
 <li><a href="CONTRIBUTING.md#author">Author</a></li>
 </ul></li>
 <li><a href="#library--python-use">Library / Python use</a></li>
@@ -178,7 +179,7 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
 <li><a href="#license">License</a></li>
 </ul>
 
-> On GitHub, **README**, **Contributing** (research background, prompt templates, author), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
+> On GitHub, **README**, **Contributing** (research background, prompt templates, acknowledgements, author), and **License** are the tabs in the bar above. Use this table of contents or the **Outline** menu (list icon, top-right) to jump between README sections.
 
 ---
 
@@ -193,7 +194,7 @@ Needs **[Python 3.10+](https://www.python.org/downloads/)**. Windows: check **�
 
 ### ZIP download (double-click launcher)
 
-1. **[Download the ZIP (v0.3.8)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.8.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.8`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
+1. **[Download the ZIP (v0.3.9)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.9.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.9`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
 2. **Launch:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
 3. Your browser opens **`http://127.0.0.1:5000/pipeline-config`** with bundled examples. Put your data in **`data/`**. Restart later by double-clicking the same launcher.
 
@@ -555,111 +556,92 @@ Direct per-step imports are planned for a future release; for now, programmatic 
 
 <div style="padding-left: 0.5em">
 
-After unzipping, everything lives under a single **`narRaters/`** project root. Expand the branches below for paths, contents, and naming conventions.
+After unzipping, everything lives under a single **`narRaters/`** project root. Paths, contents, and naming conventions:
 
 ### Folder structure
 
-<details>
-<summary><strong>narRaters/</strong> — project root (launchers &amp; docs at top level)</summary>
-
-```
+```text
 narRaters/
-├── README.md, LICENSE, CONTRIBUTING.md     # docs (GitHub tabs)
-├── narRater_Tutorial.pdf                   # illustrated web UI tour
-├── narRater.app                            # macOS double-click launcher
-├── narRaters_installer.bat                 # Windows launcher
-├── install.sh                              # macOS / Linux installer
-├── pyproject.toml                          # package metadata & pip extras
-├── SETUP_API.md, .env.example              # API key setup
-├── data/                                   # ▾ inputs
-├── output/                                 # ▾ pipeline outputs
-├── scripts/                                # ▾ six pipeline backends
-├── server/web-interface.py                 # Flask web UI
-├── templates/, static/                     # web UI HTML / CSS / JS / icon
-├── src/narraters/                          # pip package (cli, paths)
-├── helpers/                                # shared utilities & smoke tests
-├── docs/                                   # GitHub Pages site & README assets
-├── demo/                                   # smaller lighthouse example
-└── packaging/macos/                        # app bundle / DMG build scripts
-```
-
-<details>
-<summary><code>data/</code> — inputs (<a href="#where-to-put-your-data">where to put your files</a>)</summary>
-
-```
-data/
-├── 1_story_audio/              # optional Step 1 — story audio
-│   └── {story}.wav | .mp3 | .m4a
-├── 2_story_transcript/         # story text
-│   └── {story}.txt             # plain UTF-8, one story per file
-├── 3_story_events/             # pre-segmented or segmented story events
-│   └── {story}_events.xlsx     # columns: event, story_texts
-├── 4_recall_audio/             # optional Step 1 — recall audio
-│   └── {subj_id}.wav | .mp3 | .m4a | .mp4
-└── 5_recall_texts/             # recall text
-    └── {subj_id}.txt           # e.g. the_siren_sub-01.txt
+├── README.md                    # This file — user guide & pipeline docs
+├── CONTRIBUTING.md              # Research background, prompt templates, acknowledgements, author
+├── LICENSE
+├── narRater_Tutorial.pdf        # Illustrated web UI tour
+├── narRater.app                 # macOS double-click launcher
+├── narRaters_installer.bat      # Windows launcher
+├── install.sh                   # macOS / Linux installer
+├── pyproject.toml               # Package metadata & pip extras
+├── SETUP_API.md, .env.example   # API key setup
+│
+├── data/                        # Inputs (see Where to put your data)
+│   ├── 1_story_audio/           # Optional Step 1 — story audio
+│   │   └── {story}.wav | .mp3 | .m4a
+│   ├── 2_story_transcript/      # Story text
+│   │   └── {story}.txt          # plain UTF-8, one story per file
+│   ├── 3_story_events/          # Pre-segmented or segmented story events
+│   │   └── {story}_events.xlsx  # columns: event, story_texts
+│   ├── 4_recall_audio/          # Optional Step 1 — recall audio
+│   │   └── {subj_id}.wav | .mp3 | .m4a | .mp4
+│   └── 5_recall_texts/          # Recall text
+│       └── {subj_id}.txt        # e.g. the_siren_sub-01.txt
+│
+├── output/                      # Pipeline outputs (one subfolder per step)
+│   ├── story_audio-transcribed/ # Step 1 (story) — {story}.txt
+│   ├── recall_audio-transcribed/# Step 1 (recall) — {subj_id}.txt
+│   ├── recall_corrected/        # Step 3 — {subj_id}.txt
+│   ├── recall_parsed/           # Step 4 — {subj_id}_parsed.xlsx
+│   ├── recall_rated/            # Step 5 — {subj_id}_{method}.xlsx
+│   └── causal_rated/            # Step 6 — {story}_causal-{method}.xlsx
+│
+├── scripts/                     # Pipeline backends (CLI & web UI call these)
+│   ├── 1_audio-transcribe.py    # audioTranscribe
+│   ├── 2_story-event-segment.py # eventSegment
+│   ├── 3_spell-grammar-correct.py # sentenceCorrect
+│   ├── 4_parse-texts.py         # textParsing
+│   ├── 5_recall-rater.py        # textMatching
+│   ├── 6_causal-rater.py        # causalRating
+│   └── prompt/                  # LLM prompt templates (.txt)
+│       ├── event_segment.txt
+│       ├── spell_gram.txt
+│       ├── recall_parse_clause.txt
+│       ├── recall_rating.txt
+│       └── causal_rating.txt
+│
+├── server/                      # Flask web UI
+│   ├── web-interface.py         # Routes & subprocess orchestration
+│   └── START_HERE.command       # macOS launcher script
+│
+├── templates/                   # Web UI HTML (pipeline, dashboard, subject/story)
+├── static/                      # CSS, JS, app icon
+│
+├── src/narraters/               # pip package
+│   ├── cli.py                   # narraters command entry point
+│   ├── paths.py                 # Project-root resolution
+│   └── runtime_install.py       # Bundled-example copy on first serve
+│
+├── helpers/                     # Shared utilities & smoke tests
+│   ├── software_paths.py        # Canonical path resolution
+│   ├── resource_preflight.py    # RAM / disk checks for heavy methods
+│   └── test_*.py                # Pipeline validation scripts
+│
+├── docs/                        # GitHub Pages site & README assets
+│   ├── index.html               # Project landing page
+│   └── screenshots/             # README GIFs and static screenshots
+│
+├── demo/                        # Smaller lighthouse example
+│   ├── data/                    # the_lighthouse transcript + recall texts
+│   └── output/                  # Sample outputs for the demo story
+│
+├── developer/                   # Contributor handbook & tooling
+│   ├── README.md                # Per-step I/O contracts & design principles
+│   └── SETUP_API.md             # API key setup (developer copy)
+│
+└── packaging/macos/             # App bundle / DMG build scripts
+    └── build_app_bundle.sh
 ```
 
 Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/output data](#example-inputoutput-data).
 
-</details>
-
-<details>
-<summary><code>output/</code> — pipeline outputs (one subfolder per step)</summary>
-
-```
-output/
-├── story_audio-transcribed/    # Step 1 (story) — {story}.txt
-├── recall_audio-transcribed/   # Step 1 (recall) — {subj_id}.txt
-├── recall_corrected/           # Step 3 — {subj_id}.txt
-├── recall_parsed/              # Step 4 — {subj_id}_parsed.xlsx
-├── recall_rated/               # Step 5 — {subj_id}_{method}.xlsx
-└── causal_rated/               # Step 6 — {story}_causal-{method}.xlsx
-```
-
 **Versioning:** automated files use `{id}_{method}.ext`; hand-edited exports use `{id}_{ratername}-edit.ext` (never overwritten).
-
-</details>
-
-<details>
-<summary><code>scripts/</code> — pipeline backends (CLI &amp; web UI call these)</summary>
-
-```
-scripts/
-├── 1_audio-transcribe.py       # audioTranscribe
-├── 2_story-event-segment.py    # eventSegment
-├── 3_spell-grammar-correct.py  # sentenceCorrect
-├── 4_parse-texts.py            # textParsing
-├── 5_recall-rater.py           # textMatching
-├── 6_causal-rater.py           # causalRating
-└── prompt/                     # LLM prompt templates (.txt)
-    ├── event_segment.txt
-    ├── spell_gram.txt
-    ├── recall_parse_clause.txt
-    ├── recall_rating.txt
-    └── causal_rating.txt
-```
-
-</details>
-
-<details>
-<summary><code>src/narraters/</code>, <code>server/</code>, <code>templates/</code>, <code>helpers/</code></summary>
-
-```
-src/narraters/
-├── cli.py                      # narraters command entry point
-├── paths.py                    # project-root resolution
-└── runtime_install.py          # bundled-example copy on first serve
-
-server/web-interface.py         # Flask routes & subprocess orchestration
-templates/                      # pipeline-config, dashboard, subject/story views
-static/                         # CSS, JS, app icon
-helpers/                        # disk/RAM preflight, plotting, test scripts
-```
-
-</details>
-
-</details>
 
 ---
 
