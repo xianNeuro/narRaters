@@ -86,3 +86,6 @@ narRaters_installer.app/
 # Note: /narRater.app at repo root IS committed — it's the slim launcher built
 # by packaging/macos/build_repo_app.sh. The full bundled .app built by
 # packaging/macos/build_app_bundle.sh is much larger and lives elsewhere.
+
+# Per-step user operation logs (read-only telemetry)
+user_data/**

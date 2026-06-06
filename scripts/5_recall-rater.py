@@ -30,6 +30,13 @@ try:
 except ImportError:
     anthropic = None
 
+# openai is only required when --method api selects an OpenAI model. Defer the
+# import the same way as anthropic so offline methods don't need the [api] extra.
+try:
+    import openai
+except ImportError:
+    openai = None
+
 
 def _software_package_root() -> Path:
     d = Path(__file__).resolve().parent
@@ -40,7 +47,12 @@ _pr = _software_package_root()
 if str(_pr) not in sys.path:
     sys.path.insert(0, str(_pr))
 
-from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+from helpers.anthropic_ids import (
+    ANTHROPIC_SUPPORTED_MODELS,
+    OPENAI_SUPPORTED_MODELS,
+    DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL,
+    provider_for_model,
+)
 
 
 # ==============================
@@ -48,15 +60,17 @@ from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_
 # ==============================
 
 MODEL_NAME = DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+DEFAULT_MODEL = DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
 MAX_TOKENS = 2000
 TEMPERATURE = 0
 
-# Models exposed in the UI for method='api'. Keep aligned with steps 2 and 6.
-SUPPORTED_MODELS = {**ANTHROPIC_SUPPORTED_MODELS}
+# Models exposed in the UI for method='api'. Shares the central cloud registry
+# (Anthropic + OpenAI) so the menu stays aligned with steps 2 and 6.
+SUPPORTED_MODELS = {**ANTHROPIC_SUPPORTED_MODELS, **OPENAI_SUPPORTED_MODELS}
 
 
 def _resolve_recall_rating_model() -> str:
-    """Resolve the Anthropic model id from RECALL_RATING_MODEL env var (set by launcher), else default."""
+    """Resolve the model id from RECALL_RATING_MODEL env var (set by launcher), else default."""
     return (os.environ.get("RECALL_RATING_MODEL") or "").strip() or MODEL_NAME
 
 # System prompt
@@ -109,6 +123,18 @@ Output format (STRICT):
   - "matched_events"
 - Do NOT include recall_text, explanations, comments, or extra text in the output.
 - You MUST output one object for EVERY recall row. If no event matches, matched_events MUST be "NONE". Missing or skipped row_index is NOT allowed."""
+
+def list_recall_rating_prompts():
+    """Return available recall-rating prompt filenames in scripts/prompt/.
+
+    Mirrors list_event_segment_prompts()/list_causal_rating_prompts() so the web
+    UI can enumerate prompt versions for this step.
+    """
+    prompt_dir = Path(__file__).resolve().parent / "prompt"
+    if not prompt_dir.exists():
+        return []
+    return sorted(f.name for f in prompt_dir.glob("recall_rating*.txt"))
+
 
 USER_PROMPT = load_user_prompt()
 
@@ -264,35 +290,75 @@ def get_anthropic_client(test_mode=False):
     return anthropic.Anthropic(api_key=api_key)
 
 
+def get_api_client(model=None, api_key_override=None):
+    """Initialize an API client for the given model and return (client, provider).
+
+    Routes to the correct platform based on SUPPORTED_MODELS: OpenAI models use
+    the OpenAI client (OPENAI_API_KEY), everything else uses Anthropic
+    (ANTHROPIC_API_KEY). Mirrors get_api_client() in steps 2 and 6.
+    """
+    model = model or DEFAULT_MODEL
+    provider = provider_for_model(model)
+
+    if provider == 'openai':
+        if openai is None:
+            raise ImportError(
+                "The 'openai' package is required for OpenAI models. "
+                "Install it with: pip install 'narraters[api]'  (or: pip install openai)"
+            )
+        api_key = api_key_override or os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError(
+                "OPENAI_API_KEY environment variable not set. "
+                "Please set it with: export OPENAI_API_KEY='your-api-key'"
+            )
+        return openai.OpenAI(api_key=api_key), 'openai'
+
+    if anthropic is None:
+        raise ImportError(
+            "The 'anthropic' package is required for --method api. "
+            "Install it with: pip install 'narraters[api]'  (or: pip install anthropic)"
+        )
+    api_key = api_key_override or os.getenv('ANTHROPIC_API_KEY')
+    if not api_key:
+        raise ValueError(
+            "ANTHROPIC_API_KEY environment variable not set. "
+            "Please set it with: export ANTHROPIC_API_KEY='your-api-key'"
+        )
+    return anthropic.Anthropic(api_key=api_key), 'anthropic'
+
+
 # ==============================
 # BATCH PROCESSING (PRIMARY METHOD)
 # ==============================
 
 def rate_recall_batch(
-    client: anthropic.Anthropic,
+    client,
     recall_segments: List[str],
     story_events: List[dict],
-    model: str = MODEL_NAME
+    model: str = MODEL_NAME,
+    provider: str = 'anthropic',
 ) -> List[str]:
     """
     Rate all recall segments in a single batch API call.
-    
+
     Args:
-        client: Anthropic API client
+        client: API client (Anthropic or OpenAI), matching ``provider``
         recall_segments: List of recall segment texts
         story_events: List of dicts with 'event' (int) and 'story_texts' (str) keys
-        model: Anthropic Messages API model id to use
-        
+        model: Messages/Chat-Completions API model id to use
+        provider: 'anthropic' or 'openai' — selects which API to call
+
     Returns:
         List of matched events strings (e.g., "1,2" or "" for no match)
     """
     if not recall_segments:
         return []
-    
+
     # Prepare events payload
-    events_payload = [{"event": event['event'], "story_texts": event['story_texts']} 
+    events_payload = [{"event": event['event'], "story_texts": event['story_texts']}
                      for event in story_events]
-    
+
     # Build the user message
     user_content = (
         USER_PROMPT
@@ -301,26 +367,38 @@ def rate_recall_batch(
         + "\n\nRecall Texts:\n"
         + json.dumps(recall_segments, ensure_ascii=False, indent=2)
     )
-    
+
     try:
-        # Call Anthropic Messages API
-        response = client.messages.create(
-            model=model,
-            system=SYSTEM_PROMPT,
-            messages=[{
-                "role": "user",
-                "content": user_content
-            }],
-            max_tokens=MAX_TOKENS,
-            temperature=TEMPERATURE,
-        )
-        
-        # Extract response text
-        output_text = response.content[0].text.strip()
+        if provider == 'openai':
+            # Call OpenAI Chat Completions API
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=MAX_TOKENS,
+                temperature=TEMPERATURE,
+            )
+            output_text = response.choices[0].message.content.strip()
+        else:
+            # Call Anthropic Messages API
+            response = client.messages.create(
+                model=model,
+                system=SYSTEM_PROMPT,
+                messages=[{
+                    "role": "user",
+                    "content": user_content
+                }],
+                max_tokens=MAX_TOKENS,
+                temperature=TEMPERATURE,
+            )
+            output_text = response.content[0].text.strip()
+
         return parse_recall_rating_batch_json(output_text, len(recall_segments))
 
     except Exception as e:
-        print(f"  Error calling Anthropic API: {e}")
+        print(f"  Error calling {provider} API: {e}")
         # Fallback: return empty matches
         return [""] * len(recall_segments)
 
@@ -516,10 +594,11 @@ def rate_recall_batch_ollama(
 # ==============================
 
 def match_recall_to_events_sonnet(
-    client: anthropic.Anthropic,
+    client,
     recall_segment: str,
     story_events: List[dict],
-    model: str = MODEL_NAME
+    model: str = MODEL_NAME,
+    provider: str = 'anthropic',
 ) -> List[int]:
     """
     Use the configured Anthropic model to match a recall segment to story events.
@@ -540,7 +619,7 @@ def match_recall_to_events_sonnet(
         return []
     
     # Use batch processing with a single segment for consistency
-    results = rate_recall_batch(client, [recall_segment], story_events, model)
+    results = rate_recall_batch(client, [recall_segment], story_events, model, provider)
     
     if not results or not results[0]:
         return []
@@ -792,6 +871,28 @@ def parse_recall_parsed_path(recall_file: Path) -> tuple[str, str]:
     return stem.replace("_parsed", ""), tail
 
 
+def parsed_input_variant(stem: str, base: str, tail: str = "_parsed") -> Optional[str]:
+    """Variant suffix of a parsed-recall file relative to ``{base}{tail}``.
+
+    Mirrors the launcher's ``_scan_variants_for_item`` in server/web-interface.py so
+    that the ``BATCH_INPUT_VARIANT`` value the dashboard sends matches here:
+      - ``''``  → the canonical ``{base}_parsed`` file
+      - ``'-fine'`` (etc.) → the stem tail after ``{base}_parsed``
+      - ``'_spell-..._parsed'`` → the tail after ``{base}`` when ``_parsed`` is
+        embedded in an inherited method chain
+    Returns ``None`` when the stem does not belong to ``base``. (The previous code
+    compared ``stem == f"{base}{variant}"``, which dropped the ``_parsed`` tail and
+    so never matched the canonical file for ``variant=''``.)
+    """
+    if stem == f"{base}{tail}":
+        return ''
+    if stem.startswith(f"{base}{tail}"):
+        return stem[len(base) + len(tail):]
+    if stem.startswith(f"{base}_") and tail in stem:
+        return stem[len(base):]
+    return None
+
+
 def expand_story_event_file_bases(item_id: str) -> list[str]:
     """Basenames for ``{{base}}_events*.xlsx``, aligned with server/web-interface.expand_story_event_file_bases."""
     if not item_id:
@@ -952,10 +1053,19 @@ def process_subject(
         explicit_variant = os.environ.get("BATCH_INPUT_VARIANT")
         recall_file = None
         if explicit_variant is not None:
+            # Select the parsed file whose variant (relative to {subj}_parsed) matches,
+            # mirroring the launcher's semantics ('' = canonical {subj}_parsed). The old
+            # f"{subj_id}{variant}{ext}" reconstruction dropped the _parsed tail and so
+            # failed to find the canonical file when variant=''.
             for ext in PARSED_RECALL_EXTENSIONS:
-                cand = recall_path / f"{subj_id}{explicit_variant}{ext}"
-                if cand.is_file():
-                    recall_file = cand
+                for cand in sorted(recall_path.glob(f"{subj_id}*{ext}")):
+                    if not cand.is_file():
+                        continue
+                    cid, _ed = parse_recall_parsed_path(cand)
+                    if cid == subj_id and parsed_input_variant(cand.stem, subj_id) == explicit_variant:
+                        recall_file = cand
+                        break
+                if recall_file is not None:
                     break
         else:
             for ext in PARSED_RECALL_EXTENSIONS:
@@ -1077,11 +1187,13 @@ def process_subject(
             traceback.print_exc()
             return False
     else:
-        # Initialize Anthropic client (or use test mode)
+        # Initialize the API client (or use test mode). The provider is derived
+        # from the selected model so OpenAI ids route to the OpenAI client.
         client = None
+        provider = 'anthropic'
         if not test_mode:
             try:
-                client = get_anthropic_client()
+                client, provider = get_api_client(model)
             except Exception as e:
                 print(f"  Error: Failed to initialize LLM API client: {e}")
                 return False
@@ -1123,8 +1235,8 @@ def process_subject(
 
         elif use_batch:
             # Batch mode: process all segments at once
-            print(f"    Using batch processing with {model}...")
-            results = rate_recall_batch(client, recall_segments, story_events, model)
+            print(f"    Using batch processing with {model} ({provider})...")
+            results = rate_recall_batch(client, recall_segments, story_events, model, provider)
             matched_events_list, matched_count = _matched_events_list_from_rating_strings(
                 results, story_events
             )
@@ -1149,6 +1261,7 @@ def process_subject(
                     recall_segment=str(recall_segment),
                     story_events=story_events,
                     model=model,
+                    provider=provider,
                 )
 
                 # Store match result
@@ -1336,7 +1449,7 @@ def process_all_subjects(
         kept = []
         for recall_file in recall_files:
             item_id, _ed = parse_recall_parsed_path(recall_file)
-            if recall_file.stem == f"{item_id}{explicit_variant}":
+            if parsed_input_variant(recall_file.stem, item_id) == explicit_variant:
                 kept.append(recall_file)
         recall_files = kept
         print(
@@ -1424,26 +1537,31 @@ if __name__ == "__main__":
     use_ollama_main = _recall_rating_use_ollama()
     use_rmatch_main = _recall_rating_use_rmatch()
 
-    # If no API key and not explicitly in test mode, try test mode (Anthropic API path only).
-    if not use_ollama_main and not use_rmatch_main and not test_mode and not os.getenv('ANTHROPIC_API_KEY'):
+    # Resolve the model/provider up front so the API-key preflight checks the key
+    # for the right platform (OpenAI models need OPENAI_API_KEY, not ANTHROPIC_API_KEY).
+    resolved_model = _resolve_recall_rating_model()
+    resolved_provider = provider_for_model(resolved_model)
+    required_key = 'OPENAI_API_KEY' if resolved_provider == 'openai' else 'ANTHROPIC_API_KEY'
+
+    # If the required key is missing and not explicitly in test mode, fall back to test mode.
+    if not use_ollama_main and not use_rmatch_main and not test_mode and not os.getenv(required_key):
         print("="*70)
-        print("NOTE: ANTHROPIC_API_KEY not set")
+        print(f"NOTE: {required_key} not set")
         print("Running in TEST MODE (simulated matching)")
-        print("For real API matching, set: export ANTHROPIC_API_KEY='your-key'")
+        print(f"For real API matching, set: export {required_key}='your-key'")
         print("="*70)
         print()
         test_mode = True
-    
+
     # Paths: honor env set by Flask batch/execute (pipeline input/output)
     story_dir = (os.environ.get("BATCH_STORY_EVENTS_DIR") or "").strip() or "data/3_story_events"
     recall_dir = (os.environ.get("BATCH_INPUT_DIR") or "").strip() or "output/recall_parsed"
     output_dir = (os.environ.get("BATCH_OUTPUT_DIR") or "").strip() or "output/recall_rated"
 
     # Process all subjects
-    # Default to Excel format, batch processing; Anthropic model resolved from env (set by launcher).
-    resolved_model = _resolve_recall_rating_model()
+    # Default to Excel format, batch processing; model resolved from env (set by launcher).
     if resolved_model != MODEL_NAME:
-        print(f"Using Anthropic model (from RECALL_RATING_MODEL): {resolved_model}")
+        print(f"Using {resolved_provider} model (from RECALL_RATING_MODEL): {resolved_model}")
     try:
         process_all_subjects(
             story_dir=story_dir,

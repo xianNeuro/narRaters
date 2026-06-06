@@ -38,6 +38,15 @@ PACKAGE_ROOT = SCRIPT_DIR.parent
 if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
+# The ``narraters`` package (cli, runtime_install, paths) lives under ``src/`` in a
+# source checkout. Put that on sys.path so ``import narraters.*`` resolves to the
+# bundled source even when the installed/editable metadata is stale or points at a
+# moved/missing directory (otherwise step execution fails with
+# "ModuleNotFoundError: No module named 'narraters.runtime_install'").
+_SRC_DIR = PACKAGE_ROOT / "src"
+if (_SRC_DIR / "narraters").is_dir() and str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
 from helpers.software_paths import resolve_runtime_project_root
 
 # Workspace root: where data/ and output/ live (may differ after ``pip install``).
@@ -45,7 +54,7 @@ WORKSPACE_ROOT = resolve_runtime_project_root(script_dir=SCRIPT_DIR)
 PROJECT_ROOT = WORKSPACE_ROOT
 SCRIPTS_DIR = PACKAGE_ROOT / "scripts"
 
-from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL
+from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL, provider_for_model
 from helpers.feedback_links import (
     BUG_ISSUE_URL,
     DISCUSSIONS_URL,
@@ -478,6 +487,23 @@ def is_user_edit_file(filename):
     return bool(re.search(r'_\w+-edit\.', str(filename)))
 
 
+# Markers that only appear in downstream recall/causal pipeline outputs, never in a
+# genuine story-events file. Recall/causal exports embed the "{story}_events-..."
+# prefix in their default filenames (e.g.
+# ``the_siren_events_the_siren_sub-01_rate-recall_manual_Rater-edit.xlsx``), which
+# would otherwise be mistaken for the story-events file and shadow it.
+_NON_STORY_EVENTS_MARKERS = (
+    'rate-recall', 'recall-version', 'recall-match',
+    'causal-rating', 'causal-linguistic', 'textparsing',
+)
+
+
+def is_story_events_filename(filename):
+    """True unless the name carries a downstream-step marker (recall/causal output)."""
+    low = str(filename).lower()
+    return not any(marker in low for marker in _NON_STORY_EVENTS_MARKERS)
+
+
 def get_edit_suffix():
     """Get the edit suffix for the current logged-in user (e.g., '_username-edit')."""
     username = session.get('username', 'human')
@@ -801,23 +827,51 @@ def get_input_dir_for_step_type(step_type):
 
 def get_subject_id_from_filename(filename):
     """Extract subject ID from filename (e.g., 'subN_XXXX.txt' -> 'subN_XXXX').
-    Handles various file naming patterns including audio transcription files
-    and method-suffixed filenames (e.g., _rate-recall-api.xlsx, _events-fine.xlsx).
+
+    Handles the canonical ``{subject}_parsed.xlsx`` / ``{subject}_rate-recall-...``
+    names AND the alternative convention with a ``story-`` prefix and hyphenated
+    step tokens, e.g. ``story-alice_14_sub-3008-parsed.csv`` -> ``alice_14_sub-3008``
+    and ``story-alice_14_sub-3008-recall-matched.csv`` -> ``alice_14_sub-3008``.
     """
     import re
-    # Remove common extensions first
     name = filename
     for ext in ('.txt', '.csv', '.tsv', '.xlsx', '.xls') + SUPPORTED_AUDIO_EXTENSIONS:
-        name = name.replace(ext, '')
-    # Remove common suffixes including method-suffixed variants (e.g., _events-api_<model-id>)
-    name = re.sub(r'_rate-recall(-[a-zA-Z0-9_.-]+)?', '', name)
-    name = re.sub(r'_events(-[a-zA-Z0-9_.-]+)?', '', name)
-    name = name.replace('_parsed', '').replace('_rated', '')
-    # Try to extract subject ID pattern (subX_YYYY or similar)
+        if name.lower().endswith(ext):
+            name = name[:-len(ext)]
+            break
+    # trailing user-edit (e.g. _alice-edit)
+    name = re.sub(r'_\w+-edit$', '', name)
+    # alternative "story-" prefix
+    name = re.sub(r'^story-', '', name)
+    # Step tokens / method suffixes — both underscore and hyphen forms, anchored to the
+    # end. The optional ``(-...)`` tail also absorbs a ``_method`` chain
+    # (e.g. ``_parsed-ollama_gemma4_e4b``, ``_spell-ollama_gemma4_e4b``) so the two
+    # method variants of one subject collapse to the same id. Applied repeatedly so a
+    # canonical token after a method tag is also removed.
+    # The optional ``(-...)`` tail (hyphen-started) absorbs a method chain such as
+    # ``-ollama_gemma4_e4b`` while staying anchored to the end, so it can't eat the
+    # subject id that *precedes* an ``_events`` token in legacy verbose names.
+    _suffixes = (
+        r'[-_]rate-recall(-[a-zA-Z0-9_.-]+)?$',
+        r'[-_]recall-matched(-[a-zA-Z0-9_.-]+)?$',
+        r'[-_]events(-[a-zA-Z0-9_.-]+)?$',
+        r'[-_]segmented$',
+        r'[-_]segment$',
+        r'[-_]parsed(-[a-zA-Z0-9_.-]+)?$',
+        r'[-_]rated$',
+        r'[-_]spell(-[a-zA-Z0-9_.-]+)?$',          # corrected method tag, e.g. _spell-ollama_gemma4_e4b
+        r'[-_](recall-)?corrected(-[a-zA-Z0-9_.-]+)?$',
+    )
+    prev = None
+    while prev != name:
+        prev = name
+        name = re.sub(r'_\w+-edit$', '', name)
+        for pat in _suffixes:
+            name = re.sub(pat, '', name)
+    # legacy subN_YYYY pattern
     match = re.search(r'(sub\d+_\d+)', name)
     if match:
         return match.group(1)
-    # Fallback: return name with common suffixes removed
     return name
 
 
@@ -844,6 +898,10 @@ def get_story_name_from_filename(filename):
         name = name.replace(ext, '')
     # Remove any user-edit suffix (e.g., _human-edit, _username-edit)
     name = re.sub(r'_\w+-edit', '', name)
+    # Alternative "story-{name}-segmented" convention: drop the prefix + suffix.
+    name = re.sub(r'^story-', '', name)
+    name = re.sub(r'[-_]segmented$', '', name)
+    name = re.sub(r'[-_]segment$', '', name)
     # Remove _events suffix with optional method suffix (e.g., _events-api_<model-id>)
     name = re.sub(r'_events(-[a-zA-Z0-9_.-]+)?', '', name)
     return name
@@ -1285,7 +1343,22 @@ def discover_items_from_path(path, step_type, is_story=False, scan_type='any'):
     else:
         patterns = ['*.txt', '*.xlsx']
         extract_func = get_story_name_from_filename if is_story else get_subject_id_from_filename
-    
+
+    # Also scan the alternative naming convention ("story-{name}-{token}.{ext}" with
+    # hyphenated step tokens), so files like ``story-alice_14_sub-3008-parsed.csv`` and
+    # ``story-alice_14-segmented.csv`` are discovered too. The ``*`` covers the
+    # ``story-...`` prefix; the extract func strips it back to the canonical item id.
+    _alt_patterns = {
+        'eventSegment': ['*-segmented.xlsx', '*-segmented.csv', '*-segmented.tsv', '*-segment.xlsx', '*-segment.csv'],
+        'textParsing': ['*-parsed.xlsx', '*-parsed.csv', '*-parsed.tsv'],
+        'textMatching': ['*-parsed.xlsx', '*-parsed.csv', '*-parsed.tsv',
+                         '*-recall-matched.xlsx', '*-recall-matched.csv', '*-recall-matched.tsv'],
+        'causalRating': ['*-segmented.xlsx', '*-segmented.csv', '*-segmented.tsv'],
+    }.get(step_type, [])
+    for _ap in _alt_patterns:
+        if _ap not in patterns:
+            patterns.append(_ap)
+
     # Search for files matching patterns
     for pattern in patterns:
         for file in glob_files_in_dir(dir_path, pattern):
@@ -1333,23 +1406,30 @@ def get_all_subjects(pipeline_config=None):
                 subjects_set.add(subj_id)
                 subjects_ordered.append(subj_id)
     
-    # Add any subjects from parsed files that aren't already in the list
+    # Add any subjects from parsed files (canonical, csv, and the alternative
+    # "story-...-parsed.csv" naming) that aren't already in the list.
     if RECALL_PARSED_DIR.exists():
-        for file in RECALL_PARSED_DIR.glob('*_parsed.xlsx'):
-            if not is_user_edit_file(file.name):
-                subj_id = get_subject_id_from_filename(file.name)
-                if subj_id not in subjects_set:
-                    subjects_set.add(subj_id)
-                    subjects_ordered.append(subj_id)
-    
-    # Add any subjects from rated files that aren't already in the list
+        parsed_globs = ['*_parsed.xlsx', '*_parsed.csv', '*_parsed.tsv',
+                        '*-parsed.xlsx', '*-parsed.csv', '*-parsed.tsv']
+        for pat in parsed_globs:
+            for file in RECALL_PARSED_DIR.glob(pat):
+                if not is_user_edit_file(file.name):
+                    subj_id = get_subject_id_from_filename(file.name)
+                    if subj_id and subj_id not in subjects_set:
+                        subjects_set.add(subj_id)
+                        subjects_ordered.append(subj_id)
+
+    # Add any subjects from rated files (incl. csv and "...-recall-matched.csv").
     if RECALL_RATED_DIR.exists():
-        for file in list(RECALL_RATED_DIR.glob('*_rate-recall.xlsx')) + list(RECALL_RATED_DIR.glob('*_rate-recall-*.xlsx')):
-            if not is_user_edit_file(file.name):
-                subj_id = get_subject_id_from_filename(file.name)
-                if subj_id not in subjects_set:
-                    subjects_set.add(subj_id)
-                    subjects_ordered.append(subj_id)
+        rated_globs = ['*_rate-recall.xlsx', '*_rate-recall-*.xlsx', '*_rate-recall.csv', '*_rate-recall-*.csv',
+                       '*-recall-matched.xlsx', '*-recall-matched.csv', '*-recall-matched.tsv']
+        for pat in rated_globs:
+            for file in RECALL_RATED_DIR.glob(pat):
+                if not is_user_edit_file(file.name):
+                    subj_id = get_subject_id_from_filename(file.name)
+                    if subj_id and subj_id not in subjects_set:
+                        subjects_set.add(subj_id)
+                        subjects_ordered.append(subj_id)
     
     # If pipeline is configured, also discover subjects from configured input and output paths
     if pipeline_config and pipeline_config.get('steps'):
@@ -1575,15 +1655,21 @@ def get_dashboard_panels():
         item_type = 'story' if is_story else 'subject'
         row_label = 'Story Name' if is_story else 'Subject ID'
 
-        # Discover items from the chain's source input path (first step's input),
-        # plus any extra input dirs on the first step (e.g. textMatching storyEventsPath).
+        # Discover items from EVERY step in the chain (each step's input and output),
+        # not just the chain's root input. Otherwise an item that only has downstream
+        # files — e.g. a parsed recall (``story-alice_14_sub-3008-parsed.csv``) but no
+        # source recall-text — would never appear, so its textMatching step couldn't
+        # be reached.
         items_set = set()
         first_step = group_steps[0]
         first_step_type = step_runtime_key(first_step)
-        source_inp = (first_step.get('inputPath') or '').strip().rstrip('/')
-        if source_inp:
-            discovered = discover_items_from_path(source_inp, first_step_type, is_story=is_story, scan_type='input')
-            items_set.update(discovered)
+        for s in group_steps:
+            st = step_runtime_key(s)
+            for path, scan in ((s.get('inputPath'), 'input'), (s.get('outputPath'), 'output')):
+                path = (path or '').strip().rstrip('/')
+                if path:
+                    items_set.update(discover_items_from_path(path, st, is_story=is_story, scan_type=scan))
+        # Story chains additionally require the story-events reference (unchanged).
         for field, _env_var, extra_dir in _resolve_step_extra_input_dirs(first_step):
             if field == 'storyEventsPath' and not is_story:
                 # Subjects come from parsed recall; story-events dir is reference only.
@@ -1662,7 +1748,20 @@ def check_step_status(item_id, step_config, is_story=False):
     
     output_dir = _resolve_path_from_config(output_path)
     input_dir = _resolve_path_from_config(input_path)
-    
+
+    # Flexible recognition is authoritative for these steps: detect an existing
+    # output under ANY supported naming convention (subject-first, legacy verbose
+    # ``{story}_events_..._rate-recall``, alternative ``story-{name}-segmented`` /
+    # ``...-recall-matched``) and ANY tabular format (xlsx/xls/csv/tsv). Cross-step
+    # disambiguation in the recogniser also prevents a rated/causal file from being
+    # mistaken for a completed events step (the old has_any_edit_file glob did).
+    if step_type in ('eventSegment', 'sentenceCorrect', 'textParsing', 'textMatching', 'causalRating'):
+        try:
+            from helpers.step_files import has_step_output
+            return bool(output_dir) and has_step_output(output_dir, step_type, item_id, is_story=is_story)
+        except Exception:
+            pass  # only on unexpected error fall through to the legacy per-step checks
+
     if step_type == 'audioTranscribe:story':
         # For story audio, check transcription output
         if output_dir and _dir_exists_cached(output_dir):
@@ -1940,15 +2039,31 @@ def _resolve_recall_text_for_manual(subj_id, input_dir=None):
     return _read_recall_text_from_directory(RECALL_CORRECTED_DIR, subj_id)
 
 
+def _resolve_version_stem(directory, file_version):
+    """If ``file_version`` is an explicit filename stem (a method variant chosen in
+    the version dropdown, not '', 'original', or a '-edit' token), return the matching
+    file in ``directory`` across supported extensions, else None."""
+    if not file_version or file_version == 'original' or str(file_version).endswith('-edit'):
+        return None
+    for ext in ('.xlsx', '.csv', '.tsv', '.xls', '.txt'):
+        cand = Path(directory) / f"{file_version}{ext}"
+        if cand.exists():
+            return cand
+    return None
+
+
 def get_corrected_text(subj_id, file_version=None):
     """Get corrected recall text.
     Prioritizes user-edit version if available.
     Uses pipeline config outputPath for sentenceCorrect when configured.
-    file_version: '{username}-edit', 'original', or None (auto-select)
+    file_version: '{username}-edit', 'original', explicit stem, or None (auto-select)
     """
     output_dir = get_output_dir_for_step_type('sentenceCorrect') or RECALL_CORRECTED_DIR
+    explicit = _resolve_version_stem(output_dir, file_version)
     # Determine which file to use
-    if file_version and file_version.endswith('-edit'):
+    if explicit is not None:
+        file_path = explicit
+    elif file_version and file_version.endswith('-edit'):
         file_path = output_dir / f"{subj_id}_{file_version}.txt"
     elif file_version == 'original':
         canonical = output_dir / f"{subj_id}.txt"
@@ -2006,8 +2121,13 @@ def get_parsed_texts(subj_id, file_version=None):
     # Non-edit parsed source files (canonical and method-suffixed), newest first
     non_edit_parsed = list_subject_parsed_source_files(output_dir, subj_id)
     canonical = output_dir / f"{subj_id}_parsed.xlsx"
+    # Explicit method-variant filename stem from the version dropdown (e.g.
+    # ``the_siren_sub-01_parsed-ollama_gemma4_e4b``): load that exact file.
+    explicit = _resolve_version_stem(output_dir, file_version)
     # Determine which file to use
-    if file_version and file_version.endswith('-edit'):
+    if explicit is not None:
+        file_path = explicit
+    elif file_version and file_version.endswith('-edit'):
         file_path = output_dir / f"{subj_id}_parsed_{file_version}.xlsx"
     elif file_version == 'original':
         if canonical.exists():
@@ -2027,14 +2147,28 @@ def get_parsed_texts(subj_id, file_version=None):
             file_path = non_edit_parsed[0]
         else:
             file_path = canonical
-    
+
+    if not file_path.exists():
+        # Fallback: recognise alternative-named / csv parsed files that the canonical
+        # ``{subj}_parsed.xlsx`` lookups miss, e.g. ``story-alice_14_sub-3008-parsed.csv``.
+        try:
+            from helpers.step_files import find_step_files
+            recs = find_step_files(output_dir, 'textParsing', subj_id)
+            if file_version and file_version.endswith('-edit'):
+                edits = [f for f in recs if is_user_edit_file(f.name)]
+                recs = edits or recs
+            if recs:
+                file_path = recs[0]
+        except Exception:
+            pass
+
     if not file_path.exists():
         return None
-    
+
     try:
         from helpers.flexible_io import read_parsed_recall_file
         df = read_parsed_recall_file(file_path)
-        
+
         segments = []
         for _, row in df.iterrows():
             parsed = row.get('recall_in_temporal_order', '')
@@ -2050,6 +2184,29 @@ def get_parsed_texts(subj_id, file_version=None):
     except Exception as e:
         print(f"Error reading parsed texts: {e}")
         return None
+
+
+# Per-segment "further ratings" columns, in display/export order. Must match the
+# frontend RATING_KEYS list in templates/subject.html.
+FURTHER_RATING_COLS = ('summary', 'error', 'confabulation', 'opinion', 'inference', 'meta')
+
+
+def _parse_rating_cell(value):
+    """Inverse of the frontend rating cell: turn a saved "further ratings" cell
+    into ``(checked, spans)``. A bare ``TRUE`` means checked with no text spans;
+    quoted fragments (``'a'; 'b'``) mean checked with those spans; blank means
+    unchecked."""
+    text = str(value or '').strip()
+    if not text or text.lower() == 'nan':
+        return False, []
+    if text.lower() in ('true', '1', 'yes', 'x'):
+        return True, []
+    frags = [m.strip() for m in re.findall(r"'([^']*)'", text)]
+    frags = [f for f in frags if f]
+    if not frags:
+        # Legacy / unquoted content: treat the whole cell as a single fragment.
+        frags = [text]
+    return True, frags
 
 
 def get_rated_texts(subj_id, file_version=None):
@@ -2072,7 +2229,10 @@ def get_rated_texts(subj_id, file_version=None):
         return exact
     
     # Determine which rated file to use
-    if file_version and file_version.endswith('-edit'):
+    explicit_rated = _resolve_version_stem(output_dir, file_version)
+    if explicit_rated is not None:
+        rated_file = explicit_rated
+    elif file_version and file_version.endswith('-edit'):
         rated_file = output_dir / f"{subj_id}_rate-recall_{file_version}.xlsx"
     elif file_version == 'original':
         rated_file = _find_rated_file(subj_id)
@@ -2083,18 +2243,43 @@ def get_rated_texts(subj_id, file_version=None):
             rated_file = edit_file
         else:
             rated_file = _find_rated_file(subj_id)
-    
+
+    if not rated_file.exists():
+        # Fallback: recognise alternative-named / csv rated files (e.g.
+        # ``story-alice_14_sub-3008-recall-matched.csv``).
+        try:
+            from helpers.step_files import find_step_files
+            recs = find_step_files(output_dir, 'textMatching', subj_id)
+            if file_version and file_version.endswith('-edit'):
+                edits = [f for f in recs if is_user_edit_file(f.name)]
+                recs = edits or recs
+            if recs:
+                rated_file = recs[0]
+        except Exception:
+            pass
+
     # If rated file doesn't exist, return None
     if not rated_file.exists():
         return None
     
     # Read rated file directly
     try:
-        from helpers.flexible_io import read_parsed_recall_file
+        from helpers.flexible_io import read_parsed_recall_file, read_tabular
         df = read_parsed_recall_file(rated_file)
-        
+        # normalize_parsed_recall_df keeps only the two core columns, so read the
+        # raw sheet too to recover the optional "further ratings" columns (row
+        # order is preserved, so positional alignment with df is safe).
+        try:
+            raw_df = read_tabular(rated_file)
+            raw_df = raw_df.reset_index(drop=True)
+        except Exception:
+            raw_df = None
+        rating_cols = [c for c in FURTHER_RATING_COLS
+                       if raw_df is not None and c in raw_df.columns]
+        has_comment_col = raw_df is not None and 'comment' in raw_df.columns
+
         segments = []
-        for _, row in df.iterrows():
+        for pos, (_, row) in enumerate(df.iterrows()):
             parsed = row.get('recall_in_temporal_order', '')
             matched = row.get('recalled_events', '')
             
@@ -2124,10 +2309,17 @@ def get_rated_texts(subj_id, file_version=None):
                     'text': str(parsed).strip(),
                     'matched_event': matched_str  # Frontend expects 'matched_event', not 'recalled_events'
                 }
-                # Surface the optional recall-level column so the slider reloads at the saved value.
-                if 'gist-level' in df.columns:
-                    g = str(row.get('gist-level', '') or '').strip().lower()
-                    seg['gist_level'] = g if g in ('detail', 'gist') else 'NA'
+                # Surface the optional "further ratings" columns so the checkboxes
+                # (and any per-rating text fragments) reload in their saved state.
+                if (rating_cols or has_comment_col) and pos < len(raw_df):
+                    raw_row = raw_df.iloc[pos]
+                    for rating in rating_cols:
+                        checked, spans = _parse_rating_cell(raw_row.get(rating, ''))
+                        seg[rating] = checked
+                        seg[rating + '_spans'] = spans
+                    if has_comment_col:
+                        cv = raw_row.get('comment', '')
+                        seg['comment'] = '' if (cv is None or str(cv).strip().lower() == 'nan') else str(cv).strip()
                 segments.append(seg)
         
         print(f"Loaded {len(segments)} segments from {rated_file.name}")
@@ -2165,6 +2357,26 @@ def get_available_file_versions(subj_id, is_story=False):
     if original_corrected.exists():
         versions['step1'].append('original')
     
+    # Method-variant files (e.g. ``{subj}_parsed-ollama_gemma4_e4b.xlsx``) are surfaced
+    # as individually-selectable versions, keyed by their filename stem, so the same
+    # subject's different processing methods can be viewed in the inspection page.
+    from helpers.step_files import find_step_files
+
+    def _method_variant_tokens(directory, step_type, canonical_stems):
+        toks = []
+        for f in find_step_files(directory, step_type, subj_id):
+            if is_user_edit_file(f.name):
+                continue
+            if f.stem in canonical_stems:
+                continue  # the canonical file is offered as 'original'
+            toks.append(f.stem)
+        # newest first already (find_step_files sorts by mtime); de-dupe, keep order
+        seen = set()
+        return [t for t in toks if not (t in seen or seen.add(t))]
+
+    # Step 1: corrected
+    versions['step1'].extend(_method_variant_tokens(corrected_dir, 'sentenceCorrect', {subj_id}))
+
     # Step 2: Check parsed files (textParsing output)
     parsed_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
     original_parsed = parsed_dir / f"{subj_id}_parsed.xlsx"
@@ -2174,16 +2386,18 @@ def get_available_file_versions(subj_id, is_story=False):
     versions['step2'].extend(edit_versions_2)
     if original_parsed.exists() or method_parsed:
         versions['step2'].append('original')
-    
+    versions['step2'].extend(_method_variant_tokens(parsed_dir, 'textParsing', {f"{subj_id}_parsed"}))
+
     # Step 3: Check rated files (textMatching output, including method-suffixed)
     rated_dir = get_output_dir_for_step_type('textMatching') or RECALL_RATED_DIR
     original_rated = rated_dir / f"{subj_id}_rate-recall.xlsx"
     method_rated = list_subject_rated_recall_source_files(rated_dir, subj_id)
-    
+
     edit_versions_3 = get_all_edit_versions(rated_dir, subj_id, '_rate-recall', '.xlsx')
     versions['step3'].extend(edit_versions_3)
     if original_rated.exists() or method_rated:
         versions['step3'].append('original')
+    versions['step3'].extend(_method_variant_tokens(rated_dir, 'textMatching', {f"{subj_id}_rate-recall"}))
     
     # Story events: list segmentation files from configured dir and default data/3_story_events
     seen_names = set()
@@ -2526,6 +2740,23 @@ def _story_events_paths_candidate_list(base_id, file_version, min_event_count, e
             if filtered:
                 paths_to_try = filtered
 
+    # Drop recall/causal pipeline files that merely embed "{story}_events-..." in
+    # their names; only genuine story-events files may be loaded here.
+    paths_to_try = [p for p in paths_to_try if is_story_events_filename(Path(p).name)]
+
+    # Also recognise alternative naming conventions and tabular formats that the
+    # canonical "{base}_events*" globs above miss — e.g. ``story-{name}-segmented.csv``.
+    # The recogniser is story-level + cross-step disambiguated, so it won't pull in
+    # recall/causal files. Appended after the canonical candidates so explicit
+    # ``{base}_events`` / edit files keep priority; deduped, newest-first.
+    try:
+        from helpers.step_files import find_step_files
+        extra = find_step_files(events_dir, 'eventSegment', base_id, is_story=True)
+        for f in extra:
+            if f not in paths_to_try:
+                paths_to_try.append(f)
+    except Exception:
+        pass
     return paths_to_try
 
 
@@ -2765,7 +2996,7 @@ def get_story_events(item_id, file_version=None, is_story=False, min_event_count
         fn = Path(file_version).name
         for events_dir in iter_story_events_search_dirs():
             file_path = events_dir / fn
-            if file_path.exists():
+            if file_path.exists() and is_story_events_filename(fn):
                 try:
                     from helpers.flexible_io import read_tabular, normalize_story_events_df
                     df = normalize_story_events_df(read_tabular(file_path))
@@ -3786,7 +4017,7 @@ def pipeline_config():
 @app.route('/api/subjects')
 def api_subjects():
     """API endpoint to get all subjects."""
-    subjects = get_all_subjects()
+    subjects = get_all_subjects(get_pipeline_config())
     return jsonify(subjects)
 
 
@@ -4384,6 +4615,36 @@ def save_corrected_text(subj_id):
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
+def _capture_tabular_schema(path):
+    """Read an existing tabular file's header and classify column roles, so a save can
+    write back in the SAME shape (preserving e.g. ``recall_segment, recall_text,
+    story_segments, summary…``) instead of collapsing to the canonical two columns.
+    Returns {'columns', 'index_col', 'recall_col', 'matches_col'} or None.
+    """
+    try:
+        from helpers.flexible_io import (
+            read_tabular, detect_parsed_recall_columns, _norm_name, _NON_RATING_COL_NAMES,
+        )
+        raw = read_tabular(path)
+        cols = [str(c) for c in raw.columns]
+        det = detect_parsed_recall_columns(raw)
+        recall_col = det[1] if det else None
+        matches_col = det[0] if (det and det[0] != det[1]) else None
+        index_col = None
+        _comment_rating = {"comment", "comments", "note", "notes",
+                           "summary", "error", "confabulation", "inference", "opinion", "meta"}
+        for c in cols:
+            if c in (recall_col, matches_col):
+                continue
+            nm = _norm_name(c)
+            if nm in _NON_RATING_COL_NAMES and nm not in _comment_rating:
+                index_col = c
+                break
+        return {'columns': cols, 'index_col': index_col, 'recall_col': recall_col, 'matches_col': matches_col}
+    except Exception:
+        return None
+
+
 @app.route('/api/subject/<subj_id>/save-rated', methods=['POST'])
 def save_rated_events(subj_id):
     """Save edited matched events for rated texts."""
@@ -4408,8 +4669,10 @@ def save_rated_events(subj_id):
         from helpers.flexible_io import read_parsed_recall_file
 
         # Read existing file if it exists, otherwise read from original rated file to preserve existing ratings
+        seed_file = None
         if file_path.exists():
             df = read_parsed_recall_file(file_path)
+            seed_file = file_path
             print(f"Reading from existing user-edit file: {file_path.name}")
         else:
             # Try to read from original rated file first (to preserve existing ratings)
@@ -4419,8 +4682,18 @@ def save_rated_events(subj_id):
                 candidates = list_subject_rated_recall_source_files(orig_dir, subj_id)
                 if candidates:
                     original_rated = candidates[0]
+            if not original_rated.exists():
+                # Recognise alternative-named / csv rated files (story-...-recall-matched.csv)
+                try:
+                    from helpers.step_files import find_step_files
+                    recs = find_step_files(orig_dir, 'textMatching', subj_id)
+                    if recs:
+                        original_rated = recs[0]
+                except Exception:
+                    pass
             if original_rated.exists():
                 df = read_parsed_recall_file(original_rated)
+                seed_file = original_rated
                 print(f"Reading from original rated file: {original_rated.name}")
             else:
                 # Fallback: create from parsed file (prioritize user-edit, then canonical,
@@ -4435,15 +4708,35 @@ def save_rated_events(subj_id):
                 else:
                     method_cands = list_subject_parsed_source_files(parsed_dir, subj_id)
                     parsed_file = method_cands[0] if method_cands else parsed_original
-                
+                if not parsed_file.exists():
+                    # Recognise alternative-named / csv parsed files (story-...-parsed.csv)
+                    try:
+                        from helpers.step_files import find_step_files
+                        precs = find_step_files(parsed_dir, 'textParsing', subj_id)
+                        if precs:
+                            parsed_file = precs[0]
+                    except Exception:
+                        pass
+
                 if parsed_file.exists():
                     df = read_parsed_recall_file(parsed_file)
+                    seed_file = parsed_file
                     print(f"Creating from parsed file: {parsed_file.name}")
                 else:
                     return jsonify({'error': 'Rated file not found and cannot be created from parsed file'}), 404
         
         if 'recall_in_temporal_order' not in df.columns:
             return jsonify({'error': 'Invalid file format'}), 400
+
+        # If the export target is a CSV/TSV and we seeded from an existing file with a
+        # non-canonical schema (e.g. recall_segment, recall_text, story_segments, …),
+        # remember that schema so the save writes back in the same shape rather than
+        # collapsing to recalled_events/recall_in_temporal_order.
+        preserve_schema = None
+        if str(file_path).lower().endswith(('.csv', '.tsv')) and seed_file is not None:
+            sch = _capture_tabular_schema(seed_file)
+            if sch and not (set(c.lower() for c in sch['columns']) <= {'recalled_events', 'recall_in_temporal_order'}):
+                preserve_schema = sch
 
         # Update matched events based on segment indices
         updated_count = 0
@@ -4484,19 +4777,43 @@ def save_rated_events(subj_id):
         
         print(f"Updated {updated_count} segments out of {len(segments)} provided")
 
-        # Per-segment recall level (detail | NA | gist). Only add a 'gist-level'
-        # column when at least one segment is non-NA, so ordinary matching files are
-        # left unchanged; drop a stale column if every segment is back to NA.
-        gist_by_idx = {}
-        for segment in segments:
-            g = str(segment.get('gist_level', 'NA') or 'NA').strip().lower()
-            gist_by_idx[segment.get('index')] = g if g in ('detail', 'gist') else 'NA'
-        if any(v in ('detail', 'gist') for v in gist_by_idx.values()):
-            # NA segments are left blank so the column only carries detail/gist marks.
-            df['gist-level'] = [('' if gist_by_idx.get(i, 'NA') == 'NA' else gist_by_idx[i])
-                                for i in range(len(df))]
-        elif 'gist-level' in df.columns:
-            df = df.drop(columns=['gist-level'])
+        # Per-segment "further ratings" (summary | error | confabulation). Each
+        # checkbox becomes its own column, added only when the rater enabled the
+        # "Further ratings" toggle so ordinary matching files are left unchanged;
+        # stale columns are dropped when the toggle is off.
+        rating_cols = FURTHER_RATING_COLS
+        further_ratings = bool(data.get('further_ratings'))
+
+        def _format_rating_cell(checked, spans):
+            """Cell value for a rating: the quoted text fragments selected for it
+            (``'frag a'; 'frag b'``) when present, else ``TRUE`` when only the box
+            is checked, else blank."""
+            if not checked:
+                return ''
+            frags = [str(s).strip() for s in (spans or []) if str(s).strip()]
+            if frags:
+                return '; '.join("'" + f.replace("'", "’") + "'" for f in frags)
+            return 'TRUE'
+
+        if further_ratings:
+            rating_by_idx = {r: {} for r in rating_cols}
+            comment_by_idx = {}
+            for segment in segments:
+                idx = segment.get('index')
+                for r in rating_cols:
+                    rating_by_idx[r][idx] = _format_rating_cell(
+                        bool(segment.get(r)), segment.get(r + '_spans'))
+                comment_by_idx[idx] = str(segment.get('comment') or '').strip()
+            for r in rating_cols:
+                df[r] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
+            # Free-text per-segment comment (its own column).
+            df['comment'] = [comment_by_idx.get(i, '') for i in range(len(df))]
+        else:
+            drop = [r for r in rating_cols if r in df.columns]
+            if 'comment' in df.columns:
+                drop.append('comment')
+            if drop:
+                df = df.drop(columns=drop)
 
         # Clean data before saving - ensure all columns are properly formatted
         # IMPORTANT: Do this AFTER updates to preserve the values we just set
@@ -4531,40 +4848,66 @@ def save_rated_events(subj_id):
             import gc
             gc.collect()
             
-            # Ensure proper column order (ratings first, then recall text, then the
-            # optional gist-level column).
+            # Ensure proper column order (matched events first, then recall text,
+            # then any optional "further ratings" columns).
             if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
                 cols = ['recalled_events', 'recall_in_temporal_order']
-                if 'gist-level' in df.columns:
-                    cols.append('gist-level')
+                for r in FURTHER_RATING_COLS + ('comment',):
+                    if r in df.columns:
+                        cols.append(r)
                 df = df[cols]
             
             # Try to save
             print(f"Attempting to save to: {file_path}")
             print(f"Dataframe shape: {df.shape}, columns: {list(df.columns)}")
             
-            # Save the file - use explicit file writing to ensure it's saved
+            # Save the file - use explicit file writing to ensure it's saved.
+            # Keep the format matching the chosen output extension: a .csv/.tsv export
+            # stays a real CSV/TSV (writing xlsx bytes to a .csv name would corrupt it).
             import os
-            temp_path = file_path.with_suffix('.tmp.xlsx')
-            
-            # Write to temp file first, then rename (atomic operation)
-            df.to_excel(temp_path, index=False, engine='openpyxl', na_rep='')
-            
+            out_ext = file_path.suffix.lower()
+            is_csv_out = out_ext in ('.csv', '.tsv')
+            csv_sep = '\t' if out_ext == '.tsv' else ','
+
+            if is_csv_out and preserve_schema:
+                # Re-emit in the original CSV schema (column names + order preserved).
+                sch = preserve_schema
+                out_df = pd.DataFrame()
+                for col in sch['columns']:
+                    if col == sch.get('index_col'):
+                        out_df[col] = list(range(len(df)))
+                    elif col == sch.get('recall_col'):
+                        out_df[col] = df['recall_in_temporal_order'].values
+                    elif col == sch.get('matches_col'):
+                        out_df[col] = df['recalled_events'].values
+                    elif col in df.columns:
+                        out_df[col] = df[col].values
+                    else:
+                        out_df[col] = [''] * len(df)
+                df = out_df
+
+            if is_csv_out:
+                temp_path = file_path.with_name(file_path.name + '.tmp')
+                df.to_csv(temp_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
+            else:
+                temp_path = file_path.with_suffix('.tmp.xlsx')
+                df.to_excel(temp_path, index=False, engine='openpyxl', na_rep='')
+
             # Verify temp file was created
             if not temp_path.exists():
                 raise Exception(f"Temporary file was not created: {temp_path}")
-            
+
             # Replace the original file with the temp file
             if file_path.exists():
                 os.remove(file_path)
             os.rename(temp_path, file_path)
-            
+
             # Verify file was created and has content
             if not file_path.exists():
                 raise Exception(f"File was not created after rename: {file_path}")
-            
+
             # Verify the saved data by reading it back
-            verify_df = pd.read_excel(file_path)
+            verify_df = pd.read_csv(file_path, sep=csv_sep) if is_csv_out else pd.read_excel(file_path)
             print(f"Verification: File exists, {len(verify_df)} rows saved")
             
             # Check if our updates are in the file
@@ -5669,6 +6012,47 @@ def get_causal_rating_options():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/recall-rating-options', methods=['GET'])
+def get_recall_rating_options():
+    """Return available models and prompt versions for recall-to-event matching (step 5)."""
+    try:
+        import importlib.util
+        rate_file = SCRIPTS_DIR / '5_recall-rater.py'
+        spec = importlib.util.spec_from_file_location("recall_rater_opts", rate_file)
+        rate_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rate_module)
+
+        models = []
+        for mid, info in rate_module.SUPPORTED_MODELS.items():
+            provider = info['provider']
+            key_env = 'OPENAI_API_KEY' if provider == 'openai' else 'ANTHROPIC_API_KEY'
+            has_key = bool(os.getenv(key_env))
+            models.append({
+                'id': mid,
+                'label': info['label'],
+                'provider': provider,
+                'has_api_key': has_key,
+                'key_env_var': key_env,
+            })
+
+        prompts = rate_module.list_recall_rating_prompts()
+        prompt_list = [
+            {'filename': p, 'label': p.replace('.txt', '').replace('_', ' ').title()}
+            for p in prompts
+        ]
+
+        return jsonify({
+            'success': True,
+            'models': models,
+            'prompts': prompt_list,
+            'default_model': rate_module.DEFAULT_MODEL,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/pipeline/load', methods=['GET'])
 def load_pipeline():
     """Load pipeline configuration."""
@@ -6056,7 +6440,28 @@ def get_input_files(item_id, step_index):
         
         # If it's a directory, proceed with directory-based file discovery
         input_dir = input_path_obj
-        
+
+        # Flexible recognition for alternative-named / csv inputs. A step's input is the
+        # previous step's OUTPUT, so recognise by that step's tokens (handles e.g.
+        # ``story-alice_14_sub-3008-parsed.csv`` as the textMatching input — issue: the
+        # input checkbox showed unchecked despite the file existing).
+        _input_recog_type = {
+            'textMatching': 'textParsing',     # parsed recall
+            'textParsing': 'sentenceCorrect',  # corrected text
+            'causalRating': 'eventSegment',    # story events
+        }.get(step_type)
+        if _input_recog_type:
+            try:
+                from helpers.step_files import find_step_files
+                recs = find_step_files(input_dir, _input_recog_type, item_id,
+                                       is_story=(step_type == 'causalRating'))
+                if recs:
+                    return jsonify({'success': True, 'files': [
+                        {'name': f.name, 'path': _path_for_client(f), 'size': f.stat().st_size}
+                        for f in recs]})
+            except Exception as _e:
+                print(f"DEBUG: recognizer input check failed: {_e}")
+
         # Determine file patterns based on step type and item_id
         files = []
         found_files = set()
@@ -6932,8 +7337,8 @@ def execute_step(item_id, step_index):
                     if api_model:
                         if api_model in _EVENT_SEGMENT_OLLAMA_MODEL_KEYS:
                             provider = 'ollama'
-                        elif api_model in ('gpt-4o', 'gpt-4o-mini'):
-                            provider = 'openai'
+                        else:
+                            provider = provider_for_model(api_model)
                     if provider == 'openai':
                         env['OPENAI_API_KEY'] = api_key
                     elif provider == 'ollama':
@@ -6947,9 +7352,24 @@ def execute_step(item_id, step_index):
             elif method == 'api':
                 env.pop('TEST_MODE', None)
                 recall_model = request_data.get('model')
+                recall_prompt = request_data.get('prompt_version')
                 if recall_model:
                     env['RECALL_RATING_MODEL'] = recall_model
                     print(f"  RECALL_RATING_MODEL={recall_model}")
+                if recall_prompt:
+                    # script 5 loads scripts/prompt/<name>.txt via RECALL_RATING_PROMPT (no extension)
+                    env['RECALL_RATING_PROMPT'] = (
+                        recall_prompt[:-4] if recall_prompt.endswith('.txt') else recall_prompt
+                    )
+                    print(f"  RECALL_RATING_PROMPT={env['RECALL_RATING_PROMPT']}")
+                # Route the supplied key to the provider matching the selected model.
+                if api_key:
+                    provider = provider_for_model(recall_model)
+                    if provider == 'openai':
+                        env['OPENAI_API_KEY'] = api_key
+                    else:
+                        env['ANTHROPIC_API_KEY'] = api_key
+                    print(f"DEBUG: API key set for {provider}")
             elif method == 'gemma-ollama':
                 env.pop('TEST_MODE', None)
                 env['RECALL_RATING_BACKEND'] = 'ollama'
@@ -6989,8 +7409,7 @@ def execute_step(item_id, step_index):
                 if api_key:
                     provider = 'anthropic'
                     if causal_model:
-                        supported = {'gpt-4o': 'openai', 'gpt-4o-mini': 'openai'}
-                        provider = supported.get(causal_model, 'anthropic')
+                        provider = provider_for_model(causal_model)
                     if provider == 'openai':
                         env['OPENAI_API_KEY'] = api_key
                     else:
@@ -7330,8 +7749,8 @@ def batch_process(step_type):
                     if api_model:
                         if api_model in _EVENT_SEGMENT_OLLAMA_MODEL_KEYS:
                             provider = 'ollama'
-                        elif api_model in ('gpt-4o', 'gpt-4o-mini'):
-                            provider = 'openai'
+                        else:
+                            provider = provider_for_model(api_model)
                     if provider == 'openai':
                         env['OPENAI_API_KEY'] = api_key
                     elif provider == 'ollama':
@@ -7344,9 +7763,24 @@ def batch_process(step_type):
             elif method == 'api':
                 env.pop('TEST_MODE', None)
                 recall_model = request_data.get('model')
+                recall_prompt = request_data.get('prompt_version')
                 if recall_model:
                     env['RECALL_RATING_MODEL'] = recall_model
                     print(f"  RECALL_RATING_MODEL={recall_model}")
+                if recall_prompt:
+                    # script 5 loads scripts/prompt/<name>.txt via RECALL_RATING_PROMPT (no extension)
+                    env['RECALL_RATING_PROMPT'] = (
+                        recall_prompt[:-4] if recall_prompt.endswith('.txt') else recall_prompt
+                    )
+                    print(f"  RECALL_RATING_PROMPT={env['RECALL_RATING_PROMPT']}")
+                # Route the supplied key to the provider matching the selected model.
+                if api_key:
+                    provider = provider_for_model(recall_model)
+                    if provider == 'openai':
+                        env['OPENAI_API_KEY'] = api_key
+                    else:
+                        env['ANTHROPIC_API_KEY'] = api_key
+                    print(f"DEBUG: API key set for {provider}")
             elif method == 'gemma-ollama':
                 env.pop('TEST_MODE', None)
                 env['RECALL_RATING_BACKEND'] = 'ollama'
@@ -7386,8 +7820,7 @@ def batch_process(step_type):
                 if api_key:
                     provider = 'anthropic'
                     if causal_model:
-                        supported = {'gpt-4o': 'openai', 'gpt-4o-mini': 'openai'}
-                        provider = supported.get(causal_model, 'anthropic')
+                        provider = provider_for_model(causal_model)
                     if provider == 'openai':
                         env['OPENAI_API_KEY'] = api_key
                     else:
@@ -7514,6 +7947,134 @@ def get_pipeline_config():
     except Exception as e:
         print(f"Error loading pipeline config: {e}")
         return None
+
+
+USER_DATA_DIR = WORKSPACE_ROOT / 'user_data'
+
+
+def _userlog_fmt_ms(ms):
+    try:
+        ms = int(ms)
+    except (TypeError, ValueError):
+        return ''
+    s, msr = divmod(ms, 1000)
+    m, s = divmod(s, 60)
+    return f"{m:02d}:{s:02d}.{msr:03d}"
+
+
+def _human_ms(ms):
+    try:
+        ms = int(ms)
+    except (TypeError, ValueError):
+        return None
+    s, msr = divmod(ms, 1000)
+    m, s = divmod(s, 60)
+    h, m = divmod(m, 60)
+    if h:
+        return f"{h}h {m}m {s}s"
+    if m:
+        return f"{m}m {s}s"
+    return f"{s}.{msr // 100}s"
+
+
+def _userlog_describe_target(t):
+    if not t:
+        return ''
+    bits = []
+    if t.get('text'):
+        bits.append(f"“{t['text']}”")
+    if t.get('data-rating'):
+        bits.append(f"rating={t['data-rating']}")
+    sv = t.get('data-segment-index')
+    if sv not in (None, ''):
+        bits.append(f"seg#{sv}")
+    if t.get('data-story-event-num'):
+        bits.append(f"event#{t['data-story-event-num']}")
+    if t.get('placeholder'):
+        bits.append(f"[{t['placeholder']}]")
+    if t.get('id'):
+        bits.append(f"#{t['id']}")
+    elif t.get('cls'):
+        bits.append("." + str(t['cls']).split()[0])
+    panel = f" @{t['panel']}" if t.get('panel') else ''
+    return f"<{t.get('tag','?')}{panel}> " + " ".join(bits)
+
+
+def _render_userlog_text(data, events):
+    """Render the operation log as a plain, human-readable text report."""
+    L = []
+    L.append("narRaters — user operation log")
+    L.append("(read-only record of one rater's operations for one exported step)")
+    L.append("=" * 78)
+    L.append(f" subject  : {data.get('subject_id')}")
+    L.append(f" step     : {data.get('step')}")
+    L.append(f" rater    : {session.get('username', 'human')}")
+    L.append(f" export   : {data.get('export_path')}")
+    L.append(f" started  : {data.get('started_at')}")
+    L.append(f" ended    : {data.get('ended_at')}")
+    L.append(f" DURATION : {_human_ms(data.get('duration_ms'))}  ({data.get('duration_ms')} ms)")
+    L.append(f" ops      : {len(events)}")
+    L.append("=" * 78)
+    L.append(f"{'time':>9}  {'op':<7} detail")
+    L.append("-" * 78)
+    for ev in events:
+        t = _userlog_fmt_ms(ev.get('t', 0))
+        op = ev.get('type', '?')
+        detail = _userlog_describe_target(ev.get('target', {}))
+        if 'value' in ev:
+            v = ev['value']
+            detail += "  -> " + ("checked" if v is True else "unchecked" if v is False else json.dumps(v, ensure_ascii=False))
+        if ev.get('key'):
+            detail += f"  [key={ev['key']}]"
+        L.append(f"{t:>9}  {op:<7} {detail}")
+    L.append("-" * 78)
+    return "\n".join(L) + "\n"
+
+
+@app.route('/api/userlog/save', methods=['POST'])
+def save_user_log():
+    """Persist a per-step user-operation log as a plain, READ-ONLY text file under
+    ``narRaters/user_data/`` (a folder separate from output/). The file records the
+    rater's operations (clicks / typed text / numbers / checkbox toggles) with the
+    time from the start of editing, the interface (tab) and panel, and the total
+    duration — directly openable, no decryption needed.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        events = data.get('events') or []
+        if not events:
+            return jsonify({'success': True, 'skipped': 'no operations recorded'})
+
+        # Name the log after the exported file, but store it in user_data/ (not output/).
+        export_path = str(data.get('export_path') or '').strip()
+        if export_path:
+            stem = Path(export_path).stem or 'export'
+        else:
+            stem = f"{data.get('subject_id', 'item')}_{data.get('step', 'step')}"
+        try:
+            USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        out_path = USER_DATA_DIR / f"{stem}_userlog.txt"
+
+        text = _render_userlog_text(data, events)
+        # Write then make the file read-only so it can be opened but not edited.
+        try:
+            os.chmod(out_path, 0o644)  # ensure writable if it already exists read-only
+        except OSError:
+            pass
+        out_path.write_text(text, encoding='utf-8')
+        try:
+            os.chmod(out_path, 0o444)  # read-only
+        except OSError:
+            pass
+        print(f"Wrote user log: {out_path} ({len(events)} ops, {_human_ms(data.get('duration_ms'))})")
+        return jsonify({'success': True, 'path': str(out_path), 'n_events': len(events)})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        # Telemetry must never block the user's export — report but don't 500 hard.
+        return jsonify({'success': False, 'error': str(e)}), 200
 
 
 if __name__ == '__main__':

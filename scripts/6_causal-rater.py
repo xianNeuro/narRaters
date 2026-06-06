@@ -48,7 +48,11 @@ import time
 from typing import List, Dict, Optional
 from itertools import combinations
 
-from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_CAUSAL_MODEL
+from helpers.anthropic_ids import (
+    ANTHROPIC_SUPPORTED_MODELS,
+    OPENAI_SUPPORTED_MODELS,
+    DEFAULT_ANTHROPIC_CAUSAL_MODEL,
+)
 
 
 # ==============================
@@ -64,8 +68,7 @@ VALID_METHODS = ['linguistic', 'api', 'manual']
 
 SUPPORTED_MODELS = {
     **ANTHROPIC_SUPPORTED_MODELS,
-    'gpt-4o': {'provider': 'openai', 'label': 'GPT-4o'},
-    'gpt-4o-mini': {'provider': 'openai', 'label': 'GPT-4o Mini'},
+    **OPENAI_SUPPORTED_MODELS,
 }
 
 SYSTEM_PROMPT = """You are an expert annotator of causal relationships in narratives.

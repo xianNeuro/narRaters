@@ -147,7 +147,7 @@
         
         .segments-container {
             display: grid;
-            gap: 15px;
+            gap: 7px;
         }
         
         .segment {
@@ -198,13 +198,13 @@
         
         .story-events-container {
             display: grid;
-            gap: 15px;
+            gap: 7px;
         }
         
         .story-event {
             background: var(--accbg);
             border: 1px solid var(--bdr);
-            padding: 8px 12px;
+            padding: 6px 12px;
             border-radius: 6px;
             border-left: 4px solid var(--ylw);
             cursor: grab;
@@ -229,22 +229,19 @@
             border-radius: 6px;
         }
         
-        .story-event-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-        
         .event-number {
+            display: inline-block;
             background: var(--ylw);
             color: var(--bg0);
-            padding: 4px 10px;
+            padding: 1px 8px;
             border-radius: 20px;
             font-weight: bold;
-            font-size: 0.85em;
+            font-size: 0.8em;
+            margin-right: 8px;
+            vertical-align: baseline;
+            white-space: nowrap;
         }
-        
+
         .event-text {
             color: var(--t1);
             line-height: 1.45;
@@ -1713,7 +1710,7 @@
         .rated-segment {
             background: var(--bg2);
             border: 1px solid var(--bdr);
-            padding: 8px 12px;
+            padding: 4px 12px;
             border-radius: 6px;
             border-left: 4px solid var(--acc);
             transition: all var(--tr);
@@ -1728,9 +1725,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 2px;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 4px 8px;
         }
         
         .rated-segment-number {
@@ -1753,7 +1750,7 @@
         }
         
         .event-input {
-            padding: 6px 12px;
+            padding: 3px 10px;
             background: var(--bg3);
             border: 1.5px solid var(--bdr);
             border-radius: 4px;
@@ -1800,41 +1797,154 @@
         
         .rated-segment-text {
             color: var(--t1);
-            line-height: 1.45;
-            margin-bottom: 4px;
+            line-height: 1.4;
+            margin-bottom: 0;
             text-align: left;
         }
 
-        /* Per-segment recall-level slider (Detail / NA / Gist), replaces the old
-           event dropdown. */
-        .gist-slider-wrap {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 1px;
-            min-width: 132px;
-        }
-        .gist-range {
-            width: 132px;
-            margin: 0;
-            cursor: pointer;
-            accent-color: var(--acc);
-        }
-        .gist-ticks {
+        /* Per-segment "further ratings" checkboxes (Summary / Error /
+           Confabulation), replacing the old Detail–NA–Gist slider. Hidden until
+           the master toggle is on, and disabled until the rater confirms they
+           have worked through every segment via the red "Further ratings"
+           button at the end of the list. */
+        .further-ratings-toggle {
             display: flex;
-            justify-content: space-between;
-            font-size: 0.68em;
+            align-items: center;
+            gap: 6px;
+            margin: 4px 0 10px;
+            font-size: 0.9em;
+            color: var(--t2);
+        }
+        .further-ratings-toggle input { accent-color: var(--acc); cursor: pointer; }
+        .further-ratings-toggle label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+        .seg-ratings {
+            display: grid;
+            grid-template-columns: repeat(3, max-content);
+            gap: 2px 14px;
+            margin-top: 0;
+            font-size: 0.78em;
+            color: var(--t2);
+        }
+        .seg-ratings label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .seg-ratings input { accent-color: var(--acc); cursor: pointer; }
+        .seg-ratings input:disabled { cursor: not-allowed; }
+        .seg-ratings input:disabled + span { color: var(--t3); }
+        /* The hidden attribute must beat the display rules above/below, otherwise
+           the checkboxes, button, and span editor stay visible when "Further
+           ratings" is off. */
+        .seg-ratings[hidden],
+        .seg-span-editor[hidden],
+        .seg-comment-box[hidden],
+        .further-ratings-confirm[hidden] { display: none !important; }
+        /* Free-text comment box revealed by the per-segment "Comment" checkbox. */
+        .seg-comment-box {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 6px;
+            padding: 8px 10px;
+            min-height: 70px;
+            resize: vertical;
+            background: var(--bg3);
+            color: var(--t0);
+            border: 1.5px solid var(--acc);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        .seg-comment-box:focus { outline: 2px solid var(--acc); outline-offset: 1px; }
+        .further-ratings-confirm {
+            display: block;
+            margin: 14px auto 4px;
+            padding: 8px 18px;
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .further-ratings-confirm:hover { background: #dc2626; }
+        .further-ratings-confirm.activated {
+            background: var(--bg3);
             color: var(--t3);
+            cursor: default;
+        }
+
+        /* Per-checkbox text-span selection. When a rating is the active selection
+           target, its segment text "lights up" and the rater can drag-select
+           ranges that belong to that rating; the captured fragments show as
+           removable chips. */
+        .rated-segment-text.rating-lit {
+            background: rgba(108, 99, 255, 0.12);
+            box-shadow: inset 0 0 0 1px var(--acc);
+            border-radius: 4px;
+            padding: 4px 6px;
+            cursor: text;
+        }
+        .seg-span-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin: 6px 0 2px;
+        }
+        .span-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            font-size: 0.78em;
+        }
+        .span-rating-pill {
+            flex-shrink: 0;
+            background: var(--bg3);
+            color: var(--t2);
+            border: 1px solid var(--bdr);
+            border-radius: 12px;
+            padding: 2px 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .span-row.active .span-rating-pill {
+            background: var(--acc);
+            color: #fff;
+            border-color: var(--acc);
+        }
+        .span-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+        }
+        .span-chips .span-empty { color: var(--t3); font-style: italic; }
+        .span-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--accbg);
+            border: 1px solid var(--bdr);
+            border-radius: 4px;
+            padding: 1px 4px 1px 6px;
+            max-width: 320px;
+        }
+        .span-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .span-chip-x {
+            border: none;
+            background: transparent;
+            color: var(--t3);
+            cursor: pointer;
+            font-size: 1.05em;
             line-height: 1;
+            padding: 0 2px;
         }
-        .gist-ticks span { flex: 1; text-align: center; }
-        .gist-ticks span:first-child { text-align: left; }
-        .gist-ticks span:last-child { text-align: right; }
-        .gist-slider-wrap[data-level="detail"] .gist-ticks span:first-child,
-        .gist-slider-wrap[data-level="gist"] .gist-ticks span:last-child {
-            color: var(--acc2);
-            font-weight: 700;
-        }
+        .span-chip-x:hover { color: var(--red); }
 
         /* Click-to-match: a selected recall segment stays highlighted while the user
            clicks story events on the left to add/remove them. */
@@ -2716,10 +2826,7 @@
                                             const eventNum = getIntEvent(event.event);
                                             return `
                                             <div class="story-event" data-story-event-num="${eventNum}">
-                                                <div class="story-event-header">
-                                                    <span class="event-number">Event ${eventNum}</span>
-                                                </div>
-                                                <div class="event-text">${escapeHtml(event.text)}</div>
+                                                <div class="event-text"><span class="event-number">Event ${eventNum}</span>${escapeHtml(event.text)}</div>
                                             </div>
                                         `;
                                         }).join('')}
@@ -2740,9 +2847,17 @@
                                 ${panelVersionBarMarkup('Recall / rated file', 'recall-pipeline')}
                                 <div id="matched-notification" class="story-events-notification hidden">
                                     <button class="story-events-notification-close" onclick="dismissNotification('matched-notification-dismissed')" title="Dismiss">×</button>
-                                    <strong>Matching Recall to Story Segments:</strong> Click a recall segment on the right to select it (it stays highlighted), then click story events on the left to add or remove them — scroll the left list to reach more, and click the segment again to deselect. You can still drag events onto a segment or type event numbers (e.g., "1, 2, 3"). The <strong>Detail&ndash;NA&ndash;Gist</strong> slider on each segment records how it was recalled (a <code>gist-level</code> column is exported only when any segment is moved off NA). Story events already matched somewhere appear faded on the left.
+                                    <strong>Matching Recall to Story Segments:</strong> Click a recall segment on the right to select it (it stays highlighted), then click story events on the left to add or remove them — scroll the left list to reach more, and click the segment again to deselect. You can still drag events onto a segment or type event numbers (e.g., "1, 2, 3"). Turn on <strong>Further ratings</strong> at the top to add per-segment <strong>Summary / Error / Confabulation</strong> checkboxes; they unlock only after you scroll to the bottom and click the red <strong>Further ratings</strong> button, and each is exported as its own column. Story events already matched somewhere appear faded on the left.
                                 </div>
                                 <h2>Recall Segments with Matched Events</h2>
+                                ${recallSegments && hasStoryEvents ? `
+                                <div class="further-ratings-toggle">
+                                    <label title="Add per-segment Summary / Error / Confabulation ratings, exported as separate columns.">
+                                        <input type="checkbox" id="further-ratings-master" onchange="toggleFurtherRatings(this.checked)">
+                                        Further ratings
+                                    </label>
+                                </div>
+                                ` : ''}
                                 <div class="rated-scrollable">
                                     ${recallSegments ? `
                                     <div class="segments-container">
@@ -2751,9 +2866,10 @@
                                             const matchedEvent = segment.matched_event || segment.matched || '';
                                             const formattedEvent = formatEventValue(matchedEvent);
                                             const segmentText = segment.text || segment.recall_in_temporal_order || '';
-                                            // Per-segment gist level: detail | NA | gist (default NA).
-                                            const gistLevel = (segment.gist_level || 'NA');
-                                            const gistVal = gistLevel === 'detail' ? 0 : (gistLevel === 'gist' ? 2 : 1);
+                                            // Per-segment "further ratings": summary | error | confabulation
+                                            // (each an independent boolean, default off).
+                                            const ratingChecked = k => (segment[k] === true || String(segment[k]).toLowerCase() === 'true') ? 'checked' : '';
+                                            const segmentComment = (segment.comment != null ? String(segment.comment) : '');
                                             return `
                                             <div class="rated-segment" data-segment-index="${idx}">
                                                 <div class="rated-segment-header">
@@ -2768,13 +2884,19 @@
                                                                data-segment-index="${idx}"
                                                                oninput="updateRatedEvent(${idx}, this.value); enableExportRated();"
                                                                onblur="validateEventInput(${idx}, this)">
-                                                        <div class="gist-slider-wrap" data-segment-index="${idx}" data-level="${gistLevel}" title="How is this segment recalled? Detail / NA / Gist">
-                                                            <input type="range" class="gist-range" min="0" max="2" step="1" value="${gistVal}"
-                                                                   data-segment-index="${idx}"
-                                                                   oninput="setGistLevel(${idx}, this.value); enableExportRated();"
-                                                                   aria-label="Recall level: Detail, NA, or Gist">
-                                                            <div class="gist-ticks"><span>Detail</span><span>NA</span><span>Gist</span></div>
-                                                        </div>
+                                                    </div>
+                                                    <div class="seg-ratings" data-segment-index="${idx}" hidden>
+                                                        ${RATING_KEYS.map(k => `
+                                                        <label title="${escapeHtml(ratingLabel(k) + ': ' + ratingMeaningPlain(k))}">
+                                                            <input type="checkbox" class="seg-rating-cb" data-rating="${k}" data-segment-index="${idx}" ${ratingChecked(k)} disabled
+                                                                   onchange="setSegRating(${idx}, '${k}', this.checked); enableExportRated();">
+                                                            <span>${ratingLabel(k)}</span>
+                                                        </label>`).join('')}
+                                                        <label title="Add a free-text comment for this segment">
+                                                            <input type="checkbox" class="seg-comment-cb" data-segment-index="${idx}" ${segmentComment ? 'checked' : ''} disabled
+                                                                   onchange="toggleSegComment(${idx}, this.checked); enableExportRated();">
+                                                            <span>Comment</span>
+                                                        </label>
                                                     </div>
                                                     ` : `
                                                     <div class="event-input-container">
@@ -2782,11 +2904,16 @@
                                                     </div>
                                                     `}
                                                 </div>
-                                                <div class="rated-segment-text">${escapeHtml(segmentText)}</div>
+                                                <div class="rated-segment-text" data-segment-index="${idx}" onmouseup="captureSpanSelection(${idx})">${escapeHtml(segmentText)}</div>
+                                                ${hasStoryEvents ? `<div class="seg-span-editor" data-segment-index="${idx}" hidden></div>` : ''}
+                                                ${hasStoryEvents ? `<textarea class="seg-comment-box" data-segment-index="${idx}" rows="3" placeholder="Type a comment for this segment…" hidden oninput="setSegComment(${idx}, this.value); enableExportRated();">${escapeHtml(segmentComment)}</textarea>` : ''}
                                             </div>
                                         `;
                                         }).join('')}
                                     </div>
+                                    ${hasStoryEvents ? `
+                                    <button type="button" id="further-ratings-confirm" class="further-ratings-confirm" onclick="enableFurtherRatingsCheckboxes()" hidden>Further ratings</button>
+                                    ` : ''}
                                     ` : `
                                     <div class="text-content empty" style="padding: 20px; text-align: center;">
                                         No recall segments available. Process recall text first to see segments here.
@@ -3289,6 +3416,7 @@
                 
                 if (response.ok) {
                     statusDiv.textContent = 'Saved successfully! Updating all tabs...';
+                    flushUserLog(outputPath);
                     statusDiv.className = 'save-status success';
                     correctedText = textToSave; // Update stored value
                     
@@ -3593,11 +3721,42 @@
             if (!btn) return;
             btn.disabled = !segPanelDirty('recall', originalParsedTexts);
         }
-        // Read the per-segment gist levels (detail | NA | gist) in segment order.
-        function readGistLevels() {
-            return Array.from(document.querySelectorAll('.gist-range'))
-                .sort((a, b) => parseInt(a.getAttribute('data-segment-index')) - parseInt(b.getAttribute('data-segment-index')))
-                .map(r => r.value === '0' ? 'detail' : (r.value === '2' ? 'gist' : 'NA'));
+        // Read the per-segment further-rating state in segment order. Returns one
+        // {summary, error, confabulation, spans:{...}} object per segment.
+        function readSegRatings() {
+            const byIdx = {};
+            let maxIdx = -1;
+            document.querySelectorAll('.seg-ratings').forEach(group => {
+                const idx = parseInt(group.getAttribute('data-segment-index'), 10);
+                if (isNaN(idx)) return;
+                maxIdx = Math.max(maxIdx, idx);
+                const rec = { spans: {} };
+                RATING_KEYS.forEach(k => { rec[k] = false; });
+                group.querySelectorAll('.seg-rating-cb').forEach(cb => {
+                    rec[cb.getAttribute('data-rating')] = cb.checked;
+                });
+                const sp = segSpans[idx] || {};
+                RATING_KEYS.forEach(k => { rec.spans[k] = (rec[k] && sp[k]) ? sp[k].slice() : []; });
+                rec.comment = readSegComment(idx);
+                byIdx[idx] = rec;
+            });
+            const out = [];
+            const emptyRec = () => { const r = { spans: {}, comment: '' }; RATING_KEYS.forEach(k => { r[k] = false; }); return r; };
+            for (let i = 0; i <= maxIdx; i++) {
+                out.push(byIdx[i] || emptyRec());
+            }
+            return out;
+        }
+
+        function ratingsDiffer(a, b) {
+            if (a.length !== b.length) return true;
+            return a.some((v, i) => {
+                const w = b[i] || {};
+                if (RATING_KEYS.some(k => !!v[k] !== !!w[k])) return true;
+                if ((v.comment || '') !== (w.comment || '')) return true;
+                const va = v.spans || {}, wa = w.spans || {};
+                return RATING_KEYS.some(k => JSON.stringify(va[k] || []) !== JSON.stringify(wa[k] || []));
+            });
         }
 
         function enableExportRated() {
@@ -3609,10 +3768,8 @@
                 .map(inp => parseEventValue((inp.value || '').trim()));
             const eventsDiff = originalRatedEvents.length !== currentValues.length ||
                 originalRatedEvents.some((v, i) => v !== (currentValues[i] || ''));
-            const gists = readGistLevels();
-            const gistDiff = originalGistLevels.length !== gists.length ||
-                originalGistLevels.some((v, i) => v !== (gists[i] || 'NA'));
-            btn.disabled = !(eventsDiff || gistDiff);
+            const ratingsDiff = ratingsDiffer(readSegRatings(), originalRatings);
+            btn.disabled = !(eventsDiff || ratingsDiff);
         }
         
         let ratedTextsData = [];
@@ -4004,7 +4161,137 @@
         let originalAudioTranscription = '';
         let originalParsedTexts = [];
         let originalRatedEvents = [];
-        let originalGistLevels = [];
+        // Per-segment further-rating snapshot: array of {summary, error, confabulation}.
+        let originalRatings = [];
+        // Master "Further ratings" toggle (top of recall panel) and whether the
+        // per-segment checkboxes have been unlocked via the red end-of-list button.
+        let furtherRatingsOn = false;
+        let furtherRatingsUnlocked = false;
+        // Per-segment, per-rating selected text fragments:
+        // segSpans[segmentIndex] = {summary: [...], error: [...], confabulation: [...]}.
+        let segSpans = {};
+        // The rating currently receiving text selections: {idx, rating} | null.
+        let activeRatingTarget = null;
+        // Per-segment free-text comment: segComments[segmentIndex] = string.
+        let segComments = {};
+
+        // ---- Per-step user-operation recorder (telemetry) ----------------------
+        // Records the rater's operations on the inspection page — one session per
+        // tab, started at the first interaction with that tab and flushed when that
+        // step is exported. The server writes it as a plain, read-only text file under
+        // narRaters/user_data/ (directly openable). Captures time-from-start, the
+        // interface (tab) and panel, the operation (click / typed text / number /
+        // checkbox), and the target.
+        const userOps = {};  // tabId -> { startedAt, startedAtISO, events: [] }
+        function _userlogActiveTabId(el) {
+            const tab = (el && el.closest) ? el.closest('.tab-content') : null;
+            if (tab && tab.classList.contains('active')) return tab.id;
+            const active = document.querySelector('.tab-content.active');
+            return active ? active.id : null;
+        }
+        function _userlogDescribe(el) {
+            if (!el || !el.tagName) return {};
+            const d = { tag: el.tagName.toLowerCase() };
+            if (el.id) d.id = el.id;
+            let cls = el.className;
+            if (cls && cls.baseVal != null) cls = cls.baseVal;  // SVG
+            if (cls && typeof cls === 'string') d.cls = cls.split(/\s+/).filter(Boolean).slice(0, 3).join(' ');
+            ['data-segment-index', 'data-rating', 'data-story-event-num', 'data-stream-key',
+             'placeholder', 'type', 'name', 'title', 'aria-label'].forEach(a => {
+                const v = el.getAttribute && el.getAttribute(a);
+                if (v) d[a] = String(v).slice(0, 60);
+            });
+            const txt = (el.textContent || '').trim();
+            if (txt && ['button', 'label', 'span', 'a', 'option'].includes(d.tag)) d.text = txt.slice(0, 50);
+            const panel = el.closest && el.closest('.rated-panel, .story-panel, .causal-matrix-wrapper, .side-by-side-panel, .seg-flow');
+            if (panel) { const pc = (panel.className || '').split(/\s+/)[0]; if (pc) d.panel = pc; }
+            return d;
+        }
+        function _recordUserOp(type, e) {
+            const el = e.target;
+            if (!el || !el.closest) return;
+            const tabId = _userlogActiveTabId(el);
+            if (!tabId) return;
+            // Only record operations inside the active inspection tab's content.
+            const tabEl = document.getElementById(tabId);
+            if (!tabEl || !tabEl.contains(el)) return;
+            let sess = userOps[tabId];
+            if (!sess) {
+                sess = userOps[tabId] = { startedAt: Date.now(), startedAtISO: new Date().toISOString(), events: [] };
+            }
+            const target = _userlogDescribe(el);
+            let value;
+            if (type === 'input' || type === 'change') {
+                if (el.type === 'checkbox' || el.type === 'radio') value = !!el.checked;
+                else value = (el.value != null ? String(el.value) : (el.textContent || '')).slice(0, 1000);
+            }
+            // Coalesce rapid typing into one "input" op per target (keeps latest value).
+            const last = sess.events[sess.events.length - 1];
+            if (type === 'input' && last && last.type === 'input'
+                && JSON.stringify(last.target) === JSON.stringify(target)
+                && (Date.now() - sess.startedAt - last.t) < 2500) {
+                last.t = Date.now() - sess.startedAt;
+                last.value = value;
+                return;
+            }
+            const rec = { t: Date.now() - sess.startedAt, type, target };
+            if (value !== undefined) rec.value = value;
+            if (type === 'key') rec.key = e.key;
+            sess.events.push(rec);
+        }
+        document.addEventListener('click',  e => _recordUserOp('click', e), true);
+        document.addEventListener('input',  e => _recordUserOp('input', e), true);
+        document.addEventListener('change', e => _recordUserOp('change', e), true);
+        document.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Tab') _recordUserOp('key', e); }, true);
+
+        // Flush the active tab's recorded operations to an encrypted file next to the
+        // export. Called from each step's save/export handler on success.
+        function flushUserLog(exportPath) {
+            try {
+                const tab = document.querySelector('.tab-content.active');
+                const tabId = tab ? tab.id : 'unknown';
+                const sess = userOps[tabId];
+                if (!sess || !sess.events.length) return;
+                const body = {
+                    subject_id: (typeof subjectId !== 'undefined') ? subjectId : null,
+                    step: tabId,
+                    export_path: exportPath || '',
+                    started_at: sess.startedAtISO,
+                    ended_at: new Date().toISOString(),
+                    duration_ms: Date.now() - sess.startedAt,
+                    user_agent: navigator.userAgent,
+                    events: sess.events
+                };
+                userOps[tabId] = null;  // reset so the next edit-to-export cycle is its own log
+                fetch('/api/userlog/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).catch(() => {});
+            } catch (e) { /* telemetry must never break an export */ }
+        }
+        // Further-rating columns, in display order. Rows of three in the UI grid:
+        // [summary, error, confabulation] then [opinion, inference, meta].
+        const RATING_KEYS = ['summary', 'error', 'confabulation', 'opinion', 'inference', 'meta'];
+        const RATING_LABELS = {
+            summary: 'Summary', error: 'Error', confabulation: 'Confabulation',
+            opinion: 'Opinion', inference: 'Inference', meta: 'Meta'
+        };
+        function ratingLabel(k) { return RATING_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1)); }
+        // What each rating means (HTML; shown one-per-step in the further-ratings tutorial
+        // and, stripped to plain text, as each checkbox's hover tooltip).
+        const RATING_MEANINGS = {
+            summary: 'The recall segment broadly <strong>summarizes many story segments without details</strong>. Still match it to all the relevant story events.',
+            error: 'The segment states something that <strong>factually contradicts</strong> the original story.<br><em>E.g. &ldquo;The boy accused his dog of being possessed&rdquo; — but it was a cat, not a dog.</em>',
+            confabulation: '<strong>Fabricated information</strong> not present in the original story.<br><em>E.g. &ldquo;…the ghost was screaming boo&rdquo; — but no screaming was mentioned in the story.</em>',
+            inference: '<strong>Plausible but unmentioned details</strong> drawn from prior knowledge or reasonable interpretation.<br><em>E.g. recall says &ldquo;she opened the door and walked up the stairs&rdquo; when the story only said &ldquo;from the garden she walked up to the first floor&rdquo;.</em>',
+            opinion: 'The segment <strong>evaluates actions or the story from the participant&rsquo;s own perspective</strong>.<br><em>E.g. &ldquo;I do not like this character&rdquo;, &ldquo;that was so nice of her to do&rdquo;.</em>',
+            meta: 'The segment <strong>refers to something outside the story</strong>.<br><em>E.g. &ldquo;I&rsquo;m done&rdquo;, &ldquo;Should I start now?&rdquo;.</em>'
+        };
+        function ratingMeaningPlain(k) {
+            const div = document.createElement('div');
+            div.innerHTML = (RATING_MEANINGS[k] || '').replace(/<br\s*\/?>/g, ' ');
+            return (div.textContent || '').trim();
+        }
         // Index of the recall segment currently selected for click-to-match (Item 3).
         let selectedRecallSegmentIdx = null;
         let causalMatrixOriginal = {};
@@ -5405,6 +5692,7 @@
                     var savedFile = result.file || '';
                     var pathUsed = result.path_used || savedFile;
                     statusDiv.textContent = savedFile ? 'Saved to ' + pathUsed : 'Saved successfully!';
+                    flushUserLog(pathUsed || outputPath);
                     statusDiv.className = 'save-status success';
                     if (nestedOn && window._causalRatingsData) {
                         var _cp = [];
@@ -6162,6 +6450,7 @@
                 
                 if (response.ok) {
                     statusDiv.textContent = 'Saved successfully!';
+                    flushUserLog(outputPath);
                     statusDiv.className = 'save-status success';
                     const btn = document.getElementById('export-story-events');
                     if (btn) btn.disabled = true;
@@ -6447,6 +6736,7 @@
                 
                 if (response.ok) {
                     statusDiv.textContent = 'Saved successfully!';
+                    flushUserLog(outputPath);
                     statusDiv.className = 'save-status success';
                     const btn = document.getElementById('export-audio');
                     if (btn) btn.disabled = true;
@@ -6700,13 +6990,218 @@
             });
         }
 
-        // ---- Item 2b: per-segment recall-level slider (Detail / NA / Gist) ----
-        function setGistLevel(segmentIndex, rangeVal) {
-            const level = (String(rangeVal) === '0') ? 'detail' : (String(rangeVal) === '2' ? 'gist' : 'NA');
+        // ---- Item 2b: per-segment "further ratings" (Summary / Error / Confabulation) ----
+        function ensureSegSpans(idx) {
+            if (!segSpans[idx]) {
+                segSpans[idx] = {};
+                RATING_KEYS.forEach(k => { segSpans[idx][k] = []; });
+            }
+            return segSpans[idx];
+        }
+
+        function setSegRating(segmentIndex, key, checked) {
             if (!ratedTextsData[segmentIndex]) ratedTextsData[segmentIndex] = {};
-            ratedTextsData[segmentIndex].gist_level = level;
-            const wrap = document.querySelector(`.gist-slider-wrap[data-segment-index="${segmentIndex}"]`);
-            if (wrap) wrap.setAttribute('data-level', level);
+            ratedTextsData[segmentIndex][key] = !!checked;
+            const spans = ensureSegSpans(segmentIndex);
+            if (checked) {
+                // Make the newly-checked rating the active selection target so the
+                // segment text lights up and drag-selections flow to it.
+                activeRatingTarget = { idx: segmentIndex, rating: key };
+            } else {
+                // Dropping the rating clears any text fragments collected for it.
+                spans[key] = [];
+                if (activeRatingTarget && activeRatingTarget.idx === segmentIndex && activeRatingTarget.rating === key) {
+                    activeRatingTarget = null;
+                }
+            }
+            renderSpanEditor(segmentIndex);
+            updateSegTextLit(segmentIndex);
+        }
+
+        // ---- Per-segment free-text comment (the "Comment" checkbox) ----
+        // Checking it reveals a larger text box; the typed text is exported in a
+        // ``comment`` column.
+        function toggleSegComment(segmentIndex, checked) {
+            const box = document.querySelector(`.seg-comment-box[data-segment-index="${segmentIndex}"]`);
+            if (!box) return;
+            box.hidden = !checked;
+            if (checked) {
+                box.focus();
+            }
+        }
+        function setSegComment(segmentIndex, text) {
+            segComments[segmentIndex] = text;
+        }
+        // Current comment text for a segment (only when its Comment box is checked).
+        function readSegComment(segmentIndex) {
+            const cb = document.querySelector(`.seg-comment-cb[data-segment-index="${segmentIndex}"]`);
+            const box = document.querySelector(`.seg-comment-box[data-segment-index="${segmentIndex}"]`);
+            if (!cb || !cb.checked || !box) return '';
+            return (box.value || '').trim();
+        }
+
+        // Click a rating pill to resume selecting text for an already-checked
+        // rating (without un-checking it).
+        function activateRatingSelection(idx, key) {
+            const cb = document.querySelector(`.seg-rating-cb[data-segment-index="${idx}"][data-rating="${key}"]`);
+            if (!cb || cb.disabled || !cb.checked) return;
+            activeRatingTarget = { idx, rating: key };
+            document.querySelectorAll('.rated-segment-text.rating-lit').forEach(el => {
+                if (parseInt(el.getAttribute('data-segment-index'), 10) !== idx) el.classList.remove('rating-lit');
+            });
+            renderSpanEditor(idx);
+            updateSegTextLit(idx);
+        }
+
+        // Capture a drag-selection within a segment's text and attach it to the
+        // active rating for that segment.
+        function captureSpanSelection(idx) {
+            if (!activeRatingTarget || activeRatingTarget.idx !== idx) return;
+            const sel = window.getSelection();
+            if (!sel || sel.isCollapsed) return;
+            const textEl = document.querySelector(`.rated-segment-text[data-segment-index="${idx}"]`);
+            if (!textEl || !textEl.contains(sel.anchorNode) || !textEl.contains(sel.focusNode)) return;
+            const frag = sel.toString().replace(/\s+/g, ' ').trim();
+            sel.removeAllRanges();
+            if (!frag) return;
+            const key = activeRatingTarget.rating;
+            const list = ensureSegSpans(idx)[key];
+            if (!list.includes(frag)) {
+                list.push(frag);
+                renderSpanEditor(idx);
+                enableExportRated();
+            }
+        }
+
+        function removeSpan(idx, key, pos) {
+            const list = ensureSegSpans(idx)[key];
+            if (pos >= 0 && pos < list.length) {
+                list.splice(pos, 1);
+                renderSpanEditor(idx);
+                enableExportRated();
+            }
+        }
+
+        // Rebuild the chip rows beneath a segment: one row per checked rating,
+        // showing its captured fragments. Hidden entirely when no rating is checked.
+        function renderSpanEditor(idx) {
+            const editor = document.querySelector(`.seg-span-editor[data-segment-index="${idx}"]`);
+            if (!editor) return;
+            const checkedKeys = RATING_KEYS.filter(k => {
+                const cb = document.querySelector(`.seg-rating-cb[data-segment-index="${idx}"][data-rating="${k}"]`);
+                return cb && cb.checked;
+            });
+            if (!furtherRatingsOn || checkedKeys.length === 0) {
+                editor.hidden = true;
+                editor.innerHTML = '';
+                return;
+            }
+            editor.hidden = false;
+            const spans = ensureSegSpans(idx);
+            editor.innerHTML = checkedKeys.map(k => {
+                const isActive = activeRatingTarget && activeRatingTarget.idx === idx && activeRatingTarget.rating === k;
+                const label = ratingLabel(k);
+                const chips = (spans[k] || []).map((s, pos) => `
+                    <span class="span-chip" title="${escapeHtml(s)}">
+                        <span class="span-chip-text">'${escapeHtml(s)}'</span>
+                        <button type="button" class="span-chip-x" title="Remove" onclick="removeSpan(${idx}, '${k}', ${pos})">×</button>
+                    </span>`).join('');
+                const body = chips || '<span class="span-empty">select text in the segment above</span>';
+                return `
+                    <div class="span-row ${isActive ? 'active' : ''}" data-segment-index="${idx}" data-rating="${k}">
+                        <button type="button" class="span-rating-pill" onclick="activateRatingSelection(${idx}, '${k}')">${label}</button>
+                        <div class="span-chips">${body}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        function updateSegTextLit(idx) {
+            const textEl = document.querySelector(`.rated-segment-text[data-segment-index="${idx}"]`);
+            if (!textEl) return;
+            const lit = !!(activeRatingTarget && activeRatingTarget.idx === idx);
+            textEl.classList.toggle('rating-lit', lit);
+        }
+
+        // Build all span editors from segSpans after a render.
+        function initSpanEditors() {
+            document.querySelectorAll('.seg-span-editor').forEach(editor => {
+                const idx = parseInt(editor.getAttribute('data-segment-index'), 10);
+                if (!isNaN(idx)) renderSpanEditor(idx);
+            });
+        }
+
+        // Master toggle at the top of the recall panel: show/hide the per-segment
+        // rating checkboxes. Turning it off relocks the checkboxes so they must be
+        // re-confirmed via the red button before they can be edited again.
+        function toggleFurtherRatings(on) {
+            furtherRatingsOn = !!on;
+            if (!furtherRatingsOn) {
+                furtherRatingsUnlocked = false;
+                activeRatingTarget = null;
+            }
+            applyFurtherRatingsVisibility();
+        }
+
+        // The red "Further ratings" button at the end of the segment list: clicking
+        // it confirms the rater has gone through every segment's event matching and
+        // unlocks the checkboxes so they become clickable. The first time it's
+        // unlocked, (re)launch the tutorial to explain the rating checkboxes and
+        // per-rating text selection.
+        function enableFurtherRatingsCheckboxes() {
+            if (!furtherRatingsOn) return;
+            const wasUnlocked = furtherRatingsUnlocked;
+            furtherRatingsUnlocked = true;
+            applyFurtherRatingsVisibility();
+            if (!wasUnlocked) startFurtherRatingsTutorial();
+        }
+
+        // Launch (or make replayable) the phase-2 "further ratings" walkthrough.
+        // Uses its own page key so it is independent of the matched-tab walk; the
+        // (?) icon is repointed at it so the user can replay it. Deferred so any
+        // in-progress phase-1 step (which ends on this same click) finishes first.
+        function startFurtherRatingsTutorial() {
+            if (!window.Tutorial) return;
+            const pageKey = 'subject:matched-ratings';
+            window.Tutorial.installToggle(pageKey, { stepsFactory: furtherRatingsTutorialSteps, right: '70px' });
+            if (window.Tutorial.isCompleted(pageKey)) return;  // already seen — replay via the (?) icon
+            setTimeout(function () {
+                const steps = furtherRatingsTutorialSteps();
+                if (steps.length) window.Tutorial.start(pageKey, steps);
+            }, 200);
+        }
+
+        // Reflect furtherRatingsOn / furtherRatingsUnlocked onto the DOM: the
+        // checkbox groups and the red confirm button are shown only when the master
+        // toggle is on; the checkboxes stay disabled until unlocked. Span editors
+        // and the lit-text highlight follow the same gate.
+        function applyFurtherRatingsVisibility() {
+            const enabled = furtherRatingsOn && furtherRatingsUnlocked;
+            document.querySelectorAll('.seg-ratings').forEach(group => {
+                group.hidden = !furtherRatingsOn;
+                group.querySelectorAll('.seg-rating-cb, .seg-comment-cb').forEach(cb => {
+                    cb.disabled = !enabled;
+                });
+            });
+            const btn = document.getElementById('further-ratings-confirm');
+            if (btn) {
+                btn.hidden = !furtherRatingsOn;
+                btn.classList.toggle('activated', furtherRatingsUnlocked);
+                btn.textContent = furtherRatingsUnlocked ? 'Further ratings unlocked' : 'Further ratings';
+            }
+            if (!furtherRatingsOn) {
+                document.querySelectorAll('.rated-segment-text.rating-lit').forEach(el => el.classList.remove('rating-lit'));
+            }
+            document.querySelectorAll('.seg-span-editor').forEach(editor => {
+                const idx = parseInt(editor.getAttribute('data-segment-index'), 10);
+                if (!isNaN(idx)) renderSpanEditor(idx);
+            });
+            // Comment boxes: shown only when Further ratings is on AND that segment's
+            // Comment checkbox is ticked.
+            document.querySelectorAll('.seg-comment-box').forEach(box => {
+                const idx = parseInt(box.getAttribute('data-segment-index'), 10);
+                const cb = document.querySelector(`.seg-comment-cb[data-segment-index="${idx}"]`);
+                box.hidden = !(furtherRatingsOn && cb && cb.checked);
+            });
         }
 
         // ---- Item 3: click a recall segment to select it, then click story events
@@ -6770,8 +7265,12 @@
             root.querySelectorAll('.rated-segment').forEach(seg => {
                 if (!seg.querySelector('.event-input')) return;
                 seg.addEventListener('click', function (e) {
-                    // Ignore clicks on the segment's own controls (event field, slider, buttons).
-                    if (e.target.closest('input, textarea, select, button, .gist-slider-wrap, .event-input-label')) return;
+                    // Ignore clicks on the segment's own controls (event field, rating checkboxes, buttons).
+                    if (e.target.closest('input, textarea, select, button, .seg-ratings, .seg-span-editor, .event-input-label')) return;
+                    // Ignore a click that is really the end of a text drag-selection
+                    // (used to capture rating spans) so it doesn't toggle the segment.
+                    const _sel = window.getSelection();
+                    if (_sel && !_sel.isCollapsed) return;
                     selectRecallSegment(e.currentTarget);
                 });
             });
@@ -6825,16 +7324,18 @@
                 inputs.forEach(input => {
                     const idx = parseInt(input.getAttribute('data-segment-index'));
                     const eventValue = parseEventValue(input.value.trim());
-                    const gistEl = document.querySelector(`.gist-range[data-segment-index="${idx}"]`);
-                    const gistLevel = gistEl ? (gistEl.value === '0' ? 'detail' : (gistEl.value === '2' ? 'gist' : 'NA')) : 'NA';
-                    segments.push({
-                        index: idx,
-                        matched_event: eventValue,
-                        gist_level: gistLevel
+                    const seg = { index: idx, matched_event: eventValue };
+                    const sp = segSpans[idx] || {};
+                    document.querySelectorAll(`.seg-rating-cb[data-segment-index="${idx}"]`).forEach(cb => {
+                        const k = cb.getAttribute('data-rating');
+                        seg[k] = cb.checked;
+                        seg[k + '_spans'] = (cb.checked && sp[k]) ? sp[k].slice() : [];
                     });
+                    seg.comment = readSegComment(idx);
+                    segments.push(seg);
                 });
-                
-                const body = { segments: segments };
+
+                const body = { segments: segments, further_ratings: furtherRatingsOn };
                 if (outputPath) body.output_path = outputPath;
                 const response = await fetch(`/api/subject/${subjectId}/save-rated`, {
                     method: 'POST',
@@ -6848,11 +7349,19 @@
                 
                 if (response.ok) {
                     statusDiv.textContent = 'Saved successfully!';
+                    flushUserLog(outputPath);
                     statusDiv.className = 'save-status success';
                     const btn = document.getElementById('export-rated');
                     if (btn) btn.disabled = true;
                     originalRatedEvents = segments.map(s => parseEventValue(s.matched_event != null ? String(s.matched_event) : ''));
-                    originalGistLevels = segments.map(s => (s.gist_level || 'NA'));
+                    originalRatings = segments.map(s => {
+                        const rec = { spans: {}, comment: (s.comment || '') };
+                        RATING_KEYS.forEach(k => {
+                            rec[k] = !!s[k];
+                            rec.spans[k] = (s[k + '_spans'] || []).slice();
+                        });
+                        return rec;
+                    });
                     // Update local data if server returned updated data
                     if (result.updated_data && result.updated_data.rated_texts) {
                         ratedTextsData = result.updated_data.rated_texts;
@@ -7105,6 +7614,7 @@
                 
                 if (response.ok) {
                     statusDiv.textContent = 'Saved successfully! Updating rating tab...';
+                    flushUserLog(outputPath);
                     statusDiv.className = 'save-status success';
                     
                     // Update data from server response if available
@@ -7227,6 +7737,24 @@
                 }
                 select.appendChild(grp);
             }
+            // Method variants (e.g. {subj}_parsed-ollama_gemma4_e4b) — each selectable
+            // so the same subject's different processing methods can be viewed.
+            const methodVariants = [...allVersions].filter(function(v) {
+                return v && v !== 'original' && !v.endsWith('-edit');
+            }).sort();
+            if (methodVariants.length) {
+                const grp2 = document.createElement('optgroup');
+                grp2.label = 'Method variants';
+                methodVariants.forEach(function(v) {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    // friendly label: the method tail after the step token
+                    const m = v.match(/(?:_parsed|_rate-recall|_spell|[-_]parsed|-recall-matched)[-_]?(.*)$/);
+                    opt.textContent = (m && m[1]) ? m[1].replace(/_/g, ' ') : v;
+                    grp2.appendChild(opt);
+                });
+                select.appendChild(grp2);
+            }
             select.value = currentRecallFileVersion || '';
         }
         
@@ -7263,7 +7791,27 @@
                 originalParsedTexts = (data.parsed_texts || []).map(s => (s.text || '').trim());
                 const ratedOrParsed = (data.rated_texts && data.rated_texts.length) ? data.rated_texts : (data.parsed_texts || []);
                 originalRatedEvents = ratedOrParsed.map(s => parseEventValue((s.matched_event != null ? String(s.matched_event) : (s.matched != null ? String(s.matched) : ''))));
-                originalGistLevels = ratedOrParsed.map(s => (s.gist_level || 'NA'));
+                const asBool = v => v === true || String(v).toLowerCase() === 'true';
+                const asSpans = v => Array.isArray(v) ? v.slice() : [];
+                segSpans = {};
+                segComments = {};
+                originalRatings = ratedOrParsed.map((s, i) => {
+                    const rec = { spans: {}, comment: (s.comment != null ? String(s.comment) : '') };
+                    segSpans[i] = {};
+                    RATING_KEYS.forEach(k => {
+                        rec[k] = asBool(s[k]);
+                        rec.spans[k] = asSpans(s[k + '_spans']);
+                        segSpans[i][k] = rec.spans[k].slice();
+                    });
+                    segComments[i] = rec.comment;
+                    return rec;
+                });
+                activeRatingTarget = null;
+                // If the loaded file already carries further-rating columns (or a
+                // comment), start with the master toggle on (and unlocked, since they
+                // were rated before).
+                furtherRatingsOn = originalRatings.some(r => RATING_KEYS.some(k => r[k]) || (r.comment || ''));
+                furtherRatingsUnlocked = furtherRatingsOn;
                 
                 if (data.available_versions) {
                     availableVersions = data.available_versions;
@@ -7272,6 +7820,11 @@
                 window._currentUsername = data.username || currentUsername || 'human';
                 
                 renderContent(data);
+                // Reflect the loaded further-ratings state (master toggle + unlock)
+                // onto the freshly rendered recall panel.
+                const frMaster = document.getElementById('further-ratings-master');
+                if (frMaster) frMaster.checked = furtherRatingsOn;
+                applyFurtherRatingsVisibility();
                 populatePanelVersionSelects();
                 // Initialize the bar-based segmenters from the freshly loaded data.
                 initSegmenter('story');
@@ -7336,6 +7889,158 @@
         // tutorial is closed will silently start the next tab's walk if the
         // user hasn't seen it yet; the top-right (?) icon always restarts the
         // tutorial for the currently-active tab.
+        // Scroll a (possibly off-screen, inside an inner scroller) element into
+        // view and return it, so the tutorial spotlight lands on it. Used as a
+        // step `target` function.
+        function _scrollIntoViewTarget(selector) {
+            return function () {
+                var el = document.querySelector(selector);
+                if (el && el.scrollIntoView) {
+                    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+                    catch (e) { el.scrollIntoView(); }
+                }
+                return el;
+            };
+        }
+
+        // Target a specific rating checkbox's label in the first recall segment,
+        // scrolling it into view so the tutorial spotlight lands on it.
+        function _ratingLabelTarget(key) {
+            return function () {
+                var cb = document.querySelector('#matched .rated-segment[data-segment-index="0"] .seg-rating-cb[data-rating="' + key + '"]');
+                var el = cb ? (cb.closest('label') || cb) : null;
+                if (el && el.scrollIntoView) {
+                    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+                    catch (e) { el.scrollIntoView(); }
+                }
+                return el;
+            };
+        }
+
+        // Phase 2 of the Recall Matching tutorial: walk through EACH rating checkbox
+        // one-by-one (what it means, with an example), then how to attach text spans,
+        // then export. Shown after the rater clicks the red "Further ratings" button
+        // (or appended to the matched-tab walk once the checkboxes are unlocked).
+        function furtherRatingsRatingSteps() {
+            var steps = [{
+                target: _scrollIntoViewTarget('#matched .rated-segment[data-segment-index="0"] .seg-ratings'),
+                waitFor: '#matched .seg-ratings',
+                title: 'Rate each recall segment',
+                body: 'The checkboxes are now unlocked. For <strong>each</strong> recall segment, tick every ' +
+                      'category that applies. Here is what each one means &mdash;',
+                placement: 'left'
+            }];
+            // One step per checkbox, in display order, spotlighting that exact box.
+            RATING_KEYS.forEach(function (k) {
+                steps.push({
+                    target: _ratingLabelTarget(k),
+                    waitFor: '#matched .seg-rating-cb[data-rating="' + k + '"]',
+                    title: ratingLabel(k),
+                    body: RATING_MEANINGS[k] || '',
+                    placement: 'left'
+                });
+            });
+            steps.push({
+                target: function () {
+                    var cb = document.querySelector('#matched .rated-segment[data-segment-index="0"] .seg-comment-cb');
+                    var el = cb ? (cb.closest('label') || cb) : null;
+                    if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { el.scrollIntoView(); } }
+                    return el;
+                },
+                waitFor: '#matched .seg-comment-cb',
+                title: 'Comment',
+                body: 'Tick <strong>Comment</strong> to open a larger text box and type a free-form note about the ' +
+                      'segment — anything the six categories don\'t capture. It is exported in its own ' +
+                      '<code>comment</code> column.',
+                placement: 'left'
+            });
+            steps.push({
+                target: _scrollIntoViewTarget('#matched .rated-segment[data-segment-index="0"] .rated-segment-text'),
+                title: 'Highlight the text behind a rating',
+                body: 'Checking a box <strong>lights up</strong> that segment\'s text and makes that rating the ' +
+                      'active one. <strong>Drag to select</strong> the exact words that justify it — each selection ' +
+                      'becomes a chip beneath the segment. Select several ranges if you like; click a rating\'s ' +
+                      'pill to switch which checkbox new selections belong to, and the <strong>&times;</strong> on a ' +
+                      'chip removes it.',
+                placement: 'left'
+            });
+            steps.push({
+                target: _scrollIntoViewTarget('#export-rated'),
+                title: 'Export with ratings',
+                body: 'When you\'re done, click <strong>Export Edited File</strong>. Each checkbox becomes its own ' +
+                      'column; where you highlighted text, the cell stores those quoted fragments instead of just ' +
+                      '<code>TRUE</code>.',
+                placement: 'top'
+            });
+            return steps;
+        }
+        // Phase 2 entry point (its own page key so it can be replayed independently
+        // of the phase-1 matched-tab walk).
+        function furtherRatingsTutorialSteps() { return furtherRatingsRatingSteps(); }
+
+        // The Recall Matching tab walkthrough, adapted to the Further-ratings state:
+        //  - master off            → matching + a note about the toggle + export.
+        //  - master on, locked      → matching + how to finish and click the red
+        //                             "Further ratings" button (ends there).
+        //  - master on, unlocked    → matching + the full rating walkthrough.
+        function matchedTabTutorialSteps() {
+            var on = (typeof furtherRatingsOn !== 'undefined') && furtherRatingsOn;
+            var unlocked = (typeof furtherRatingsUnlocked !== 'undefined') && furtherRatingsUnlocked;
+            var steps = [
+                {
+                    target: '#matched .story-panel',
+                    title: 'Story events (left)',
+                    body: 'The list of story events that a recall segment may refer to. ' +
+                          'Once you\'ve selected a recall segment on the right, click any event here ' +
+                          'to add it to that segment\'s match — click again to remove it.',
+                    placement: 'right'
+                },
+                {
+                    target: '#matched .rated-panel',
+                    title: 'Parsed recall segments (right)',
+                    body: 'Your recall, broken into segments. <strong>Click a recall segment</strong> on this ' +
+                          'side to select it — it stays highlighted — then <strong>click the story event(s) ' +
+                          'on the left</strong> that this segment refers to. Click the segment again to ' +
+                          'deselect. You can also type event numbers directly (e.g. <code>1, 2, 3</code>) ' +
+                          'into each segment\'s Event input.',
+                    placement: 'left'
+                },
+                {
+                    target: '#matched .further-ratings-toggle',
+                    title: 'Optional: Further ratings',
+                    body: 'Turn on <strong>Further ratings</strong> to add per-segment quality checkboxes ' +
+                          '(Summary, Error, Confabulation, Opinion, …). Leave it off if you only need event ' +
+                          'matching. When it\'s on, the checkboxes stay locked until you\'ve matched every segment.',
+                    placement: 'bottom'
+                }
+            ];
+            if (!on) {
+                steps.push({
+                    target: '#export-rated',
+                    title: 'Export the matches',
+                    body: 'Once you\'ve matched everything you want, click <strong>Export Edited File</strong>. ' +
+                          'The exported file pairs each recall segment with its matched story event id(s).',
+                    placement: 'top'
+                });
+                return steps;
+            }
+            if (!unlocked) {
+                steps.push({
+                    target: _scrollIntoViewTarget('#further-ratings-confirm'),
+                    waitFor: '#further-ratings-confirm',
+                    title: 'Finish matching, then unlock ratings',
+                    body: 'You\'ve enabled Further ratings. First match <strong>every</strong> recall segment to its ' +
+                          'story event(s) above. When you\'ve gone through them all, scroll to the bottom and click ' +
+                          'the red <strong>Further ratings</strong> button — that unlocks the rating checkboxes and ' +
+                          'the tutorial will walk you through them.',
+                    placement: 'top',
+                    completeOn: { event: 'click', target: '#further-ratings-confirm' }
+                });
+                return steps;
+            }
+            return steps.concat(furtherRatingsRatingSteps());
+        }
+
         var SUBJECT_TAB_TUTORIALS = {
             'story-events': function () {
                 return [
@@ -7418,35 +8123,7 @@
                     }
                 ];
             },
-            'matched': function () {
-                return [
-                    {
-                        target: '#matched .story-panel',
-                        title: 'Story events (left)',
-                        body: 'The list of story events that a recall segment may refer to. ' +
-                              'Once you\'ve selected a recall segment on the right, click any event here ' +
-                              'to add it to that segment\'s match — click again to remove it.',
-                        placement: 'right'
-                    },
-                    {
-                        target: '#matched .rated-panel',
-                        title: 'Parsed recall segments (right)',
-                        body: 'Your recall, broken into segments. <strong>Click a recall segment</strong> on this ' +
-                              'side to select it — it stays highlighted — then <strong>click the story event(s) ' +
-                              'on the left</strong> that this segment refers to. Click the segment again to ' +
-                              'deselect. You can also type event numbers directly (e.g. <code>1, 2, 3</code>) ' +
-                              'into each segment\'s Event input.',
-                        placement: 'left'
-                    },
-                    {
-                        target: '#export-rated',
-                        title: 'Export the matches',
-                        body: 'Once you\'ve matched everything you want, click <strong>Export Edited File</strong>. ' +
-                              'The exported file pairs each recall segment with its matched story event id(s).',
-                        placement: 'top'
-                    }
-                ];
-            },
+            'matched': function () { return matchedTabTutorialSteps(); },
             'causal-matrix': function () {
                 return [
                     {

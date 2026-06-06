@@ -30,6 +30,38 @@ ANTHROPIC_SUPPORTED_MODELS: dict[str, dict[str, str]] = {
 }
 
 
+# --- OpenAI Chat Completions API models ---
+#
+# Keys are the model ids passed verbatim to the OpenAI API (and to the pipeline
+# --model / RECALL_RATING_MODEL inputs). Keep this list to ids the deployment's
+# OPENAI_API_KEY can actually access.
+
+OPENAI_SUPPORTED_MODELS: dict[str, dict[str, str]] = {
+    "gpt-4o": {"provider": "openai", "label": "GPT-4o (OpenAI)"},
+    "gpt-4o-mini": {"provider": "openai", "label": "GPT-4o Mini (OpenAI)"},
+}
+
+
+# Combined cloud-API registry shared by the LLM-call steps (2 segment, 5 recall
+# match, 6 causal rating) so their model menus stay aligned. Ollama/local models
+# are added per-script on top of this where supported.
+CLOUD_API_SUPPORTED_MODELS: dict[str, dict[str, str]] = {
+    **ANTHROPIC_SUPPORTED_MODELS,
+    **OPENAI_SUPPORTED_MODELS,
+}
+
+
+def provider_for_model(model_id: str) -> str:
+    """Return the provider ('anthropic' | 'openai' | 'ollama') for a model id.
+
+    Falls back to 'anthropic' for unknown ids (the historical default).
+    """
+    info = CLOUD_API_SUPPORTED_MODELS.get(model_id)
+    if info is not None:
+        return info["provider"]
+    return "anthropic"
+
+
 def anthropic_api_filename_token() -> str:
     """Legacy trial-file token (underscore form) used in some analysis glob patterns."""
     p, q = ("cl", "aude")

@@ -6,7 +6,7 @@
 
 <h3 align="center">Turn complex narratives into structured, reviewable data — with a web UI at every step</h3>
 
-<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">narraters</a></p>
+<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">v0.3.13</a></p>
 
 <p align="center">
   <a href="https://pypi.org/project/narraters/"><img src="https://badgen.net/pypi/v/narraters?label=PyPI&color=3775A9" alt="PyPI version"></a>
@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://xianneuro.github.io/narRaters/">🏠 Project home</a>
   ·
-  <a href="https://pypi.org/project/narraters/">📦 PyPI</a>
+  <a href="https://pypi.org/project/narraters/">📦 v0.3.13</a>
   ·
   <a href="narRater_Tutorial.pdf">📖 Tutorial (PDF)</a>
   ·
@@ -47,7 +47,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 | Automated or AI outputs | **Screen and edit** them in the browser, then export signed-off files |
 
 <p align="center">
-  <img src="docs/diagram-workflow.png" alt="Typical workflow: story side (transcribe, segment, causal rate) and recall side (correct, parse, match to story)" width="920">
+  <img src="docs/diagram-workflow.svg" alt="Typical workflow: story side (transcribe, segment, causal rate) and recall side (correct, parse, match to story)" width="920">
 </p>
 
 ---
@@ -62,7 +62,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 <table>
   <tr>
     <td width="72" align="center"><strong>1</strong></td>
-    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.13.zip">ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.13.zip">v0.3.13 ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
   </tr>
   <tr>
     <td align="center"><strong>2</strong></td>
@@ -117,7 +117,7 @@ Then continue with **steps 2–3** above — pick your pipeline, run steps on th
     <td align="center" width="25%" valign="top">
       <p><strong>③ Recall matching</strong></p>
       <img src="docs/screenshots/gif-recall-matching.gif" alt="Animated tour of linking recall segments to story events" width="100%"><br>
-      <sub>Story events on the left; recall segments on the right. Click a segment, then click events to match — or type event numbers. Set Detail / NA / Gist per segment.</sub>
+      <sub>Story events on the left; recall segments on the right. Click a segment, then click events to match — or type event numbers. Optionally turn on <em>Further ratings</em> for per-segment quality checkboxes.</sub>
     </td>
     <td align="center" width="25%" valign="top">
       <p><strong>④ Causal rating</strong></p>
@@ -621,12 +621,13 @@ narRaters/
 │
 ├── helpers/                     # Shared utilities & smoke tests
 │   ├── software_paths.py        # Canonical path resolution
+│   ├── step_files.py            # Flexible step input/output file recognition
 │   ├── resource_preflight.py    # RAM / disk checks for heavy methods
 │   └── test_*.py                # Pipeline validation scripts
 │
 ├── docs/                        # GitHub Pages site & README assets
 │   ├── index.html               # Project landing page
-│   └── screenshots/             # README GIFs and static screenshots
+│   └── screenshots/             # README GIFs (+ recall-matching.png for site og:image)
 │
 ├── demo/                        # Smaller lighthouse example
 │   ├── data/                    # the_lighthouse transcript + recall texts

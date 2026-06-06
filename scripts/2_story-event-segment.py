@@ -40,7 +40,11 @@ import pandas as pd
 import json
 import time
 
-from helpers.anthropic_ids import ANTHROPIC_SUPPORTED_MODELS, DEFAULT_ANTHROPIC_SEGMENT_MODEL
+from helpers.anthropic_ids import (
+    ANTHROPIC_SUPPORTED_MODELS,
+    OPENAI_SUPPORTED_MODELS,
+    DEFAULT_ANTHROPIC_SEGMENT_MODEL,
+)
 
 
 # ==============================
@@ -57,8 +61,7 @@ Copy the story word-for-word and segment it into events by starting a new line w
 
 SUPPORTED_MODELS = {
     **ANTHROPIC_SUPPORTED_MODELS,
-    'gpt-4o': {'provider': 'openai', 'label': 'GPT-4o'},
-    'gpt-4o-mini': {'provider': 'openai', 'label': 'GPT-4o Mini'},
+    **OPENAI_SUPPORTED_MODELS,
     'gemma4-e4b-ollama': {
         'provider': 'ollama',
         'label': 'Gemma 4 E4B (Ollama local)',

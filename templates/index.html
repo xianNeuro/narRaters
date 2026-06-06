@@ -2099,12 +2099,12 @@
                         <select id="model-select" class="method-input-field" style="cursor:pointer;">
                             <option value="">Loading models...</option>
                         </select>
-                        <div class="method-input-help" id="model-help-text" style="margin-bottom: 14px;">Select the LLM model to use for event segmentation.</div>
+                        <div class="method-input-help" id="model-help-text" style="margin-bottom: 14px;">Select the LLM model to use for this step. The platform (Anthropic / OpenAI) is chosen automatically from the model.</div>
                         <label class="method-input-label" for="prompt-select">Prompt Version</label>
                         <select id="prompt-select" class="method-input-field" style="cursor:pointer;">
                             <option value="">Loading prompts...</option>
                         </select>
-                        <div class="method-input-help">Select the event segmentation prompt from the scripts/prompt/ folder.</div>
+                        <div class="method-input-help">Select the prompt version for this step from the scripts/prompt/ folder.</div>
                     </div>
                     <div id="rmatch-config-section" style="display:none; margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--bdr, #ddd); border-radius: 8px;">
                         <div class="method-input-help" style="margin-bottom: 12px;">
@@ -2823,7 +2823,7 @@
                 optionsPanel.classList.add('show');
                 
                 const stepType = checkbox.value;
-                if (stepType === 'eventSegment' || stepType === 'causalRating') {
+                if (stepType === 'eventSegment' || stepType === 'textMatching' || stepType === 'causalRating') {
                     loadStepModelOptions(stepType).then(opts => {
                         if (opts) populateBatchModelPromptDropdowns(stepIndex, opts);
                     });
@@ -3818,7 +3818,7 @@
                     {
                         id: 'api',
                         label: 'API (LLM Call)',
-                        description: 'Uses an Anthropic Messages API model for matching. Select model below. Requires ANTHROPIC_API_KEY.',
+                        description: 'Uses a language model API for matching. Select model and prompt version below. OpenAI models use OPENAI_API_KEY; Anthropic models use ANTHROPIC_API_KEY.',
                         requiresApiKey: true,
                         requiresModelPrompt: true
                     },
@@ -4101,6 +4101,7 @@
             if (cachedStepOptions[stepType]) return cachedStepOptions[stepType];
             const endpointMap = {
                 'eventSegment': '/api/event-segment-options',
+                'textMatching': '/api/recall-rating-options',
                 'causalRating': '/api/causal-rating-options'
             };
             const url = endpointMap[stepType];

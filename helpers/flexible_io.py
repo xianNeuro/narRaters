@@ -44,17 +44,23 @@ _TEXT_COL_NAMES = (
 )
 _RECALL_TEXT_COL_NAMES = (
     "recall_in_temporal_order",
-    "recall",
     "recall_text",
-    "segment",
+    "recall",
     "text",
     "parsed",
     "temporal_order",
-    "recall segment",
-    "recall_segment",
+    "segment",
 )
 _RATING_COL_NAMES = (
     "recalled_events",
+    # The matched-events column in some exports / the alternative CSV convention is
+    # named after the *story* side, e.g. ``story_segments`` in a recall-matched.csv.
+    "story_segments",
+    "story-segments",
+    "matched_story_segments",
+    "story_events",
+    "matched",
+    "matches",
     "events",
     "event",
     "rating",
@@ -63,6 +69,16 @@ _RATING_COL_NAMES = (
     "event_matches",
     "matched_event",
 )
+
+# Columns that must NEVER be mistaken for the matched-events column even though they
+# look numeric / empty: the recall-segment INDEX (0,1,2…), the per-segment further
+# ratings, and the free-text comment.
+_NON_RATING_COL_NAMES = frozenset({
+    "recall_segment", "recall segment", "recall_segment_number", "segment_number",
+    "segment_num", "segment_index", "seg", "seg_num", "index", "idx", "#", "row", "n", "no",
+    "comment", "comments", "note", "notes",
+    "summary", "error", "confabulation", "inference", "opinion", "meta",
+})
 
 
 def _norm_name(name: object) -> str:
@@ -267,15 +283,26 @@ def detect_parsed_recall_columns(df: pd.DataFrame) -> Optional[tuple[str, str]]:
                     break
         elif recall_col and not rating_col:
             for c in df.columns:
-                if c != recall_col and _series_looks_like_event_ratings(df[c]):
+                if (c != recall_col and _norm_name(c) not in _NON_RATING_COL_NAMES
+                        and _series_looks_like_event_ratings(df[c])):
                     rating_col = c
                     break
 
     if recall_col:
         if not rating_col:
-            rating_col = next((c for c in df.columns if c != recall_col), None)
+            # Only adopt a column that genuinely looks like matched events and isn't a
+            # segment index / further-rating / comment column. Otherwise treat the file
+            # as "no matches yet" (ratings left empty), rather than loading the recall
+            # segment number as the matched event.
+            rating_col = next(
+                (c for c in df.columns
+                 if c != recall_col and _norm_name(c) not in _NON_RATING_COL_NAMES
+                 and _series_looks_like_event_ratings(df[c])),
+                None,
+            )
         if rating_col:
             return rating_col, recall_col
+        return recall_col, recall_col  # recall text only; matched-events filled empty
     return None
 
 
