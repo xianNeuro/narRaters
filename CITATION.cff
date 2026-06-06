@@ -17,7 +17,7 @@ keywords:
   - free recall
   - human rater
   - NLP
-version: 0.3.13
+version: 0.3.14
 date-released: 2026-06-01
 doi: 10.5281/zenodo.20486080
 identifiers:
@@ -36,7 +36,7 @@ preferred-citation:
   authors:
     - family-names: Li
       given-names: Xian
-  version: "0.3.13"
+  version: "0.3.14"
   year: 2026
   doi: "10.5281/zenodo.20486080"
   url: "https://doi.org/10.5281/zenodo.20486080"

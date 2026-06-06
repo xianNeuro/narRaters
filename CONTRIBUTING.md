@@ -43,9 +43,9 @@ You can:
 - **Gabi Kressin Palacios** and **Dhruva Arekar** for an additional method for the recall-matching step (matching human recall text to story events). See [GabrielKP/rMatch](https://github.com/GabrielKP/rMatch) for human-data–validated AI-assisted recall rating.
 - **Xiyu Li (Rita)** for contributions to the `recall_rating` prompt development and for validating model performance on human recall data (commercial LLM APIs were close to human raters).
 - **Sebastian Michelmann** for feedback on the event-segmentation step (see [Michelmann et al., 2023](https://arxiv.org/abs/2301.10297)).
-- **Colette Youstra** and **Quinton Covington** for testing the app's manual-rating functions.
+- **Colette Youstra** and **[Quinton Covington](https://qcovington.com)** for testing the app's manual-rating functions.
 - **Samira Tavassoli** and **Yuye Huang** for help testing the app's segmentation and causal-reasoning functions.
 
 ## Author
 
-**Xian Li** — [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com)
+**[Xian Li](https://www.xian-li.com)** — [xianl.cogneuro@gmail.com](mailto:xianl.cogneuro@gmail.com)
