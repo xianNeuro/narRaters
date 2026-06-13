@@ -20,7 +20,9 @@
   ·
   <a href="https://pypi.org/project/narraters/">📦 v0.3.14</a>
   ·
-  <a href="narRater_Tutorial.pdf">📖 Tutorial (PDF)</a>
+  <a href="tutorials/narRater_Install_Guide.pdf">🧭 Install Guide (PDF)</a>
+  ·
+  <a href="tutorials/narRater_Tutorial.pdf">📖 Tutorial (PDF)</a>
   ·
   <a href="https://github.com/xianNeuro/narRaters/issues">🐛 Issues</a>
   ·
@@ -70,7 +72,7 @@ Works for audio or text, stories or other long narratives (including movie annot
   </tr>
   <tr>
     <td align="center"><strong>3</strong></td>
-    <td><strong>Run, review, export</strong><br>On the dashboard, click a cell to run a step. Open the magnifying-glass icon to inspect results, edit in the browser, and export when you are satisfied.</td>
+    <td><strong>Run, review, export</strong><br>On the dashboard, click a cell to run a step. When the cell turns <strong>green</strong> (done), click the <strong>inspect icon on that cell</strong> to open its results, edit in the browser, and export when you are satisfied.</td>
   </tr>
 </table>
 
@@ -85,7 +87,7 @@ narraters serve                               # browser opens to the pipeline bu
 
 Then continue with **steps 2–3** above — pick your pipeline, run steps on the dashboard, review, and export.
 
-> **First time?** Follow the illustrated **[Tutorial PDF](narRater_Tutorial.pdf)** or see [Installation](#installation) and [Troubleshooting](#troubleshooting).
+> **First time?** Start with the **[Install Guide PDF](tutorials/narRater_Install_Guide.pdf)** (step-by-step setup with screenshots, including how to get past macOS/Windows security prompts), then the illustrated **[Tutorial PDF](tutorials/narRater_Tutorial.pdf)**. Or see [Installation](#installation) and [Troubleshooting](#troubleshooting) below.
 
 ---
 
@@ -285,10 +287,12 @@ The app runs at **`http://127.0.0.1:5000`**. First visit opens **pipeline config
 | Screen | Route | What you do there |
 |--------|--------|-------------------|
 | **Pipeline setup** | `/pipeline-config` | Drag steps into **Pipeline Flow**, set per-step **folders**, enter a **rater name** (or 🎲). **Continue** saves config and opens the dashboard. |
-| **Dashboard** | `/` | Grid: **rows** = subjects or stories, **columns** = steps. **Click a cell** to run that step (pick **method / model / prompt** when offered). **Batch** runs one step across all rows. |
+| **Dashboard** | `/` | Grid: **rows** = subjects or stories, **columns** = steps. **Click a cell** to run that step (pick **method / model / prompt** when offered). When a cell is **green** (done), click the **inspect icon on that cell** to open its detail view. **Batch** runs one step across all rows. |
 | **Detail view** | `/subject/…` or `/story/…` | **Tabs** per step for **one** row. Use the **version** dropdown to compare automated output vs your **`{id}_{ratername}-edit`** saves, then **edit** and **save**. |
 
 **Flow:** setup → dashboard (bulk runs) → open a row to **inspect, hand-correct, or compare versions**.
+
+**On every page**, the **top-right corner** has **zoom in / out** buttons (page zoom, like <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> <kbd>+</kbd> / <kbd>−</kbd>, remembered per page), a **settings** gear (e.g. theme), and a **? tutorial** button that starts a short interactive walkthrough of the current page. (Note: these page-zoom buttons are separate from the per-cell **inspect icon** on the dashboard grid.) The illustrated **[Tutorial PDF](tutorials/narRater_Tutorial.pdf)** covers each screen in detail.
 
 <details>
 <summary><b><code>narraters serve</code> options</b></summary>
@@ -567,7 +571,9 @@ narRaters/
 ├── README.md                    # This file — user guide & pipeline docs
 ├── CONTRIBUTING.md              # Research background, prompt templates, acknowledgements, author
 ├── LICENSE
-├── narRater_Tutorial.pdf        # Illustrated web UI tour
+├── tutorials/                   # User-facing PDF guides
+│   ├── narRater_Install_Guide.pdf  # Step-by-step install (flowchart + screenshots)
+│   └── narRater_Tutorial.pdf       # Illustrated web UI tour
 ├── narRater.app                 # macOS double-click launcher
 ├── narRaters_installer.bat      # Windows launcher
 ├── install.sh                   # macOS / Linux installer
@@ -656,7 +662,8 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 <div style="padding-left: 0.5em">
 
 - **[Project home (GitHub Pages)](https://xianneuro.github.io/narRaters/)** — landing page for search and sharing.
-- **[`narRater_Tutorial.pdf`](narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
+- **[`tutorials/narRater_Install_Guide.pdf`](tutorials/narRater_Install_Guide.pdf)** — step-by-step install walkthrough with screenshots and a flowchart, including how to clear macOS Gatekeeper / Windows SmartScreen prompts.
+- **[`tutorials/narRater_Tutorial.pdf`](tutorials/narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
 

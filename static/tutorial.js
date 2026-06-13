@@ -25,9 +25,10 @@
  *     }                                                 //   user action
  *     hideNext: true,                                   // suppress "Next" btn
  *   }
- * When `completeOn` is present, the "Next" button is hidden so the user has to
- * perform the actual action (click the highlighted button, etc.) to advance —
- * which is the whole point of an interactive walkthrough.
+ * Steps with `completeOn` auto-advance when the user performs the action, but
+ * the "Next" button stays visible as well so the walkthrough can always be
+ * paged through end-to-end (e.g. to preview later steps without running a
+ * pipeline step). Only an explicit `hideNext: true` suppresses the button.
  */
 (function (window) {
     'use strict';
@@ -249,7 +250,10 @@
         document.getElementById('tutorial-body').innerHTML = (step.waitingBody || step.body || 'Waiting for the next element to appear…');
         document.getElementById('tutorial-progress').textContent =
             'Step ' + (current.index + 1) + ' of ' + current.steps.length;
-        tooltip.classList.add('no-next');
+        // Keep Next available while waiting too — the awaited element may never
+        // appear in this session (e.g. nothing has been processed yet), and the
+        // user should still be able to page through the remaining steps.
+        tooltip.classList.toggle('no-next', !!step.hideNext);
         tooltip.classList.toggle('no-prev', current.index === 0);
         tooltip.style.left = '50%';
         tooltip.style.top = '50%';
@@ -267,7 +271,10 @@
         document.getElementById('tutorial-progress').textContent =
             'Step ' + (i + 1) + ' of ' + current.steps.length;
 
-        var hideNext = !!(step.completeOn || step.hideNext);
+        // completeOn steps still auto-advance on the real action, but keep Next
+        // visible so the user can always page through every step (the action
+        // may be impossible right now — e.g. nothing processed yet).
+        var hideNext = !!step.hideNext;
         tooltip.classList.toggle('no-next', hideNext);
         tooltip.classList.toggle('no-prev', i === 0);
 

@@ -76,9 +76,10 @@ deploy/
 Thumbs.db
 
 # Built artifacts — regenerate on demand
-# tutorial_screenshots/ are the working source files for narRater_Tutorial.pdf;
-# the PDF itself IS committed (so users see it after unzipping the project).
-tutorial_screenshots/
+# tutorials/ ships the *.pdf guides (committed so users see them after unzipping);
+# the build scripts, source screenshots, and maintainer notes there are local-only.
+tutorials/*
+!tutorials/*.pdf
 narRaters_installer.app/
 # DMGs are build artifacts; ship via GitHub Releases, not git.
 *.dmg

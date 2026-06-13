@@ -6,6 +6,7 @@
     <title>File: {{ subject_id }} - narRater</title>
     <script src="/static/theme-manager.js"></script>
     <script src="/static/tutorial.js"></script>
+    <script src="/static/zoom-controls.js"></script>
     <style>
         :root {
             --bg0: #0b0d14;
@@ -2517,7 +2518,16 @@
             const panelHasRecallStep = !!(panelSteps && panelSteps.length && (panelSteps.indexOf('step2') >= 0 || panelSteps.indexOf('step3') >= 0));
             const storySegmentsAddon = showStoryEvents && !panelHasStep0 && (panelHasRecallStep || stepParam === 'step2' || stepParam === 'step3');
             orderedTabs = orderInspectionTabs(orderedTabs, storySegmentsAddon);
-            
+
+            // Guarantee a visible tab is active. getInitialTab() defaults to
+            // 'raw-processed', which doesn't exist on a story row (no recall
+            // correction tab) — without this, opening /story/<name> with no step
+            // leaves every tab inactive and the whole content area blank. Fall
+            // back to the first tab actually present.
+            if (orderedTabs.length && !orderedTabs.some(t => t.id === initialTab)) {
+                initialTab = orderedTabs[0].id;
+            }
+
             let html = `
                 <div class="tabs">
                     ${orderedTabs.map(t => `<button class="tab ${initialTab === t.id ? 'active' : ''}" onclick="showTab('${t.id}')">${t.label}</button>`).join('')}
@@ -2949,7 +2959,9 @@
             }
             
             content.innerHTML = html;
-            
+            content.classList.remove('loading'); // its 40px padding would waste viewport space around the tabs
+            requestAnimationFrame(fitInspectionViewports);
+
             if (data.story_events && document.getElementById('causal-matrix')) {
                 window._causalStoryEvents = data.story_events;
                 window._causalRatingsData = data.causal_ratings || null;
@@ -3455,6 +3467,56 @@
             }
         }
         
+        // Stretch each inspection layout so its bottom edge reaches the bottom of
+        // the page. The CSS fallback height (100vh - 200px) is computed in
+        // pre-zoom units while the page renders under html{zoom} (0.8 by default,
+        // scaled further by the page zoom buttons), so on its own it stops well
+        // short of the window and leaves dead space below.
+        //
+        // Browsers disagree on how ancestor `zoom` is reflected in measurement
+        // APIs (Chrome reports zoom-applied getBoundingClientRect coordinates,
+        // Safari reports layout coordinates), so no rect can safely be compared
+        // against window.innerHeight. The only cross-browser invariants are the
+        // document's own scrollHeight/clientHeight — internally consistent units
+        // — so: probe with two deliberately-overflowing heights to learn the
+        // slope between the element's px and the document's scroll units, then
+        // solve for the height that makes the document exactly viewport-tall.
+        function fitInspectionViewports() {
+            var se = document.scrollingElement || document.documentElement;
+            document.querySelectorAll('.side-by-side-container, .causal-tab-layout, .story-rated-container').forEach(function(el) {
+                el.style.height = '';
+                var natural = el.offsetHeight;
+                if (!natural) return; // hidden tab; fitted again when shown
+                el.style.height = (natural + 2000) + 'px';
+                var s1 = se.scrollHeight;
+                el.style.height = (natural + 3000) + 'px';
+                var s2 = se.scrollHeight;
+                var k = (s2 - s1) / 1000; // scroll units per element px
+                if (!(k > 0) || !isFinite(k)) { el.style.height = ''; return; }
+                var h = (natural + 3000) + (se.clientHeight - s2) / k;
+                el.style.height = Math.max(0, Math.floor(h)) + 'px'; // CSS min-height floors tiny windows
+                // If something else still keeps the page taller than the window
+                // (e.g. body min-height:100vh rendered above 1× by the zoom
+                // buttons), grow to that real bottom so the panel uses the whole
+                // page instead of leaving an empty band above it.
+                var floorH = se.scrollHeight;
+                if (floorH - se.clientHeight > 1) {
+                    h += (floorH - se.clientHeight) / k;
+                    el.style.height = Math.max(0, Math.floor(h)) + 'px';
+                    var over = se.scrollHeight - floorH; // only rounding could overshoot
+                    if (over > 1) el.style.height = Math.max(0, Math.floor(h - over / k)) + 'px';
+                }
+            });
+        }
+        window.addEventListener('resize', function() {
+            requestAnimationFrame(function() {
+                fitInspectionViewports();
+                if (typeof updateCausalConnectionLines === 'function' && document.getElementById('causal-events-panel')) {
+                    updateCausalConnectionLines();
+                }
+            });
+        });
+
         function showTab(tabName) {
             // Re-initialize audio transcription display and force audio load when switching to audio tab
             if (tabName === 'audio-transcription') {
@@ -3519,6 +3581,7 @@
             if (tabName === 'audio-transcription') enableExportAudio();
             if (tabName === 'matched') enableExportRated();
             if (tabName === 'causal-matrix') enableExportCausalMatrix();
+            requestAnimationFrame(fitInspectionViewports);
         }
         
         function showNotification(notificationId, localStorageKey) {
