@@ -6,7 +6,7 @@
 
 <h3 align="center">Turn complex narratives into structured, reviewable data — with a web UI at every step</h3>
 
-<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">v0.3.14</a></p>
+<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">v0.3.15</a></p>
 
 <p align="center">
   <a href="https://pypi.org/project/narraters/"><img src="https://img.shields.io/pypi/v/narraters?label=PyPI&color=3775A9" alt="PyPI version"></a>
@@ -18,17 +18,13 @@
 <p align="center">
   <a href="https://xianneuro.github.io/narRaters/">🏠 Project home</a>
   ·
-  <a href="https://pypi.org/project/narraters/">📦 v0.3.14</a>
-  ·
-  <a href="tutorials/narRater_Install_Guide.pdf">🧭 Install Guide (PDF)</a>
+  <a href="https://pypi.org/project/narraters/">📦 v0.3.15</a>
   ·
   <a href="tutorials/narRater_Tutorial.pdf">📖 Tutorial (PDF)</a>
   ·
-  <a href="https://github.com/xianNeuro/narRaters/issues">🐛 Issues</a>
+  <a href="tutorials/narRater_Install_Guide.mp4">🎬 Install Guide (Video)</a>
   ·
-  <a href="#citation">📚 Cite</a>
-  ·
-  <a href="https://github.com/xianNeuro/narRaters/issues/new?template=feedback">💬 Feedback</a>
+  <a href="tutorials/narRater_data-prep_Guide.mp4">🎥 Required-Input Guide (Video)</a>
 </p>
 
 <div style="padding-left: 0.5em">
@@ -64,7 +60,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 <table>
   <tr>
     <td width="72" align="center"><strong>1</strong></td>
-    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.14.zip">v0.3.14 ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.15.zip">v0.3.15 ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
   </tr>
   <tr>
     <td align="center"><strong>2</strong></td>
@@ -198,7 +194,7 @@ Needs **[Python 3.10+](https://www.python.org/downloads/)**. Windows: check **�
 
 ### ZIP download (double-click launcher)
 
-1. **[Download the ZIP (v0.3.14)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.14.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.14`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
+1. **[Download the ZIP (v0.3.15)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.15.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.15`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
 2. **Launch:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
 3. Your browser opens **`http://127.0.0.1:5000/pipeline-config`** with bundled examples. Put your data in **`data/`**. Restart later by double-clicking the same launcher.
 
@@ -332,6 +328,8 @@ Before a step would load **Whisper**, **Gemma via Ollama**, **rMatch**, or other
 <div style="padding-left: 0.5em">
 
 After [installation](#installation), place files so the paths match what you configured on the **pipeline** page (defaults below are relative to the **project root**). You can **remap** any step’s input/output folders there without moving data.
+
+> **Want screenshots?** The **[Data Preparation Guide PDF](tutorials/narRater_data-prep_Guide.pdf)** shows, for each input type, exactly which folder and filename to use and what the app displays once it detects the file.
 
 | You have… | Put it in… | Format / naming |
 |---|---|---|
@@ -663,6 +661,9 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 
 - **[Project home (GitHub Pages)](https://xianneuro.github.io/narRaters/)** — landing page for search and sharing.
 - **[`tutorials/narRater_Install_Guide.pdf`](tutorials/narRater_Install_Guide.pdf)** — step-by-step install walkthrough with screenshots and a flowchart, including how to clear macOS Gatekeeper / Windows SmartScreen prompts.
+- **[`tutorials/narRater_data-prep_Guide.pdf`](tutorials/narRater_data-prep_Guide.pdf)** — where to put each kind of input file so the app detects it, with screenshots of what the interface shows once it does.
+- **[`tutorials/narRater_Install_Guide.mp4`](tutorials/narRater_Install_Guide.mp4)** — short install video: open the GitHub repo, install the package, download the ZIP, open the app, and land on the Pipeline Configuration page.
+- **[`tutorials/narRater_data-prep_Guide.mp4`](tutorials/narRater_data-prep_Guide.mp4)** — short data-prep video: for each pipeline step, where to put its required input file, what the file contains, and what the app shows once it's detected.
 - **[`tutorials/narRater_Tutorial.pdf`](tutorials/narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
@@ -680,7 +681,7 @@ If you use narRaters in research, please cite the archived release.
 
 **Reference list (APA 7):**
 
-> Li, X. (2026). *narRaters: Naturalistic narratives processing platform* (Version 0.3.14) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
+> Li, X. (2026). *narRaters: Naturalistic narratives processing platform* (Version 0.3.15) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
 
 Replace the version number with the release you used (see [Zenodo](https://doi.org/10.5281/zenodo.20486080) for the latest).
 
@@ -693,7 +694,7 @@ Replace the version number with the release you used (see [Zenodo](https://doi.o
 > We used narRaters (Li, 2026), an open-source pipeline for transcribing, segmenting, parsing, matching, and rating narrative recall data, with human review at each step.
 
 *Software / code availability:*
-> narRaters (Version 0.3.14) is available at https://doi.org/10.5281/zenodo.20486080.
+> narRaters (Version 0.3.15) is available at https://doi.org/10.5281/zenodo.20486080.
 
 *Data processing statement:*
 > Story events, parsed recall clauses, recall-to-event matches, and causal ratings were produced with narRaters (Li, 2026; https://doi.org/10.5281/zenodo.20486080).
