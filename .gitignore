@@ -90,3 +90,5 @@ narRaters_installer.app/
 
 # Per-step user operation logs (read-only telemetry)
 user_data/**
+
+benchmark

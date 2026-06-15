@@ -65,7 +65,7 @@ local-llm = [
     "accelerate>=0.26",
 ]
 match = [
-    "rmatch>=0.3.2",
+    # rmatch temporarily removed; re-add "rmatch>=0.3.2" to re-enable.
 ]
 # Production hosting (VPS): a real WSGI server for `narraters serve --production`.
 # Local use does not need this — the default `narraters serve` uses Flask's
@@ -76,7 +76,6 @@ deploy = [
 all = [
     "anthropic>=0.34.0",
     "openai>=1.0.0",
-    "rmatch>=0.3.2",
 ]
 
 [project.scripts]
