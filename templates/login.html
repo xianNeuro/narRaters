@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in — narRaters</title>
+    <script src="/static/theme-manager.js"></script>
+    <style>
+        :root {
+            --bg0: #0b0d14;
+            --bg1: #111527;
+            --bg2: #1a1f36;
+            --bg3: #242b4a;
+            --t0: #f0f2f5;
+            --t1: #c4c9db;
+            --t2: #8890a8;
+            --bdr: #2a3050;
+            --bdr2: #353c60;
+            --acc: #6c63ff;
+            --acc2: #8b84ff;
+            --red: #ef4444;
+            --rad: 10px;
+            --tr: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg0);
+            color: var(--t0);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 380px;
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            box-shadow: var(--shadow);
+            padding: 36px 32px;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .sub {
+            color: var(--t2);
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--t1);
+            margin-bottom: 6px;
+        }
+
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 11px 13px;
+            margin-bottom: 16px;
+            background: var(--bg2);
+            border: 1px solid var(--bdr2);
+            border-radius: 8px;
+            color: var(--t0);
+            font-size: 14px;
+            transition: border-color var(--tr);
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: var(--acc);
+        }
+
+        button {
+            width: 100%;
+            padding: 11px;
+            background: var(--acc);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--tr);
+        }
+
+        button:hover { background: var(--acc2); }
+
+        .error {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid var(--red);
+            color: #fca5a5;
+            font-size: 13px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>narRaters</h1>
+        <div class="sub">Sign in to continue</div>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/login">
+            <input type="hidden" name="next" value="{{ next }}">
+
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" autocomplete="username"
+                   autofocus required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password"
+                   autocomplete="current-password" required>
+
+            <button type="submit">Sign in</button>
+        </form>
+    </div>
+</body>
+</html>

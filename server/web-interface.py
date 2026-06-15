@@ -122,12 +122,80 @@ def _load_or_create_session_secret() -> bytes:
 
 app.secret_key = _load_or_create_session_secret()
 
-# Tighten session cookie defaults. SECURE is False because the local server is
-# http-only by design; SameSite=Lax + HttpOnly are still cheap wins.
+# Tighten session cookie defaults. SECURE is set below only when auth is enforced
+# (production runs behind a TLS proxy); local http-only dev keeps it off so the
+# cookie still works. SameSite=Lax + HttpOnly are cheap wins in every mode.
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
+
+
+# --- App-level authentication (Flask-Login) ---------------------------------
+#
+# Password login gated by REQUIRE_AUTH, which `narraters serve --production`
+# turns on (and which can be forced on anywhere via NARRATERS_REQUIRE_AUTH=1).
+# When off (local dev), the before_request gate is a no-op and the UI is
+# login-free. Accounts live in users.json (see narraters.accounts); manage them
+# with `narraters users add/passwd/remove/list`.
+from flask_login import (  # noqa: E402
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_user,
+    logout_user,
+)
+
+REQUIRE_AUTH = os.environ.get("NARRATERS_REQUIRE_AUTH") == "1"
+
+if REQUIRE_AUTH:
+    # Production sits behind a TLS-terminating reverse proxy (see HOSTING.md),
+    # so the session cookie can be marked Secure (sent over HTTPS only).
+    app.config["SESSION_COOKIE_SECURE"] = True
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login_page"
+
+
+class User(UserMixin):
+    """A logged-in account. ``id`` is the username (the key in users.json)."""
+
+    def __init__(self, username):
+        self.id = username
+
+
+@login_manager.user_loader
+def _load_user(user_id):
+    # Restore the session only if the account still exists (handles deletions).
+    if user_id and user_id in load_users():
+        return User(user_id)
+    return None
+
+
+def _safe_next(target):
+    """Return ``target`` only if it is a safe local path (blocks open redirects)."""
+    if target and target.startswith("/") and not target.startswith("//"):
+        return target
+    return None
+
+
+# Endpoints reachable without logging in (the login page and static assets).
+_AUTH_EXEMPT_ENDPOINTS = {"login_page", "static"}
+
+
+@app.before_request
+def _require_login():
+    """Blanket auth gate: when REQUIRE_AUTH is on, every request must be logged
+    in except the exempt endpoints. Covers routes that lack an explicit
+    decorator (most /api/* endpoints), so nothing is accidentally left open."""
+    if not REQUIRE_AUTH or current_user.is_authenticated:
+        return None
+    if request.endpoint in _AUTH_EXEMPT_ENDPOINTS or request.path.startswith("/static/"):
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Authentication required"}), 401
+    from urllib.parse import quote
+    return redirect("/login?next=" + quote(request.full_path))
 
 
 def _apply_recall_rmatch_api_key(env, step_options, api_key):
@@ -293,72 +361,18 @@ def _migrate_legacy_pipeline_config_once():
 _migrate_legacy_pipeline_config_once()
 
 
-def load_users():
-    """Load users from the per-user JSON file."""
-    if USERS_FILE.exists():
-        try:
-            with open(USERS_FILE, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Error loading users file: {e}")
-            return {}
-    return {}
+# User accounts, password hashing, and verification now live in
+# ``narraters.accounts`` so the CLI (``narraters users ...``) can reuse them
+# without importing this Flask server module. Imported under the historical
+# names so the rest of this file is unchanged.
+from narraters.accounts import (  # noqa: E402
+    load_users,
+    save_users,
+    hash_password,
+    verify_password,
+    verify_user,
+)
 
-
-def save_users(users):
-    """Save users to the per-user JSON file (owner-only permissions)."""
-    try:
-        ACCOUNT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        with open(USERS_FILE, "w") as f:
-            json.dump(users, f, indent=2)
-        try:
-            os.chmod(USERS_FILE, 0o600)
-        except OSError:
-            pass
-        return True
-    except Exception as e:
-        print(f"Error saving users file: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-# --- Password hashing ---
-#
-# New accounts store a salted PBKDF2-HMAC-SHA256 hash in the form
-# ``pbkdf2_sha256$<iters>$<salt_hex>$<hash_hex>``. Legacy accounts created before this
-# change stored a bare 64-char SHA-256 hex digest; verify_password() accepts those and
-# the next successful login upgrades them in place.
-_PBKDF2_ITERATIONS = 200_000
-
-
-def _is_legacy_sha256_hash(stored):
-    return isinstance(stored, str) and len(stored) == 64 and all(c in "0123456789abcdef" for c in stored.lower())
-
-
-def hash_password(password):
-    """Return a salted PBKDF2-SHA256 hash for new account creation."""
-    salt = secrets.token_bytes(16)
-    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
-    return f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt.hex()}${derived.hex()}"
-
-
-def verify_password(password, stored):
-    """Verify a password against either a new pbkdf2 record or a legacy SHA-256 digest."""
-    if not stored or not isinstance(stored, str):
-        return False
-    if stored.startswith("pbkdf2_sha256$"):
-        try:
-            _algo, iters_str, salt_hex, hash_hex = stored.split("$", 3)
-            iters = int(iters_str)
-            derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), iters)
-            return secrets.compare_digest(derived.hex(), hash_hex)
-        except Exception:
-            return False
-    if _is_legacy_sha256_hash(stored):
-        legacy = hashlib.sha256(password.encode("utf-8")).hexdigest()
-        return secrets.compare_digest(legacy, stored)
-    return False
 
 def get_users():
     """Get current users dictionary."""
@@ -3928,10 +3942,37 @@ def sanitize_rater_name(raw):
     return token[:32]
 
 
-@app.route('/login')
+@app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    """Legacy path — login was removed; send users to pipeline config."""
-    return redirect('/pipeline-config')
+    """App-level password login. Active only when REQUIRE_AUTH is on; otherwise
+    there is nothing to log into, so we just pass through to the app."""
+    if not REQUIRE_AUTH or current_user.is_authenticated:
+        return redirect(_safe_next(request.args.get('next')) or '/')
+
+    error = None
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or request.form
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
+        nxt = _safe_next(data.get('next') or request.args.get('next'))
+        if username and verify_user(username, password):
+            login_user(User(username))
+            session['username'] = username  # default rater label for edit files
+            try:
+                log_user_login(username)
+            except Exception as e:
+                print(f"login: log_user_login failed (non-fatal): {e}")
+            target = nxt or '/'
+            if request.is_json:
+                return jsonify({'success': True, 'redirect': target})
+            return redirect(target)
+        error = 'Invalid username or password.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': error}), 401
+
+    return render_template(
+        'login.html', error=error, next=_safe_next(request.args.get('next')) or ''
+    )
 
 
 @app.route('/api/set-rater', methods=['POST'])
@@ -3970,9 +4011,10 @@ def api_random_name():
 
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
-    """Clear the current rater (used by the 'change rater' control)."""
+    """Log out: end the Flask-Login session and clear the rater state."""
+    logout_user()
     session.clear()
-    return jsonify({'success': True, 'message': 'Rater cleared'})
+    return jsonify({'success': True, 'message': 'Logged out'})
 
 
 @app.route('/api/verify-auth', methods=['GET'])

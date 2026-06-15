@@ -1596,20 +1596,41 @@
             border-color: var(--acc);
             color: var(--t1);
         }
-        
+
+        /* Log out button rendered inside the Settings modal (normal flow, not
+           the fixed top-bar .logout-btn). */
+        .settings-logout-btn {
+            display: inline-block;
+            padding: 9px 16px;
+            background: var(--bg2);
+            border: 1px solid var(--bdr);
+            color: var(--t1);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--tr);
+        }
+
+        .settings-logout-btn:hover {
+            background: var(--bg3);
+            border-color: var(--red, #ef4444);
+            color: var(--t0);
+        }
+
         ::-webkit-scrollbar {
             width: 6px;
         }
-        
+
         ::-webkit-scrollbar-thumb {
             background: var(--bdr);
             border-radius: 3px;
         }
-        
+
         ::-webkit-scrollbar-thumb:hover {
             background: var(--bdr2);
         }
-        
+
         /* Row action icons */
         .row-action-icon {
             width: 14px;
@@ -1965,6 +1986,15 @@
                 <br>
                 <a href="{{ narraters_bug_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--acc, #6c63ff); font-size: 0.9em;">Report a bug</a>
             </div>
+            {% if current_user.is_authenticated %}
+            <div class="settings-section">
+                <div class="settings-section-title">Account</div>
+                <p style="margin: 0 0 10px 0; font-size: 0.9em; line-height: 1.45; color: var(--t2, #8890a8);">
+                    Signed in as <strong>{{ logged_in_username or 'unknown' }}</strong>.
+                </p>
+                <button class="settings-logout-btn" onclick="handleAccountLogout()">Log out</button>
+            </div>
+            {% endif %}
             <div class="settings-modal-actions">
                 <button class="settings-btn settings-btn-cancel" onclick="closeSettings()" data-function="Close without applying changes" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Cancel</button>
                 <button class="settings-btn settings-btn-confirm" onclick="confirmSettings()" data-function="Apply theme and close settings" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Confirm</button>
@@ -4929,6 +4959,18 @@
             initPage();
         }
         
+        // "Log out" (settings) — ends the authenticated session and returns to
+        // the login page. Only shown when app-level auth is enabled.
+        async function handleAccountLogout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (error) {
+                console.error('Logout error:', error);
+            } finally {
+                window.location.href = '/login';
+            }
+        }
+
         // "Change Rater" — clears the current rater and returns to the
         // pipeline-config page where a new rater name can be entered.
         async function handleLogout() {

@@ -124,17 +124,6 @@ The generated `Caddyfile`:
 ```caddy
 narraters.example.com {
     reverse_proxy 127.0.0.1:5000
-
-    # --- Interim access control -------------------------------------------
-    # narRaters has no built-in authentication yet, and its web UI can run
-    # subprocesses and write files. Until app-level auth is added, do NOT leave
-    # this publicly reachable unprotected. Generate a password hash with:
-    #     caddy hash-password
-    # then uncomment and fill in:
-    # basic_auth {
-    #     youruser <PASTE_HASH_HERE>
-    # }
-    # ----------------------------------------------------------------------
 }
 ```
 
@@ -145,10 +134,24 @@ narraters.example.com {
 Caddy automatically obtains and renews a Let's Encrypt certificate for the domain
 on first request.
 
-## 8. Verify
+## 8. Create a login account
 
-Browse to **`https://narraters.example.com/pipeline-config`** — you should get a
-valid certificate and the narRaters UI.
+`narraters serve --production` requires users to log in, so create at least one account.
+
+```bash
+sudo -u narraters /srv/narraters/.venv/bin/narraters users add alice
+# prompts for a password (stored as a scrypt hash in ~/.narraters/users.json, mode 600)
+```
+
+Manage accounts later with
+```bash
+sudo -u /srv/narraters/.venv/bin/narraters users list | passwd <name> | remove <name>
+```
+
+## 9. Verify
+
+Browse to **`https://narraters.example.com/`** — you should get a valid certificate
+and the narRaters login page. Sign in with the account from step 8 to reach the UI.
 
 ---
 
@@ -175,3 +178,6 @@ sudo systemctl restart narraters
 
 - The app is bound to `127.0.0.1` only; all external traffic goes through Caddy.
 - Run the service as the dedicated unprivileged `narraters` user, not root.
+- `serve --production` enforces password login (Flask-Login session + scrypt-hashed
+  passwords). Sessions are HTTPS-only cookies; accounts live in `~/.narraters/users.json`
+  (mode `600`). Manage them with `narraters users …` and remove access by deleting the user.

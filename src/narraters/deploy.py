@@ -36,22 +36,11 @@ WantedBy=multi-user.target
 """
 
 # Caddy auto-provisions and renews TLS certificates for the domain and reverse
-# proxies to the loopback app. The basic_auth block is a commented-out interim
-# safeguard until narRaters gains its own authentication.
+# proxies to the loopback app. narRaters now has its own password login (enforced
+# by `serve --production`), so no Caddy-level basic_auth is needed.
 CADDYFILE_TEMPLATE = """\
 {domain} {{
     reverse_proxy {host}:{port}
-
-    # --- Interim access control -------------------------------------------
-    # narRaters has no built-in authentication yet, and its web UI can run
-    # subprocesses and write files. Until app-level auth is added, do NOT leave
-    # this publicly reachable unprotected. Generate a password hash with:
-    #     caddy hash-password
-    # then uncomment and fill in:
-    # basic_auth {{
-    #     youruser <PASTE_HASH_HERE>
-    # }}
-    # ----------------------------------------------------------------------
 }}
 """
 

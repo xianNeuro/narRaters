@@ -235,6 +235,12 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
         print(f"narraters: server script not found: {server_script}", file=sys.stderr)
         return 2
 
+    production = getattr(args, "production", False)
+    if production:
+        # Enforce app-level login in production. The server module reads
+        # NARRATERS_REQUIRE_AUTH at import time, so set it before exec below.
+        os.environ["NARRATERS_REQUIRE_AUTH"] = "1"
+
     # Load server/web-interface.py as a module (its filename has a hyphen so
     # we can't use a regular import statement).
     spec = importlib.util.spec_from_file_location("narraters._legacy_server", server_script)
@@ -263,7 +269,12 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
             file=sys.stderr,
         )
 
-    production = getattr(args, "production", False)
+    if production and not module.load_users():
+        print(
+            "⚠️  Production login is on but no accounts exist yet. Create one with:\n"
+            "       narraters users add <name>",
+            file=sys.stderr,
+        )
 
     if not args.no_browser and not production:
         _open_browser_when_ready(host, port)
@@ -374,10 +385,65 @@ def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
     print(f"  3. Point a DNS A record for {args.domain} at this server, then browse")
     print(f"       https://{args.domain}/pipeline-config")
     print()
-    print("⚠  narRaters has no built-in auth yet and can execute code. Do not leave it")
-    print("   publicly reachable unprotected — uncomment the basic_auth block in the")
-    print("   Caddyfile, or restrict access by IP/VPN, until app-level auth is added.")
+    print("⚠  narRaters' web UI can execute code, so protect it with app-level login:")
+    print("   running with `--production` (as the service does) enforces login.")
+    print(f"   Create at least one account first: sudo -u narraters {narraters_bin} users add <name>")
     print("   See HOSTING.md for the full walkthrough.")
+    return 0
+
+
+def cmd_users(args: argparse.Namespace, extra: list[str]) -> int:
+    """Manage app-level login accounts (used by `narraters serve --production`)."""
+    import getpass
+
+    from narraters import accounts
+
+    action = args.users_action
+
+    if action == "list":
+        names = accounts.list_users()
+        if not names:
+            print("No accounts yet. Create one with: narraters users add <name>")
+        else:
+            for name in names:
+                print(name)
+        return 0
+
+    if action == "remove":
+        if not accounts.remove_user(args.username):
+            print(f"narraters: no such user: {args.username}", file=sys.stderr)
+            return 1
+        print(f"Removed user '{args.username}' ({accounts.users_file()})")
+        return 0
+
+    # add / passwd both need a password prompt.
+    if action == "add" and accounts.user_exists(args.username):
+        print(f"narraters: user '{args.username}' already exists "
+              f"(use 'narraters users passwd {args.username}' to change the password).",
+              file=sys.stderr)
+        return 1
+    if action == "passwd" and not accounts.user_exists(args.username):
+        print(f"narraters: no such user: {args.username}", file=sys.stderr)
+        return 1
+
+    password = getpass.getpass("Password: ")
+    if not password.strip():
+        print("narraters: password cannot be empty.", file=sys.stderr)
+        return 1
+    if getpass.getpass("Confirm password: ") != password:
+        print("narraters: passwords did not match.", file=sys.stderr)
+        return 1
+
+    if action == "add":
+        ok = accounts.add_user(args.username, password)
+        verb = "Created"
+    else:  # passwd
+        ok = accounts.set_password(args.username, password)
+        verb = "Updated password for"
+    if not ok:
+        print("narraters: failed to write users file.", file=sys.stderr)
+        return 1
+    print(f"{verb} user '{args.username}' ({accounts.users_file()})")
     return 0
 
 
@@ -503,6 +569,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--narraters-bin", default=None, help="Path to the 'narraters' executable used in ExecStart (default: auto-detected next to the running interpreter).")
     p_init.add_argument("--output-dir", default=None, help="Where to write narraters.service and Caddyfile (default: the --workdir).")
     p_init.set_defaults(func=cmd_init_service)
+
+    # users — manage app-level login accounts
+    p_users = sub.add_parser(
+        "users",
+        help="Manage app-level login accounts (enforced by 'narraters serve --production').",
+    )
+    users_sub = p_users.add_subparsers(dest="users_action", metavar="<action>", required=True)
+    pu_add = users_sub.add_parser("add", help="Create a new account (prompts for a password).")
+    pu_add.add_argument("username", help="Username for the new account.")
+    pu_pw = users_sub.add_parser("passwd", help="Change an existing account's password.")
+    pu_pw.add_argument("username", help="Username whose password to change.")
+    pu_rm = users_sub.add_parser("remove", help="Delete an account.")
+    pu_rm.add_argument("username", help="Username to delete.")
+    users_sub.add_parser("list", help="List existing accounts.")
+    p_users.set_defaults(func=cmd_users)
 
     return parser
 
