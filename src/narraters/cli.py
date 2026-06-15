@@ -26,7 +26,12 @@ import sys
 from pathlib import Path
 
 from narraters import __version__
-from narraters.paths import ensure_repo_on_path, prepare_serve_workspace, repo_root, scripts_dir
+from narraters.paths import (
+    ensure_repo_on_path,
+    prepare_serve_workspace,
+    repo_root,
+    scripts_dir,
+)
 from narraters.runtime_install import (
     prepare_cli_correct,
     prepare_cli_match,
@@ -258,11 +263,14 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
             file=sys.stderr,
         )
 
-    if not args.no_browser:
+    production = getattr(args, "production", False)
+
+    if not args.no_browser and not production:
         _open_browser_when_ready(host, port)
 
     browse_host = _loopback_browser_host(host)
-    print(f"narRaters web UI starting on http://{browse_host}:{port}/pipeline-config")
+    if not production:
+        print(f"narRaters web UI starting on http://{browse_host}:{port}/pipeline-config")
     print(f"Project root for data/ and output/ paths: {module.WORKSPACE_ROOT}")
     if not (module.WORKSPACE_ROOT / "data").is_dir() and not (module.WORKSPACE_ROOT / "output").is_dir():
         print(
@@ -270,6 +278,24 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
             "'narraters serve', or set NARRATERS_PROJECT_ROOT to that folder.",
             file=sys.stderr,
         )
+
+    if production:
+        # Production hosting: serve via Waitress (a real WSGI server) instead of
+        # Flask's single-threaded dev server. Intended to sit behind a Caddy
+        # reverse proxy that terminates TLS. See HOSTING.md and `init-service`.
+        try:
+            from waitress import serve as waitress_serve
+        except ImportError:
+            print(
+                "narraters: --production needs waitress. Install it with "
+                "'pip install \"narraters[deploy]\"'.",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"narRaters (waitress) serving on http://{host}:{port} — proxy TLS in front of this.")
+        waitress_serve(module.app, host=host, port=port, threads=8)
+        return 0
+
     module.app.run(host=host, port=port, debug=debug, use_reloader=False)
     return 0
 
@@ -296,6 +322,63 @@ def _open_browser_when_ready(host: str, port: int) -> None:
             pass
 
     threading.Thread(target=opener, daemon=True).start()
+
+
+def _detect_narraters_bin() -> str:
+    """Best guess for the installed `narraters` console script (for ExecStart)."""
+    candidate = Path(sys.executable).with_name("narraters")
+    if candidate.exists():
+        return str(candidate)
+    import shutil
+
+    return shutil.which("narraters") or "narraters"
+
+
+def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
+    """Generate a systemd unit + Caddyfile for hosting narRaters on a VPS."""
+    import getpass
+
+    from narraters.deploy import DeployConfig, write_configs
+
+    workdir = Path(args.workdir).expanduser().resolve() if args.workdir else Path.cwd().resolve()
+    # Default the output directory to the workspace, not the current directory:
+    # init-service is typically run as a dedicated service user (e.g. via
+    # `sudo -u narraters`) whose cwd may be a directory it cannot write to.
+    # The workspace is owned by that user, so it is always writable.
+    output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else workdir
+    user = args.user or getpass.getuser()
+    narraters_bin = args.narraters_bin or _detect_narraters_bin()
+
+    config = DeployConfig(
+        domain=args.domain,
+        workdir=str(workdir),
+        user=user,
+        host=args.host,
+        port=args.port,
+        narraters_bin=narraters_bin,
+    )
+    service_path, caddyfile_path = write_configs(config, output_dir)
+
+    print(f"Wrote {service_path}")
+    print(f"Wrote {caddyfile_path}")
+    print()
+    print("Next steps (run on the VPS):")
+    print("  1. Install the systemd service:")
+    print(f"       sudo cp {service_path} /etc/systemd/system/narraters.service")
+    print("       sudo systemctl daemon-reload")
+    print("       sudo systemctl enable --now narraters")
+    print("       systemctl status narraters")
+    print("  2. Install the Caddy & the config (path varies by distro):")
+    print(f"       sudo cp {caddyfile_path} /etc/caddy/Caddyfile   # or import it from your main Caddyfile")
+    print("       sudo systemctl reload caddy")
+    print(f"  3. Point a DNS A record for {args.domain} at this server, then browse")
+    print(f"       https://{args.domain}/pipeline-config")
+    print()
+    print("⚠  narRaters has no built-in auth yet and can execute code. Do not leave it")
+    print("   publicly reachable unprotected — uncomment the basic_auth block in the")
+    print("   Caddyfile, or restrict access by IP/VPN, until app-level auth is added.")
+    print("   See HOSTING.md for the full walkthrough.")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +481,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--port", type=int, default=None, help="Bind port (default: 5000).")
     p_serve.add_argument("--debug", action="store_true", help="Enable Flask debug mode.")
     p_serve.add_argument("--no-browser", action="store_true", help="Do not auto-open the browser on startup.")
+    p_serve.add_argument(
+        "--production",
+        action="store_true",
+        help="Serve via Waitress (production WSGI) instead of the Flask dev server. "
+        "Install with 'narraters[deploy]'. Intended to run behind a TLS-terminating "
+        "reverse proxy (see HOSTING.md).",
+    )
     p_serve.set_defaults(func=cmd_serve)
+
+    # init-service — generate systemd + Caddy config for VPS hosting
+    p_init = sub.add_parser(
+        "init-service",
+        help="Generate a systemd unit + Caddyfile for hosting narRaters on a VPS (see HOSTING.md).",
+    )
+    p_init.add_argument("--domain", required=True, help="Public domain name to serve (e.g. narraters.example.com).")
+    p_init.add_argument("--workdir", default=None, help="Workspace dir containing data/ and output/ (default: current directory).")
+    p_init.add_argument("--user", default=None, help="System user the service runs as (default: current login user).")
+    p_init.add_argument("--host", default="127.0.0.1", help="Loopback bind address for the app (default: 127.0.0.1).")
+    p_init.add_argument("--port", type=int, default=5000, help="Port the app binds to behind the proxy (default: 5000).")
+    p_init.add_argument("--narraters-bin", default=None, help="Path to the 'narraters' executable used in ExecStart (default: auto-detected next to the running interpreter).")
+    p_init.add_argument("--output-dir", default=None, help="Where to write narraters.service and Caddyfile (default: the --workdir).")
+    p_init.set_defaults(func=cmd_init_service)
 
     return parser
 

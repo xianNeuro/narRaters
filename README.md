@@ -303,6 +303,7 @@ The app runs at **`http://127.0.0.1:5000`**. First visit opens **pipeline config
 | `--host` | `127.0.0.1` | Bind address; use `0.0.0.0` only on a **trusted** network |
 | `--no-browser` | off | Do not open a browser tab (SSH, headless) |
 | `--debug` | off | Flask debug / auto-reload while hacking on the server |
+| `--production` | off | Serve via Waitress (a real WSGI server) for VPS hosting behind a TLS proxy — needs `pip install "narraters[deploy]"`. See [`HOSTING.md`](HOSTING.md). |
 
 ```bash
 narraters serve --port 8080 --no-browser
@@ -665,6 +666,7 @@ Bundled examples: **`pieman_edited`**, **`the_siren`** — see [Example input/ou
 - **[`tutorials/narRater_Install_Guide.pdf`](tutorials/narRater_Install_Guide.pdf)** — step-by-step install walkthrough with screenshots and a flowchart, including how to clear macOS Gatekeeper / Windows SmartScreen prompts.
 - **[`tutorials/narRater_Tutorial.pdf`](tutorials/narRater_Tutorial.pdf)** — illustrated, click-by-click tour of the web UI; good next step after [Installation](#installation).
 - **[`SETUP_API.md`](SETUP_API.md)** — API keys for Anthropic, OpenAI, and Hugging Face; which pipeline steps need which.
+- **[`HOSTING.md`](HOSTING.md)** — deploy narRaters on a VPS with a domain, HTTPS via Caddy, and systemd auto-restart.
 - **[`scripts/prompt/README.md`](scripts/prompt/README.md)** — prompt template conventions for LLM-backed methods.
 
 ---

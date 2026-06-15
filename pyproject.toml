@@ -66,6 +66,12 @@ local-llm = [
 match = [
     "rmatch>=0.3.2",
 ]
+# Production hosting (VPS): a real WSGI server for `narraters serve --production`.
+# Local use does not need this — the default `narraters serve` uses Flask's
+# built-in dev server. See HOSTING.md.
+deploy = [
+    "waitress>=3.0.0",
+]
 all = [
     "anthropic>=0.34.0",
     "openai>=1.0.0",
