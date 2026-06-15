@@ -1772,6 +1772,7 @@
             
             <div class="pipeline-canvas">
                 <div class="canvas-title">Pipeline Flow</div>
+                {% if not require_auth %}
                 <div class="rater-card">
                     <label for="rater-name-input">Rater name</label>
                     <div class="rater-hint">
@@ -1786,6 +1787,7 @@
                                 onclick="rollRaterName()">🎲</button>
                     </div>
                 </div>
+                {% endif %}
                 <div class="pipeline-steps" id="pipeline-steps">
                     <div class="pipeline-step empty" data-drop-zone="true" data-position="0">
                         <div class="drop-zone-label" style="text-align: center; color: var(--t3);">
@@ -2844,6 +2846,10 @@
         }
 
         // --- Rater name (replaces login) ---------------------------------
+        // In production (forced login) the rater is pinned to the logged-in
+        // account: the field is hidden and the name is set server-side.
+        const REQUIRE_AUTH = {{ 'true' if require_auth else 'false' }};
+
         function getRaterName() {
             const el = document.getElementById('rater-name-input');
             return el ? el.value.trim() : '';
@@ -2855,7 +2861,8 @@
         // we start blank as before.
         function initRaterName() {
             const el = document.getElementById('rater-name-input');
-            if (!el) return;
+            // Production hides the field; the rater is pinned to the account.
+            if (!el) { updateConfirmState(); return; }
             const reconfigure = new URLSearchParams(window.location.search).get('edit') === '1';
             if (reconfigure) {
                 // Ask the server for the active rater (the session is the
@@ -2903,7 +2910,8 @@
         function updateConfirmState() {
             const btn = document.getElementById('confirm-btn');
             const raterCard = document.querySelector('.rater-card');
-            const hasName = getRaterName().length > 0;
+            // Production pins the rater to the account, so there is no name to enter.
+            const hasName = REQUIRE_AUTH || getRaterName().length > 0;
             if (raterCard) {
                 raterCard.classList.toggle('needs-attention', !hasName);
             }
@@ -3520,7 +3528,8 @@
         
         async function confirmPipeline() {
             const raterName = getRaterName();
-            if (!raterName) {
+            // Production pins the rater to the account; only the local flow needs a name.
+            if (!REQUIRE_AUTH && !raterName) {
                 alert('Please enter a rater name (you may use a dummy name).');
                 return;
             }
@@ -3534,17 +3543,20 @@
 
             try {
                 // 1) Register the rater name for this session (labels edit files).
-                const raterResp = await fetch('/api/set-rater', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rater_name: raterName })
-                });
-                const raterData = await raterResp.json();
-                if (!raterData.success) {
-                    alert('Error setting rater name: ' + (raterData.error || 'Unknown error'));
-                    if (btn) { btn.textContent = 'Continue'; }
-                    updateConfirmState();
-                    return;
+                //    Skipped in production, where the rater is the account name.
+                if (!REQUIRE_AUTH) {
+                    const raterResp = await fetch('/api/set-rater', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rater_name: raterName })
+                    });
+                    const raterData = await raterResp.json();
+                    if (!raterData.success) {
+                        alert('Error setting rater name: ' + (raterData.error || 'Unknown error'));
+                        if (btn) { btn.textContent = 'Continue'; }
+                        updateConfirmState();
+                        return;
+                    }
                 }
 
                 // 2) Save the pipeline configuration.

@@ -2002,8 +2002,12 @@
         </div>
     </div>
     <!-- Header button shows the current rater name (click to change rater /
-         reconfigure pipeline). Falls back to "Change Rater" when no rater is set yet. -->
+         reconfigure pipeline). Falls back to "Change Rater" when no rater is set yet.
+         Hidden in production: the rater is pinned to the logged-in account and the
+         settings panel provides the "Log out" action instead. -->
+    {% if not require_auth %}
     <button class="logout-btn" onclick="handleLogout()" data-function="Click to change rater or reconfigure pipeline (currently signed in as {{ logged_in_username or 'guest' }})" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">{{ logged_in_username or 'Change Rater' }}</button>
+    {% endif %}
     
     <div id="dashboard-resize-wrapper" class="dashboard-resize-wrapper">
         <div class="resize-handle resize-handle-left" id="resize-handle-left" title="Drag to resize dashboard width"></div>
@@ -2017,7 +2021,7 @@
                 <!-- ?edit=1 tells pipeline-config.html to *keep* the existing
                      pipeline + rater name (so the user can amend them) instead
                      of starting from a blank slate. -->
-                <button class="btn-reconfigure" onclick="window.location.href='/pipeline-config?edit=1'" data-function="Edit pipeline steps / rater name (existing values are preserved)" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Reconfigure Pipeline</button>
+                <button class="btn-reconfigure" onclick="window.location.href='/pipeline-config?edit=1'" data-function="Edit pipeline steps{% if not require_auth %} / rater name{% endif %} (existing values are preserved)" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Reconfigure Pipeline</button>
                 <button class="btn-reconfigure" id="batch-process-btn" onclick="showBatchProcessDialog()" style="background: #28a745;" data-function="Run selected steps for all subjects" onmouseenter="showDelayedTooltip(this, event)" onmousemove="updateTooltipIfVisible(this, event)" onmouseleave="hideTooltip(this)">Batch Process</button>
             </div>
         </div>

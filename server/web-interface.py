@@ -3904,6 +3904,9 @@ def inject_template_globals():
     """Rater name and public feedback links for all templates."""
     return {
         'logged_in_username': session.get('username', ''),
+        # Production (forced login) pins the rater to the account name, so
+        # templates hide the editable rater field / change-rater controls.
+        'require_auth': REQUIRE_AUTH,
         'narraters_repo_url': REPO_URL,
         'narraters_feedback_url': FEEDBACK_ISSUE_URL,
         'narraters_bug_url': BUG_ISSUE_URL,
@@ -3977,7 +3980,17 @@ def login_page():
 
 @app.route('/api/set-rater', methods=['POST'])
 def api_set_rater():
-    """Store the rater name for this session (used only to label edit files)."""
+    """Store the rater name for this session (used only to label edit files).
+
+    In production (REQUIRE_AUTH) the rater is pinned to the logged-in account
+    and cannot be changed, so any client-supplied name is ignored.
+    """
+    if REQUIRE_AUTH:
+        pinned = current_user.id if current_user.is_authenticated else session.get('username')
+        if pinned:
+            session['username'] = pinned
+            return jsonify({'success': True, 'rater_name': pinned})
+        return jsonify({'success': False, 'error': 'Authentication required'}), 401
     try:
         data = request.get_json(silent=True) or {}
         raw = str(data.get('rater_name', ''))
