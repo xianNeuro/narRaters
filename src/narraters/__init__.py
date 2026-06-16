@@ -22,7 +22,12 @@ Library use
     run_serve(port=5000)
 """
 
-__version__ = "0.3.15a1"
+from importlib.metadata import PackageNotFoundError, version as _version
+
+try:
+    __version__ = _version("narRaters")
+except PackageNotFoundError:  # running from a source tree without an install
+    __version__ = "0.0.0+unknown"
 
 from narraters.paths import project_root, repo_root  # noqa: F401
 
