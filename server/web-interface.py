@@ -4620,6 +4620,19 @@ def api_subject_versions(subj_id):
 def subject_view(subj_id):
     """View page for a specific subject."""
     step = request.args.get('step', None)
+    if BENCHMARK_MODE:
+        item = _benchmark_item_for_id(subj_id)
+        if item:
+            return render_template(
+                'subject.html', subject_id=subj_id, step=step,
+                benchmark=True,
+                benchmark_meta={
+                    'datasource': item['datasource'],
+                    'story': item['story'],
+                    'sub_id': item['sub_id'],
+                },
+                benchmark_file=item['matched_file'].relative_to(BENCHMARK_UNRATED_DIR).as_posix(),
+            )
     return render_template('subject.html', subject_id=subj_id, step=step)
 
 

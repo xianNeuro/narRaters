@@ -110,7 +110,39 @@
             opacity: 1;
             transform: translateY(-2px);
         }
-        
+
+        /* Benchmark mode: a boxless heading like the landing "Hi {username}", with the
+           Back link floated up next to the top-right tutorial ? / settings ⚙️ icons. */
+        .benchmark-header {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 6px 120px 6px 4px;
+            margin-bottom: 16px;
+        }
+        .benchmark-header h1 {
+            font-size: 1.8rem;
+            line-height: 1.2;
+        }
+        .benchmark-header h1 .name {
+            color: var(--acc2);
+        }
+        .bench-file-path {
+            color: var(--t3);
+            font-size: 0.82rem;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+        .benchmark-back-link {
+            position: fixed;
+            top: 20px;
+            right: 70px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            z-index: 100;
+        }
+
         .section {
             background: var(--bg1);
             border: 1px solid var(--bdr);
@@ -2329,8 +2361,10 @@
     <!-- Tutorial toggle icon: hardcoded into the page so it appears on first
          paint, before loadSubjectData() resolves. tutorial.js (loaded in <head>)
          adopts this element and re-wires its click handler whenever
-         setupSubjectTutorial() runs, per-tab. -->
+         setupSubjectTutorial() runs, per-tab. Hidden in benchmark mode (no tutorial). -->
+    {% if not benchmark %}
     <div class="tutorial-toggle-icon" data-tutorial-key="subject:loading" title="Page tutorial — click to toggle on/off" style="right: 70px;">?<span class="tutorial-toggle-label">tutorial</span></div>
+    {% endif %}
     
     <!-- Settings Modal -->
     <div id="settings-modal" class="settings-modal" onclick="closeSettingsOnBackdrop(event)">
@@ -2357,12 +2391,22 @@
         </div>
     </div>
     
+    {% if benchmark %}
+    <a href="/" class="back-link benchmark-back-link">← Back to Subjects</a>
+    <div class="header benchmark-header">
+        <div class="bench-heading">
+            <h1>Rating <i><span class="name">{{ benchmark_meta.datasource }}</span></i> - <i><span class="name">{{ benchmark_meta.story }}</span></i> - <i><span class="name">{{ benchmark_meta.sub_id }}</span></i></h1>
+            <div class="bench-file-path">{{ benchmark_file }}</div>
+        </div>
+    </div>
+    {% else %}
     <div class="header">
         <h1>File: {{ subject_id }}</h1>
         <div class="header-actions">
             <a href="/" class="back-link">← Back to Subjects</a>
         </div>
     </div>
+    {% endif %}
     
     <div id="content" class="loading">
         Loading subject data...
@@ -2452,24 +2496,27 @@
         function renderContent(data) {
             const content = document.getElementById('content');
             const hasStoryReference = !!(data.story_transcript || (data.story_events && data.story_events.length > 0));
+            // Benchmark mode: a matching-only screen. Suppress every tab except Recall
+            // Matching (the matched tab's left panel still reads data.story_events directly).
+            const benchmark = !!data.benchmark;
             // Story Segments tab: full story text (left) + segmented events (right). Show whenever the
             // pipeline includes story or recall-parse / recall-match, even if step0 is not in the panel.
-            const showStoryEvents = stepInPanel(['step0', 'step1', 'step2', 'step3']) && (
+            const showStoryEvents = !benchmark && stepInPanel(['step0', 'step1', 'step2', 'step3']) && (
                 hasStoryReference ||
                 stepParam === 'step0' ||
                 stepParam === 'step2' ||
                 stepParam === 'step3'
             );
-            const showAudio = data.audio_file && stepInPanel(['step0_audio', 'step0_story_audio']);
+            const showAudio = !benchmark && data.audio_file && stepInPanel(['step0_audio', 'step0_story_audio']);
             // Recall-only tabs (correct / parse / match) are per-subject concepts; never show them
             // in story context, where they render as empty/confusing dead-ends.
-            const showRawProcessed = !isStory && stepInPanel(['step1']);
+            const showRawProcessed = !benchmark && !isStory && stepInPanel(['step1']);
             // parsed_texts can be null if the file is missing from the API search path while the
             // dashboard still shows complete — still show the tab when inspecting this step.
-            const showSegmented = !isStory && stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
+            const showSegmented = !benchmark && !isStory && stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
             const showMatched = !isStory && stepInPanel(['step3']);
-            const showCausalMatrix = data.story_events && data.story_events.length > 0 && stepInPanel(['step0_causal']);
-            const showCausalMatrixMissing = stepInPanel(['step0_causal']) && !(data.story_events && data.story_events.length > 0);
+            const showCausalMatrix = !benchmark && data.story_events && data.story_events.length > 0 && stepInPanel(['step0_causal']);
+            const showCausalMatrixMissing = !benchmark && stepInPanel(['step0_causal']) && !(data.story_events && data.story_events.length > 0);
             let initialTab = getInitialTab();
             if (stepParam === 'step0_causal') {
                 if (showCausalMatrix) initialTab = 'causal-matrix';
@@ -2528,7 +2575,8 @@
                 initialTab = orderedTabs[0].id;
             }
 
-            let html = `
+            // Benchmark mode: a single-task screen — drop the tab bar entirely.
+            let html = benchmark ? '' : `
                 <div class="tabs">
                     ${orderedTabs.map(t => `<button class="tab ${initialTab === t.id ? 'active' : ''}" onclick="showTab('${t.id}')">${t.label}</button>`).join('')}
                 </div>
@@ -2827,7 +2875,7 @@
                     <div id="matched" class="tab-content ${initialTab === 'matched' ? 'active' : ''}">
                         <div class="story-rated-container">
                             <div class="story-panel">
-                                ${panelVersionBarMarkup('Story segmentation file', 'story-events')}
+                                ${benchmark ? '' : panelVersionBarMarkup('Story segmentation file', 'story-events')}
                                 <h2>Story Segments</h2>
                                 <div class="story-scrollable">
                                     ${hasStoryEvents ? `
@@ -2854,13 +2902,15 @@
                                 </div>
                             </div>
                             <div class="rated-panel">
-                                ${panelVersionBarMarkup('Recall / rated file', 'recall-pipeline')}
+                                ${benchmark ? '' : panelVersionBarMarkup('Recall / rated file', 'recall-pipeline')}
+                                ${benchmark ? '' : `
                                 <div id="matched-notification" class="story-events-notification hidden">
                                     <button class="story-events-notification-close" onclick="dismissNotification('matched-notification-dismissed')" title="Dismiss">×</button>
                                     <strong>Matching Recall to Story Segments:</strong> Click a recall segment on the right to select it (it stays highlighted), then click story events on the left to add or remove them — scroll the left list to reach more, and click the segment again to deselect. You can still drag events onto a segment or type event numbers (e.g., "1, 2, 3"). Turn on <strong>Further ratings</strong> at the top to add per-segment <strong>Summary / Error / Confabulation</strong> checkboxes; they unlock only after you scroll to the bottom and click the red <strong>Further ratings</strong> button, and each is exported as its own column. Story events already matched somewhere appear faded on the left.
                                 </div>
+                                `}
                                 <h2>Recall Segments with Matched Events</h2>
-                                ${recallSegments && hasStoryEvents ? `
+                                ${!benchmark && recallSegments && hasStoryEvents ? `
                                 <div class="further-ratings-toggle">
                                     <label title="Add per-segment Summary / Error / Confabulation ratings, exported as separate columns.">
                                         <input type="checkbox" id="further-ratings-master" onchange="toggleFurtherRatings(this.checked)">
@@ -2921,7 +2971,7 @@
                                         `;
                                         }).join('')}
                                     </div>
-                                    ${hasStoryEvents ? `
+                                    ${!benchmark && hasStoryEvents ? `
                                     <button type="button" id="further-ratings-confirm" class="further-ratings-confirm" onclick="enableFurtherRatingsCheckboxes()" hidden>Further ratings</button>
                                     ` : ''}
                                     ` : `
@@ -2932,7 +2982,9 @@
                                 </div>
                                 ${recallSegments && hasStoryEvents ? `
                                 <div style="flex-shrink: 0; margin-top: 15px;">
-                                    <button id="export-rated" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths.rated) || ''))}" onclick="showExportModal('rated', '', function(path){ saveRatedEvents(path); }, this)">Export Edited File</button>
+                                    ${benchmark
+                                        ? `<button id="export-rated" class="export-button" disabled onclick="saveRatedEvents('')">Save annotations</button>`
+                                        : `<button id="export-rated" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths.rated) || ''))}" onclick="showExportModal('rated', '', function(path){ saveRatedEvents(path); }, this)">Export Edited File</button>`}
                                     <div id="save-rated-status" class="save-status"></div>
                                 </div>
                                 ` : ''}
@@ -4230,6 +4282,9 @@
         // per-segment checkboxes have been unlocked via the red end-of-list button.
         let furtherRatingsOn = false;
         let furtherRatingsUnlocked = false;
+        // Benchmark mode (narraters serve --benchmark): a stripped-down matching-only
+        // screen. Set from the /api/subject payload's `benchmark` flag in loadSubjectData().
+        let isBenchmark = false;
         // Per-segment, per-rating selected text fragments:
         // segSpans[segmentIndex] = {summary: [...], error: [...], confabulation: [...]}.
         let segSpans = {};
@@ -7875,6 +7930,13 @@
                 // were rated before).
                 furtherRatingsOn = originalRatings.some(r => RATING_KEYS.some(k => r[k]) || (r.comment || ''));
                 furtherRatingsUnlocked = furtherRatingsOn;
+                // Benchmark mode: per-segment "further ratings" are always on and unlocked
+                // (no master toggle, no end-of-list unlock button).
+                isBenchmark = !!data.benchmark;
+                if (isBenchmark) {
+                    furtherRatingsOn = true;
+                    furtherRatingsUnlocked = true;
+                }
                 
                 if (data.available_versions) {
                     availableVersions = data.available_versions;
@@ -7909,7 +7971,7 @@
                         showNotification('raw-processed-notification', 'raw-processed-notification-dismissed');
                     } else if (initialTab === 'segmented') {
                         showNotification('segmented-notification', 'segmented-notification-dismissed');
-                    } else if (initialTab === 'matched') {
+                    } else if (initialTab === 'matched' && !isBenchmark) {
                         showNotification('matched-notification', 'matched-notification-dismissed');
                     }
                 }, 100);
@@ -8295,6 +8357,8 @@
         // replaces the old icon and start() teardown+rebuild keeps state clean.
         function setupSubjectTutorial() {
             if (!window.Tutorial) return;
+            // Benchmark mode: no tutorial on first visit and no '?' toggle icon.
+            if (isBenchmark) return;
             var tabKey = _currentSubjectTabKey();
             var pageKey = 'subject:' + tabKey;
             var steps = _currentSubjectTabSteps();
