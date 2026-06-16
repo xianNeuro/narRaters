@@ -26,7 +26,7 @@ WorkingDirectory={workdir}
 Environment=NARRATERS_PROJECT_ROOT={workdir}
 Environment=NARRATERS_HOST={host}
 Environment=NARRATERS_PORT={port}
-EnvironmentFile=-{workdir}/.env
+{benchmark_env}EnvironmentFile=-{workdir}/.env
 ExecStart={narraters_bin} serve --production --no-browser --host {host} --port {port}
 Restart=on-failure
 RestartSec=5
@@ -53,14 +53,23 @@ class DeployConfig:
     host: str
     port: int
     narraters_bin: str
+    # Where the benchmark/ tree (unrated/ + rated/) lives. When None, the server
+    # falls back to {workdir}/benchmark and no extra Environment line is written.
+    benchmark_dir: str | None = None
 
     def service_text(self) -> str:
+        # Only pin NARRATERS_BENCHMARK_DIR when it differs from the default the
+        # server already computes ({workdir}/benchmark); keeps the unit minimal.
+        benchmark_env = ""
+        if self.benchmark_dir:
+            benchmark_env = f"Environment=NARRATERS_BENCHMARK_DIR={self.benchmark_dir}\n"
         return SERVICE_TEMPLATE.format(
             user=self.user,
             workdir=self.workdir,
             host=self.host,
             port=self.port,
             narraters_bin=self.narraters_bin,
+            benchmark_env=benchmark_env,
         )
 
     def caddyfile_text(self) -> str:

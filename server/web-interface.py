@@ -714,8 +714,16 @@ CAUSAL_RATED_DIR = OUTPUT_DIR / 'causal_rated'
 # landing page is the text-matching benchmark overview (see /benchmark): a list
 # of recall files under benchmark/unrated/ to rate, with results written under
 # benchmark/rated/<username>/.
+#
+# NARRATERS_BENCHMARK_DIR overrides where that benchmark/ tree lives (default:
+# WORKSPACE_ROOT/benchmark). Hosting setups point it at a dedicated, group-shared
+# directory the admin can rsync into/out of as a different user than the service
+# user (see HOSTING.md "Sync benchmark data"). It is admin-set in systemd, never
+# request-controlled.
 BENCHMARK_MODE = os.environ.get('NARRATERS_BENCHMARK') == '1'
-BENCHMARK_DIR = WORKSPACE_ROOT / 'benchmark'
+BENCHMARK_DIR = Path(
+    os.environ.get('NARRATERS_BENCHMARK_DIR') or (WORKSPACE_ROOT / 'benchmark')
+).expanduser().resolve()
 BENCHMARK_UNRATED_DIR = BENCHMARK_DIR / 'unrated'
 BENCHMARK_RATED_DIR = BENCHMARK_DIR / 'rated'
 

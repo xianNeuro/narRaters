@@ -369,6 +369,22 @@ def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
     user = args.user or getpass.getuser()
     narraters_bin = args.narraters_bin or _detect_narraters_bin()
 
+    # Benchmark exchange dir: admins rsync inputs into unrated/ and pull results
+    # from rated/. Default it under the workspace so it sits next to data/output.
+    benchmark_dir = (
+        Path(args.benchmark_dir).expanduser().resolve()
+        if args.benchmark_dir
+        else workdir / "benchmark"
+    )
+    # Scaffold the workspace layout (owned by the service user, no sudo needed):
+    # data/ + output/ for the pipeline, and benchmark/{unrated,rated} for the
+    # text-matching workflow. Group ownership/permissions for cross-user rsync of
+    # benchmark/ are a documented sudo step in HOSTING.md ("Sync benchmark data"),
+    # kept out of here so init-service never touches system locations.
+    for d in (workdir / "data", workdir / "output",
+              benchmark_dir / "unrated", benchmark_dir / "rated"):
+        d.mkdir(parents=True, exist_ok=True)
+
     config = DeployConfig(
         domain=args.domain,
         workdir=str(workdir),
@@ -376,11 +392,13 @@ def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
         host=args.host,
         port=args.port,
         narraters_bin=narraters_bin,
+        benchmark_dir=str(benchmark_dir),
     )
     service_path, caddyfile_path = write_configs(config, output_dir)
 
     print(f"Wrote {service_path}")
     print(f"Wrote {caddyfile_path}")
+    print(f"Benchmark data dir: {benchmark_dir} (rsync inputs into unrated/, pull results from rated/)")
     print()
     print("Next steps (run on the VPS):")
     print("  1. Install the systemd service:")
@@ -398,6 +416,10 @@ def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
     print("   running with `--production` (as the service does) enforces login.")
     print(f"   Create at least one account first: sudo -u narraters {narraters_bin} users add <name>")
     print("   See HOSTING.md for the full walkthrough.")
+    print()
+    print("To rate benchmark files, start the service with `serve --benchmark` and rsync")
+    print(f"  recall inputs into {benchmark_dir / 'unrated'} / pull rated results from {benchmark_dir / 'rated'}.")
+    print("  For cross-user rsync without sharing secrets, see HOSTING.md \"Sync benchmark data\".")
     return 0
 
 
@@ -584,6 +606,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--port", type=int, default=5000, help="Port the app binds to behind the proxy (default: 5000).")
     p_init.add_argument("--narraters-bin", default=None, help="Path to the 'narraters' executable used in ExecStart (default: auto-detected next to the running interpreter).")
     p_init.add_argument("--output-dir", default=None, help="Where to write narraters.service and Caddyfile (default: the --workdir).")
+    p_init.add_argument("--benchmark-dir", default=None, help="Benchmark data dir holding unrated/ (rsync in) and rated/ (rsync out), set as NARRATERS_BENCHMARK_DIR in the unit (default: <workdir>/benchmark).")
     p_init.set_defaults(func=cmd_init_service)
 
     # users — manage app-level login accounts

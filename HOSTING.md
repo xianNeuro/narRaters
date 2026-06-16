@@ -20,12 +20,13 @@ certificate. Verify with `dig +short narraters.example.com`.
 
 ## 2. Create a service user and workspace
 
-Run narRaters as a dedicated, unprivileged user with its own workspace holding
-the `data/` and `output/` folders.
+Run narRaters as a dedicated, unprivileged user. Its `--home` becomes the
+workspace; `init-service` (step 4) scaffolds the `data/`, `output/`, and
+`benchmark/{unrated,rated}` folders inside it, so you only need to create the
+user here.
 
 ```bash
 sudo adduser --system --group --home /srv/narraters narraters
-sudo -u narraters mkdir -p /srv/narraters/data /srv/narraters/output
 ```
 
 ### Optional: access narraters workspace, without `sudo`
@@ -39,8 +40,7 @@ sudo chmod 770 /srv/narraters            # group can read + write
 sudo chmod g+s  /srv/narraters           # new files inherit the narraters group
 ```
 
-Run these as your normal login user (not under `sudo -i`), so `id -un` resolves to
-*you*. Then **log out and back in**.
+Run these as your normal login user (not under `sudo -i`), so `id -un` resolves to *you*. Then **log out and back in**.
 Just note that the account can read the workspace's `.env` (API keys).
 
 ## 3. Install narRaters in a virtual environment
@@ -71,7 +71,9 @@ sudo -u narraters /srv/narraters/.venv/bin/narraters init-service \
 ```
 
 Defaults: `--host 127.0.0.1`, `--port 5000`, and `--output-dir` defaults to the
-`--workdir`. Run `narraters init-service --help` for all options.
+`--workdir`. `--benchmark-dir` defaults to `<workdir>/benchmark` and is written
+into the unit as `NARRATERS_BENCHMARK_DIR` (see "Sync benchmark data" below). Run
+`narraters init-service --help` for all options.
 
 The generated `narraters.service` looks like:
 
@@ -87,6 +89,7 @@ WorkingDirectory=/srv/narraters
 Environment=NARRATERS_PROJECT_ROOT=/srv/narraters
 Environment=NARRATERS_HOST=127.0.0.1
 Environment=NARRATERS_PORT=5000
+Environment=NARRATERS_BENCHMARK_DIR=/srv/narraters/benchmark
 EnvironmentFile=-/srv/narraters/.env
 ExecStart=/srv/narraters/.venv/bin/narraters serve --production --no-browser --host 127.0.0.1 --port 5000
 Restart=on-failure
@@ -152,6 +155,42 @@ sudo -u /srv/narraters/.venv/bin/narraters users list | passwd <name> | remove <
 
 Browse to **`https://narraters.example.com/`** — you should get a valid certificate
 and the narRaters login page. Sign in with the account from step 8 to reach the UI.
+
+---
+
+## Sync benchmark data in and out
+
+The benchmark text-matching workflow reads recall files from `<benchmark-dir>/unrated/` and writes rated results to
+`<benchmark-dir>/rated/<username>/`.
+
+`init-service` sets `NARRATERS_BENCHMARK_DIR`
+(default `/srv/narraters/benchmark`) in the unit and creates those two subdirs.
+
+Such that you can rsync without hassle, run the following commands:
+```bash
+# a dedicated shared group for the exchange dir only
+sudo groupadd benchmark-sync
+sudo usermod -aG benchmark-sync narraters       # the service
+sudo usermod -aG benchmark-sync "$(id -un)"     # you, the admin — re-login after
+
+# group-own the benchmark dir and set setgid so new files inherit the group;
+# 2770 also gives the group write on the directories
+sudo chgrp -R benchmark-sync /srv/narraters/benchmark
+sudo chmod -R 2770 /srv/narraters/benchmark
+
+# let your login traverse INTO the dir without reading /srv/narraters or its .env
+sudo chmod o+x /srv/narraters                   # 751: cd-through only, no listing
+```
+
+Now a **plain rsync works both directions — no `--chmod` flags needed** (replace
+`HOST` with your server, and use your own login — there is no assumed `ubuntu`):
+
+```bash
+# push recall inputs in
+rsync -a ./unrated/  you@HOST:/srv/narraters/benchmark/unrated/
+# pull rated results back out
+rsync -a you@HOST:/srv/narraters/benchmark/rated/  ./rated/
+```
 
 ---
 
