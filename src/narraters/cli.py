@@ -235,6 +235,13 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
         print(f"narraters: server script not found: {server_script}", file=sys.stderr)
         return 2
 
+    benchmark = getattr(args, "benchmark", False)
+    if benchmark:
+        # Switch the landing page from the pipeline config to the text-matching
+        # benchmark overview. The server module reads NARRATERS_BENCHMARK at
+        # import time, so set it before exec below.
+        os.environ["NARRATERS_BENCHMARK"] = "1"
+
     production = getattr(args, "production", False)
     if production:
         # Enforce app-level login in production. The server module reads
@@ -276,12 +283,14 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
             file=sys.stderr,
         )
 
+    landing_path = "/benchmark" if benchmark else "/pipeline-config"
+
     if not args.no_browser and not production:
-        _open_browser_when_ready(host, port)
+        _open_browser_when_ready(host, port, landing_path)
 
     browse_host = _loopback_browser_host(host)
     if not production:
-        print(f"narRaters web UI starting on http://{browse_host}:{port}/pipeline-config")
+        print(f"narRaters web UI starting on http://{browse_host}:{port}{landing_path}")
     print(f"Project root for data/ and output/ paths: {module.WORKSPACE_ROOT}")
     if not (module.WORKSPACE_ROOT / "data").is_dir() and not (module.WORKSPACE_ROOT / "output").is_dir():
         print(
@@ -318,7 +327,7 @@ def _loopback_browser_host(host: str) -> str:
     return host
 
 
-def _open_browser_when_ready(host: str, port: int) -> None:
+def _open_browser_when_ready(host: str, port: int, path: str = "/pipeline-config") -> None:
     """Open the default browser to the local server, in a background thread."""
     import threading
     import time
@@ -326,7 +335,7 @@ def _open_browser_when_ready(host: str, port: int) -> None:
 
     def opener() -> None:
         time.sleep(1.0)
-        url = f"http://{_loopback_browser_host(host)}:{port}/pipeline-config"
+        url = f"http://{_loopback_browser_host(host)}:{port}{path}"
         try:
             webbrowser.open(url)
         except Exception:
@@ -547,6 +556,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--port", type=int, default=None, help="Bind port (default: 5000).")
     p_serve.add_argument("--debug", action="store_true", help="Enable Flask debug mode.")
     p_serve.add_argument("--no-browser", action="store_true", help="Do not auto-open the browser on startup.")
+    p_serve.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Open the text-matching benchmark overview instead of the pipeline config. "
+        "Lists recall files under benchmark/unrated/ to rate; rated files are saved under "
+        "benchmark/rated/<username>/.",
+    )
     p_serve.add_argument(
         "--production",
         action="store_true",

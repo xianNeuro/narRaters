@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmark — narRaters</title>
+    <script src="/static/theme-manager.js"></script>
+    <style>
+        :root {
+            --bg0: #0b0d14;
+            --bg1: #111527;
+            --bg2: #1a1f36;
+            --bg3: #242b4a;
+            --t0: #f0f2f5;
+            --t1: #c4c9db;
+            --t2: #8890a8;
+            --bdr: #2a3050;
+            --bdr2: #353c60;
+            --acc: #6c63ff;
+            --acc2: #8b84ff;
+            --green: #22c55e;
+            --rad: 10px;
+            --tr: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg0);
+            color: var(--t0);
+            min-height: 100vh;
+            padding: 48px 24px;
+        }
+
+        .wrap {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 40px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+
+        h1 .name {
+            color: var(--acc2);
+        }
+
+        .sub {
+            color: var(--t2);
+            font-size: 15px;
+            margin-bottom: 32px;
+        }
+
+        .progress {
+            color: var(--t1);
+            font-size: 14px;
+            margin-bottom: 14px;
+        }
+
+        .progress b {
+            color: var(--t0);
+        }
+
+        .card {
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: var(--rad);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--t2);
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--bdr);
+            background: var(--bg2);
+        }
+
+        tbody td {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--bdr);
+            font-size: 14px;
+            color: var(--t1);
+        }
+
+        tbody tr {
+            cursor: pointer;
+            transition: background var(--tr);
+        }
+
+        tbody tr:hover {
+            background: var(--bg2);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ds {
+            color: var(--t0);
+            font-weight: 600;
+        }
+
+        .mono {
+            font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--bdr2);
+            color: var(--t2);
+        }
+
+        .badge.rated {
+            color: var(--green);
+            border-color: rgba(34, 197, 94, 0.4);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .empty,
+        .loading {
+            padding: 40px 18px;
+            text-align: center;
+            color: var(--t2);
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>Hi <i><span class="name">{{ username }}</span></i>!</h1>
+        <div class="sub">Text-matching benchmark — pick a recall file to rate.</div>
+
+        <div class="progress" id="progress"></div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Datasource</th>
+                        <th>Story</th>
+                        <th>Sub&nbsp;ID</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="rows">
+                    <tr>
+                        <td colspan="4" class="loading">Loading…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function escapeHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function openItem(id) {
+            window.location.href = '/subject/' + encodeURIComponent(id) + '?step=step3';
+        }
+
+        async function load() {
+            const tbody = document.getElementById('rows');
+            try {
+                const resp = await fetch('/api/benchmark/files');
+                const data = await resp.json();
+                const files = data.files || [];
+
+                if (!files.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty">No recall files found under benchmark/unrated/.</td></tr>';
+                    document.getElementById('progress').textContent = '';
+                    return;
+                }
+
+                const ratedCount = files.filter(f => f.rated).length;
+                document.getElementById('progress').innerHTML =
+                    '<b>' + ratedCount + '</b> of <b>' + files.length + '</b> rated';
+
+                tbody.innerHTML = files.map(f => {
+                    const status = f.rated
+                        ? '<span class="badge rated">Rated</span>'
+                        : '<span class="badge">Not rated</span>';
+                    return '<tr onclick="openItem(\'' + escapeHtml(f.id) + '\')">' +
+                        '<td class="ds">' + escapeHtml(f.datasource) + '</td>' +
+                        '<td>' + escapeHtml(f.story) + '</td>' +
+                        '<td class="mono">' + escapeHtml(f.sub_id) + '</td>' +
+                        '<td>' + status + '</td>' +
+                        '</tr>';
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty">Failed to load files: ' + escapeHtml(e.message) + '</td></tr>';
+            }
+        }
+
+        load();
+    </script>
+</body>
+
+</html>

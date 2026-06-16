@@ -709,6 +709,16 @@ RECALL_AUDIO_TRANSCRIBED_DIR = OUTPUT_DIR / 'recall_audio-transcribed'
 STORY_AUDIO_TRANSCRIBED_DIR = OUTPUT_DIR / 'story_audio-transcribed'
 CAUSAL_RATED_DIR = OUTPUT_DIR / 'causal_rated'
 
+# --- Benchmark mode -------------------------------------------------------
+# `narraters serve --benchmark` sets NARRATERS_BENCHMARK=1. In this mode the
+# landing page is the text-matching benchmark overview (see /benchmark): a list
+# of recall files under benchmark/unrated/ to rate, with results written under
+# benchmark/rated/<username>/.
+BENCHMARK_MODE = os.environ.get('NARRATERS_BENCHMARK') == '1'
+BENCHMARK_DIR = WORKSPACE_ROOT / 'benchmark'
+BENCHMARK_UNRATED_DIR = BENCHMARK_DIR / 'unrated'
+BENCHMARK_RATED_DIR = BENCHMARK_DIR / 'rated'
+
 # Excel files to check for raw recall data
 EXCEL_FILES = [
     f for f in (WORKSPACE_ROOT / 'data').glob('summary_*.xlsx')
@@ -4039,10 +4049,354 @@ def api_verify_auth():
     return jsonify({'success': False}), 401
 
 
+# ===========================================================================
+# Benchmark mode (narraters serve --benchmark)
+# ---------------------------------------------------------------------------
+# A focused text-matching workflow: list recall files under benchmark/unrated/
+# to rate, open one in the existing matching UI (subject.html step3), and save
+# the result under benchmark/rated/<username>/. The benchmark CSV format is
+# already understood by helpers.flexible_io and the existing matching UI, so
+# these handlers just read/write the known file paths and reuse that machinery.
+
+_BENCH_MATCHED_RE = re.compile(
+    r'^(?P<sub>.+?)-recall-(?P<story>.+)-matched\.(?:csv|tsv|xlsx)$', re.IGNORECASE
+)
+
+
+def _benchmark_datasource_name(ds_dir_name):
+    """`narraters-monthiversary-matching` -> `monthiversary`."""
+    name = ds_dir_name
+    if name.startswith('narraters-'):
+        name = name[len('narraters-'):]
+    if name.endswith('-matching'):
+        name = name[:-len('-matching')]
+    return name or ds_dir_name
+
+
+def _benchmark_find_segmented(story_dir):
+    """Locate the `story-<story>-segmented.*` file in a story folder."""
+    for pattern in ('story-*-segmented.*', '*-segmented.*'):
+        hits = sorted(p for p in story_dir.glob(pattern) if p.is_file())
+        if hits:
+            return hits[0]
+    return None
+
+
+def _benchmark_scan():
+    """Discover all recall files to rate under benchmark/unrated/.
+
+    Layout: unrated/<ds_dir>/<story>/matches/<sub>-recall-<story>-matched.csv
+    Returns a list of item dicts (id, ds_dir, datasource, story, sub_id,
+    matched_file, segmented_file), sorted by datasource, story, sub_id.
+    """
+    items = []
+    if not BENCHMARK_UNRATED_DIR.is_dir():
+        return items
+    for ds_dir in sorted(p for p in BENCHMARK_UNRATED_DIR.iterdir() if p.is_dir()):
+        datasource = _benchmark_datasource_name(ds_dir.name)
+        for story_dir in sorted(p for p in ds_dir.iterdir() if p.is_dir()):
+            matches_dir = story_dir / 'matches'
+            if not matches_dir.is_dir():
+                continue
+            segmented = _benchmark_find_segmented(story_dir)
+            for mf in sorted(p for p in matches_dir.iterdir() if p.is_file()):
+                m = _BENCH_MATCHED_RE.match(mf.name)
+                if not m:
+                    continue
+                sub_id = m.group('sub')
+                story = story_dir.name
+                items.append({
+                    'id': f"bench__{ds_dir.name}__{story}__{sub_id}",
+                    'ds_dir': ds_dir.name,
+                    'datasource': datasource,
+                    'story': story,
+                    'sub_id': sub_id,
+                    'matched_file': mf,
+                    'segmented_file': segmented,
+                })
+    return items
+
+
+def _benchmark_item_for_id(slug):
+    """Resolve a benchmark slug (bench__<ds>__<story>__<sub>) to its item dict."""
+    if not slug or not str(slug).startswith('bench__'):
+        return None
+    for item in _benchmark_scan():
+        if item['id'] == slug:
+            return item
+    return None
+
+
+def _benchmark_username():
+    """Rater name for the rated/ folder + greeting. Uses the logged-in name when
+    present (hosting), else defaults to the OS login name for local use."""
+    name = session.get('username')
+    if name:
+        return name
+    import getpass
+    try:
+        raw = getpass.getuser()
+    except Exception:
+        raw = 'human'
+    clean = sanitize_rater_name(raw) or 'human'
+    session['username'] = clean
+    return clean
+
+
+def _benchmark_rated_path(item, username):
+    """Destination for a rater's edited matches:
+    rated/<user>/<user>-<datasource>-matching/<story>/matches/<same-filename>.
+    """
+    return (
+        BENCHMARK_RATED_DIR / username
+        / f"{username}-{item['datasource']}-matching"
+        / item['story'] / 'matches' / item['matched_file'].name
+    )
+
+
+def _benchmark_read_segments(path):
+    """Read a matched CSV into the `rated_texts` shape the matching UI expects
+    (mirrors get_rated_texts: text, matched_event, further-rating cols, comment)."""
+    from helpers.flexible_io import read_parsed_recall_file, read_tabular
+    df = read_parsed_recall_file(path)
+    try:
+        raw_df = read_tabular(path).reset_index(drop=True)
+    except Exception:
+        raw_df = None
+    rating_cols = [c for c in FURTHER_RATING_COLS if raw_df is not None and c in raw_df.columns]
+    has_comment_col = raw_df is not None and 'comment' in raw_df.columns
+
+    segments = []
+    for pos, (_, row) in enumerate(df.iterrows()):
+        parsed = row.get('recall_in_temporal_order', '')
+        matched = row.get('recalled_events', '')
+        if not pd.notna(parsed):
+            continue
+        matched_str = ''
+        if pd.notna(matched) and str(matched).strip() not in ['', 'nan']:
+            matched_str = str(matched).strip()
+            try:
+                if ',' in matched_str:
+                    parts = [str(int(float(p.strip()))) for p in matched_str.split(',') if p.strip()]
+                    matched_str = ','.join(parts)
+                else:
+                    matched_str = str(int(float(matched_str)))
+            except (ValueError, AttributeError):
+                pass
+        seg = {'text': str(parsed).strip(), 'matched_event': matched_str}
+        if (rating_cols or has_comment_col) and raw_df is not None and pos < len(raw_df):
+            raw_row = raw_df.iloc[pos]
+            for rating in rating_cols:
+                checked, spans = _parse_rating_cell(raw_row.get(rating, ''))
+                seg[rating] = checked
+                seg[rating + '_spans'] = spans
+            if has_comment_col:
+                cv = raw_row.get('comment', '')
+                seg['comment'] = '' if (cv is None or str(cv).strip().lower() == 'nan') else str(cv).strip()
+        segments.append(seg)
+    return segments
+
+
+def _benchmark_story_events(path):
+    """Read a segmented story CSV into the `story_events` list shape ({event, text})."""
+    if not path or not Path(path).exists():
+        return []
+    try:
+        from helpers.flexible_io import read_tabular, normalize_story_events_df
+        df = normalize_story_events_df(read_tabular(path))
+        return _read_story_events_dataframe(df) or []
+    except Exception as e:
+        print(f"benchmark: error reading story events {path}: {e}")
+        return []
+
+
+def _benchmark_subject_payload(item):
+    """Build the /api/subject payload for a benchmark item (matching UI, step3)."""
+    username = _benchmark_username()
+    rated_path = _benchmark_rated_path(item, username)
+    source = rated_path if rated_path.exists() else item['matched_file']
+    try:
+        rated_texts = _benchmark_read_segments(source)
+    except Exception as e:
+        print(f"benchmark: error reading segments {source}: {e}")
+        rated_texts = []
+    return {
+        'subject_id': item['id'],
+        'username': username,
+        'benchmark': True,
+        'benchmark_meta': {
+            'datasource': item['datasource'],
+            'story': item['story'],
+            'sub_id': item['sub_id'],
+        },
+        'raw_recall': '',
+        'corrected_text': None,
+        'parsed_texts': [],
+        'rated_texts': rated_texts,
+        'story_events': _benchmark_story_events(item['segmented_file']),
+        'story_transcript': None,
+        'audio_file': None,
+        'audio_transcription': None,
+        'causal_ratings': None,
+        'available_versions': {
+            'step1': [], 'step2': [], 'step3': [],
+            'story_events': [], 'causal': [], 'story_transcript': [],
+        },
+        'event_granularities': [],
+        'default_export_paths': {
+            'corrected': '', 'parsed': '',
+            'rated': _path_for_client(rated_path),
+            'audio': '', 'story-events': '', 'causal': '',
+        },
+    }
+
+
+def _benchmark_save_rated(item, data):
+    """Save edited matches for a benchmark item into benchmark/rated/<user>/."""
+    segments = data.get('segments', [])
+    if not segments:
+        return jsonify({'error': 'No segments provided'}), 400
+
+    username = _benchmark_username()
+    rated_path = _benchmark_rated_path(item, username)
+    rated_path.parent.mkdir(parents=True, exist_ok=True)
+
+    from helpers.flexible_io import read_parsed_recall_file
+    seed_file = rated_path if rated_path.exists() else item['matched_file']
+    df = read_parsed_recall_file(seed_file)
+    if 'recall_in_temporal_order' not in df.columns:
+        return jsonify({'error': 'Invalid file format'}), 400
+
+    # Preserve the original benchmark CSV schema (recall_segment, recall_text,
+    # story_segments, summary, …) so the rated file matches the unrated shape.
+    preserve_schema = None
+    sch = _capture_tabular_schema(seed_file)
+    if sch and not (set(c.lower() for c in sch['columns']) <= {'recalled_events', 'recall_in_temporal_order'}):
+        preserve_schema = sch
+
+    # Apply matched events.
+    for segment in segments:
+        idx = segment.get('index')
+        matched_event = segment.get('matched_event', segment.get('recalled_events', '')).strip()
+        if idx is None or not (0 <= idx < len(df)):
+            continue
+        if matched_event:
+            try:
+                parts = [str(int(float(p.strip()))) for p in matched_event.split(',') if p.strip()]
+                matched_event = ', '.join(parts) if parts else ''
+            except (ValueError, AttributeError):
+                matched_event = matched_event.strip()
+        else:
+            matched_event = ''
+        df.at[idx, 'recalled_events'] = matched_event
+
+    # Per-segment "further ratings" + comment (only when the toggle is on).
+    rating_cols = FURTHER_RATING_COLS
+    further_ratings = bool(data.get('further_ratings'))
+
+    def _format_rating_cell(checked, spans):
+        if not checked:
+            return ''
+        frags = [str(s).strip() for s in (spans or []) if str(s).strip()]
+        if frags:
+            return '; '.join("'" + f.replace("'", "’") + "'" for f in frags)
+        return 'TRUE'
+
+    if further_ratings:
+        rating_by_idx = {r: {} for r in rating_cols}
+        comment_by_idx = {}
+        for segment in segments:
+            idx = segment.get('index')
+            for r in rating_cols:
+                rating_by_idx[r][idx] = _format_rating_cell(bool(segment.get(r)), segment.get(r + '_spans'))
+            comment_by_idx[idx] = str(segment.get('comment') or '').strip()
+        for r in rating_cols:
+            df[r] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
+        df['comment'] = [comment_by_idx.get(i, '') for i in range(len(df))]
+    else:
+        drop = [r for r in rating_cols if r in df.columns]
+        if 'comment' in df.columns:
+            drop.append('comment')
+        if drop:
+            df = df.drop(columns=drop)
+
+    for col in df.columns:
+        df[col] = df[col].fillna('').astype(str).replace('nan', '')
+    df = df.fillna('')
+
+    if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
+        cols = ['recalled_events', 'recall_in_temporal_order']
+        for r in FURTHER_RATING_COLS + ('comment',):
+            if r in df.columns:
+                cols.append(r)
+        df = df[cols]
+
+    out_ext = rated_path.suffix.lower()
+    csv_sep = '\t' if out_ext == '.tsv' else ','
+    if preserve_schema:
+        out_df = pd.DataFrame()
+        for col in preserve_schema['columns']:
+            if col == preserve_schema.get('index_col'):
+                out_df[col] = list(range(len(df)))
+            elif col == preserve_schema.get('recall_col'):
+                out_df[col] = df['recall_in_temporal_order'].values
+            elif col == preserve_schema.get('matches_col'):
+                out_df[col] = df['recalled_events'].values
+            elif col in df.columns:
+                out_df[col] = df[col].values
+            else:
+                out_df[col] = [''] * len(df)
+        df = out_df
+
+    df.to_csv(rated_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
+
+    # Copy the segmented story alongside so each rated datasource is self-contained.
+    seg_src = item.get('segmented_file')
+    if seg_src and Path(seg_src).exists():
+        dest_seg = rated_path.parent.parent / Path(seg_src).name
+        if not dest_seg.exists():
+            try:
+                shutil.copy2(seg_src, dest_seg)
+            except Exception as e:
+                print(f"benchmark: failed to copy segmented story: {e}")
+
+    log_user_edit(username, 'save-rated', item['id'], rated_path.name)
+    return jsonify({
+        'success': True,
+        'message': 'Rated events saved successfully',
+        'updated_data': {'rated_texts': _benchmark_read_segments(rated_path)},
+    })
+
+
+@app.route('/benchmark')
+@login_required
+def benchmark_overview():
+    """Benchmark overview: the recall files to rate (and which are done)."""
+    return render_template('benchmark.html', username=_benchmark_username())
+
+
+@app.route('/api/benchmark/files')
+def api_benchmark_files():
+    """List benchmark recall files with their rated status for the overview."""
+    username = _benchmark_username()
+    files = []
+    for item in _benchmark_scan():
+        files.append({
+            'id': item['id'],
+            'datasource': item['datasource'],
+            'story': item['story'],
+            'sub_id': item['sub_id'],
+            'rated': _benchmark_rated_path(item, username).exists(),
+        })
+    return jsonify({'username': username, 'files': files})
+
+
 @app.route('/')
 def index():
     """Main dashboard. Requires a configured pipeline; rater name is optional
     here (it is collected on the pipeline-config page)."""
+    if BENCHMARK_MODE:
+        return redirect('/benchmark')
     pipeline_file = _pipeline_config_path()
     if not pipeline_file.exists():
         print("No pipeline config found, redirecting to pipeline configuration page")
@@ -4056,6 +4410,8 @@ def index():
 @login_required
 def pipeline_config():
     """Pipeline configuration page."""
+    if BENCHMARK_MODE:
+        return redirect('/benchmark')
     print("Rendering pipeline configuration page")
     try:
         template_path = PACKAGE_ROOT / 'templates' / 'pipeline-config.html'
@@ -4112,6 +4468,10 @@ def _parse_file_version_query_args():
 @app.route('/api/subject/<subj_id>')
 def api_subject(subj_id):
     """API endpoint to get all data for a subject."""
+    if BENCHMARK_MODE:
+        item = _benchmark_item_for_id(subj_id)
+        if item:
+            return jsonify(_benchmark_subject_payload(item))
     story_events_file, recall_fv, story_transcript_file, causal_rating_file = _parse_file_version_query_args()
     if not causal_rating_file and recall_fv and str(recall_fv).endswith('.xlsx') and 'causal' in str(recall_fv):
         causal_rating_file, recall_fv = recall_fv, None
@@ -4705,8 +5065,14 @@ def save_rated_events(subj_id):
     """Save edited matched events for rated texts."""
     try:
         data = request.get_json()
+
+        if BENCHMARK_MODE:
+            item = _benchmark_item_for_id(subj_id)
+            if item:
+                return _benchmark_save_rated(item, data)
+
         segments = data.get('segments', [])
-        
+
         if not segments:
             return jsonify({'error': 'No segments provided'}), 400
         
