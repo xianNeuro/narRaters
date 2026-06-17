@@ -452,6 +452,17 @@ def cmd_users(args: argparse.Namespace, extra: list[str]) -> int:
         print(f"Removed user '{args.username}' ({accounts.users_file()})")
         return 0
 
+    # Usernames double as benchmark rated/ directory names + filename prefixes,
+    # so they must be filesystem/regex-safe. Reject unsafe names at creation so
+    # the stored account name always equals its sanitized form.
+    if action == "add" and not accounts.is_safe_username(args.username):
+        print(
+            f"narraters: invalid username {args.username!r}. Use only letters, "
+            f"numbers, or underscore (no spaces, dots, or slashes).",
+            file=sys.stderr,
+        )
+        return 1
+
     # add / passwd both need a password prompt.
     if action == "add" and accounts.user_exists(args.username):
         print(f"narraters: user '{args.username}' already exists "

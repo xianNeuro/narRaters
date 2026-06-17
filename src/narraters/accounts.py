@@ -21,11 +21,29 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 from datetime import datetime
 from pathlib import Path
 
 from werkzeug.security import check_password_hash, generate_password_hash
+
+
+def sanitize_username(raw: str) -> str:
+    """Collapse a name to a filesystem/regex-safe token (``\\w`` only, max 32).
+
+    A username doubles as a directory name and filename prefix under
+    ``benchmark/rated/<user>/``, so it must contain no path separators or other
+    special characters. Returns '' if nothing usable remains.
+    """
+    token = re.sub(r"\W+", "_", (raw or "").strip()).strip("_")
+    return token[:32]
+
+
+def is_safe_username(raw: str) -> bool:
+    """True iff ``raw`` is already safe (equals its sanitized form, non-empty)."""
+    clean = sanitize_username(raw)
+    return bool(clean) and clean == (raw or "").strip()
 
 
 def account_data_dir() -> Path:

@@ -2801,11 +2801,31 @@
                 return !validEvents.size || tokens.every(t => validEvents.has(Number(t)));
             }
             const recall = (data.rated_texts || []).map((s, i) => {
-                const on = RATING_KEYS.filter(k => s[k] === true || String(s[k]).toLowerCase() === 'true');
+                const text = s.text || s.recall_in_temporal_order || '';
+                const checked = k => s[k] === true || String(s[k]).toLowerCase() === 'true';
+                // Plain pills (summary) live in r.on; highlight pills are restored into
+                // r.highlights by locating each saved text fragment back in `text`.
+                const on = [];
+                const highlights = [];
+                BENCH_PILLS.forEach(p => {
+                    if (!checked(p.cat)) return;
+                    if (!p.hl) { on.push(p.cat); return; }
+                    const spans = Array.isArray(s[p.cat + '_spans']) ? s[p.cat + '_spans'] : [];
+                    let located = false;
+                    spans.forEach(frag => {
+                        const f = String(frag || '');
+                        if (!f) return;
+                        const start = text.indexOf(f);
+                        if (start >= 0) { highlights.push({ cat: p.cat, start, end: start + f.length }); located = true; }
+                    });
+                    // Checked but no locatable span (rare TRUE-without-text / changed text):
+                    // keep it "on" via r.on so the mark isn't lost.
+                    if (!located) on.push(p.cat);
+                });
                 const comment = (s.comment != null ? String(s.comment) : '');
                 return {
                     n: i,
-                    text: s.text || s.recall_in_temporal_order || '',
+                    text: text,
                     matches: (s.matched_event != null ? String(s.matched_event)
                               : (s.matched != null ? String(s.matched) : '')),
                     on: on,
@@ -2814,7 +2834,7 @@
                     // restored from the rated CSV (confidence col + first-pass-rated flag)
                     conf: (s.confidence === 0 || s.confidence) ? Number(s.confidence) : null,
                     visited: !!s.first_pass, // pass-1 "rated" = opened at least once
-                    highlights: [], // {cat,start,end} spans into text; in-memory only
+                    highlights: highlights, // {cat,start,end} spans into text
                 };
             });
 
@@ -2834,16 +2854,28 @@
             function buildSavePayload() {
                 return {
                     further_ratings: true,
+                    client_seq: Date.now(), // monotonic-ish guard: server drops stale writes
                     segments: recall.map((r, i) => {
                         const seg = {
                             index: i,
                             matched_event: r.matches,
                             comment: r.comment,
                             confidence: r.conf,
-                            'first-pass-rated': !!r.visited && matchesValid(r),
-                            'second-pass-rated': r.conf !== null && matchesValid(r),
+                            // progress is recorded independently of match validity so an
+                            // invalid match can't silently regress recorded progress.
+                            'first-pass-rated': !!r.visited,
+                            'second-pass-rated': r.conf !== null,
                         };
-                        RATING_KEYS.forEach(k => { seg[k] = r.on.includes(k); });
+                        BENCH_PILLS.forEach(p => {
+                            if (p.hl) {
+                                const spans = r.highlights.filter(h => h.cat === p.cat)
+                                    .map(h => r.text.slice(h.start, h.end));
+                                seg[p.cat] = spans.length > 0 || r.on.includes(p.cat);
+                                seg[p.cat + '_spans'] = spans;
+                            } else {
+                                seg[p.cat] = r.on.includes(p.cat);
+                            }
+                        });
                         return seg;
                     }),
                 };
@@ -2856,7 +2888,16 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(buildSavePayload()),
                     });
-                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    if (!resp.ok) {
+                        let body = {};
+                        try { body = await resp.json(); } catch (e2) { /* non-JSON */ }
+                        // These need the rater's attention: pop a blocking alert in
+                        // addition to the inline toast.
+                        if (['row_mismatch', 'bad_username', 'item_unresolved'].includes(body.error_code)) {
+                            window.alert(body.error || 'Could not save your ratings.');
+                        }
+                        throw new Error(body.error || ('HTTP ' + resp.status));
+                    }
                     if (seq === saveSeq) showActionMsg('Saved ✓', 'ok');
                 } catch (e) {
                     if (seq === saveSeq) showActionMsg('Could not save: ' + e.message, 'err');
@@ -3062,7 +3103,7 @@
                                 <div class="br-pill-row">
                                     ${BENCH_PILLS.map(p => {
                                         const on = p.hl
-                                            ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat))
+                                            ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
                                             : r.on.includes(p.cat);
                                         const x = (p.hl && on) ? '<span class="br-pill-x">×</span>' : '';
                                         return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${p.hl ? 1 : 0}">${p.label}${x}</span>`;
@@ -3178,6 +3219,7 @@
                         recall[i].commentOpen = !recall[i].commentOpen;
                     } else if (isHl) {
                         const r = recall[i];
+                        r.on = r.on.filter(c => c !== cat); // clear any fallback checked-without-span state
                         const span = (i === activeIdx) ? activeSelectionSpan() : null;
                         if (span) {                                            // mark a live selection directly
                             addHighlight(cat, span);
@@ -8717,7 +8759,16 @@
                 
                 const response = await fetch(url);
                 const data = await response.json();
-                
+
+                // Benchmark: an unsafe rater name can't be used as a save path.
+                // Block rating entirely and tell the rater to contact the admin.
+                if (!response.ok && data && data.error_code === 'bad_username') {
+                    window.alert(data.error || 'Your account name is not valid for rating. Please contact the admin.');
+                    const content = document.getElementById('content');
+                    if (content) content.innerHTML = `<div class="error-message" style="padding:2rem">${data.error || 'Your account name is not valid for rating. Please contact the admin.'}</div>`;
+                    return;
+                }
+
                 rawText = data.raw_recall || '';
                 correctedText = data.corrected_text || '';
                 ratedTextsData = data.rated_texts || [];

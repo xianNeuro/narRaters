@@ -2235,6 +2235,10 @@ BENCH_FIRST_PASS_COL = 'first-pass-rated'
 BENCH_SECOND_PASS_COL = 'second-pass-rated'
 _BENCH_RATING_FILE_COL = {'error': 'factual_error'}
 
+# Last-accepted client save sequence per rated file path (in-memory; resets on
+# server restart). Used to drop stale out-of-order benchmark saves (#6).
+_BENCH_SAVE_SEQ = {}
+
 
 def _bench_file_col(key):
     """Map a frontend rating key to its benchmark-CSV column name."""
@@ -4169,6 +4173,25 @@ def _benchmark_username():
     return clean
 
 
+def _benchmark_username_error():
+    """Block reading/writing benchmark data if the active rater name isn't
+    filesystem-safe (the name is used as a directory + filename prefix).
+
+    Returns a Flask ``(response, status)`` error tuple to surface, or ``None``
+    when the name is safe. Defense in depth: account creation already rejects
+    unsafe names (`narraters users add`), so this only catches legacy accounts
+    created before that check existed."""
+    username = _benchmark_username()
+    if sanitize_rater_name(username) != username:
+        return jsonify({
+            'error': 'Your account name contains characters that are not allowed '
+                     'for saving ratings. Please take a screenshot of this message '
+                     'and email it to the admin. Do not continue rating.',
+            'error_code': 'bad_username',
+        }), 409
+    return None
+
+
 def _benchmark_rated_path(item, username):
     """Destination for a rater's edited matches:
     rated/<user>/<user>-<datasource>-matching/<story>/matches/<same-filename>.
@@ -4298,6 +4321,10 @@ def _benchmark_subject_payload(item):
 
 def _benchmark_save_rated(item, data):
     """Save edited matches for a benchmark item into benchmark/rated/<user>/."""
+    err = _benchmark_username_error()
+    if err:
+        return err
+
     segments = data.get('segments', [])
     if not segments:
         return jsonify({'error': 'No segments provided'}), 400
@@ -4306,11 +4333,37 @@ def _benchmark_save_rated(item, data):
     rated_path = _benchmark_rated_path(item, username)
     rated_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Drop stale writes: a debounced save built from an older snapshot must not
+    # land after a newer one (e.g. the beforeunload beacon). client_seq is a
+    # monotonic-ish client timestamp; only strictly-newer writes are accepted.
+    seq_key = str(rated_path)
+    client_seq = data.get('client_seq')
+    if client_seq is not None:
+        try:
+            client_seq = float(client_seq)
+        except (TypeError, ValueError):
+            client_seq = None
+    if client_seq is not None and client_seq <= _BENCH_SAVE_SEQ.get(seq_key, float('-inf')):
+        return jsonify({'success': True, 'skipped': 'stale'})
+
     from helpers.flexible_io import read_parsed_recall_file
     seed_file = rated_path if rated_path.exists() else item['matched_file']
     df = read_parsed_recall_file(seed_file)
     if 'recall_in_temporal_order' not in df.columns:
         return jsonify({'error': 'Invalid file format'}), 400
+
+    # Abort (without writing) if the file's row count no longer matches the
+    # rater's in-memory segments — the unrated file changed under the rater, so
+    # aligning by integer index would silently drop/misplace data.
+    max_idx = max((s.get('index', -1) for s in segments
+                   if isinstance(s.get('index'), int)), default=-1)
+    if len(segments) != len(df) or max_idx >= len(df):
+        return jsonify({
+            'error': 'The recall file changed since you opened it, so your latest '
+                     'edits were NOT saved. Please take a screenshot of this message '
+                     'and email it to the admin.',
+            'error_code': 'row_mismatch',
+        }), 409
 
     # Preserve the original benchmark CSV schema (recall_segment, recall_text,
     # story_segments, summary, …) so the rated file matches the unrated shape.
@@ -4344,7 +4397,9 @@ def _benchmark_save_rated(item, data):
             return ''
         frags = [str(s).strip() for s in (spans or []) if str(s).strip()]
         if frags:
-            return '; '.join("'" + f.replace("'", "’") + "'" for f in frags)
+            # Keep fragment text verbatim so it round-trips back to the exact
+            # highlighted span (the client re-locates it by indexOf).
+            return '; '.join("'" + f + "'" for f in frags)
         return 'TRUE'
 
     def _format_conf(value):
@@ -4411,14 +4466,31 @@ def _benchmark_save_rated(item, data):
                 out_df[col] = df[col].values
             else:
                 out_df[col] = [''] * len(df)
-        # Append progress/confidence columns the unrated schema may not include yet,
-        # so a rater's progress is recorded even on files that never had them.
-        for extra in (BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+        # Append any rater-input column the unrated schema didn't include (rating
+        # categories, comment, confidence, progress flags) so nothing the rater
+        # entered is silently dropped on files whose header lacked that column.
+        rater_extras = ([_bench_file_col(r) for r in FURTHER_RATING_COLS]
+                        + ['comment', BENCH_CONFIDENCE_COL,
+                           BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL])
+        for extra in rater_extras:
             if extra not in out_df.columns and extra in df.columns:
                 out_df[extra] = df[extra].values
         df = out_df
 
-    df.to_csv(rated_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
+    # Atomic write: build the file under a sibling temp name, then os.replace so a
+    # crash / killed beforeunload-beacon can never leave a truncated rated file.
+    tmp_path = rated_path.with_name(rated_path.name + '.tmp')
+    try:
+        df.to_csv(tmp_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
+        os.replace(tmp_path, rated_path)
+    except Exception:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+        raise
+    if client_seq is not None:
+        _BENCH_SAVE_SEQ[seq_key] = client_seq
 
     # Copy the segmented story alongside so each rated datasource is self-contained.
     seg_src = item.get('segmented_file')
@@ -4446,8 +4518,8 @@ def _benchmark_rated_status(item, username):
     if not rated_path.exists():
         return 'not_rated'
     try:
-        from helpers.flexible_io import read_tabular
-        raw = read_tabular(rated_path)
+        from helpers.flexible_io import read_tabular, read_parsed_recall_file
+        raw = read_tabular(rated_path).reset_index(drop=True)
         if len(raw) == 0:
             return 'in_progress'
         if BENCH_FIRST_PASS_COL not in raw.columns or BENCH_SECOND_PASS_COL not in raw.columns:
@@ -4456,9 +4528,24 @@ def _benchmark_rated_status(item, username):
         def _truthy(v):
             return str(v).strip().lower() in ('true', '1', 'yes', 'x')
 
-        first_done = raw[BENCH_FIRST_PASS_COL].map(_truthy).all()
-        second_done = raw[BENCH_SECOND_PASS_COL].map(_truthy).all()
-        return 'rated' if (first_done and second_done) else 'in_progress'
+        first = raw[BENCH_FIRST_PASS_COL].map(_truthy).reset_index(drop=True)
+        second = raw[BENCH_SECOND_PASS_COL].map(_truthy).reset_index(drop=True)
+
+        # Blank recall rows are kept for display but are never rated; exclude them
+        # from the completion check so an item that's fully rated apart from
+        # blank/trailing rows can still reach 'rated'.
+        try:
+            parsed = read_parsed_recall_file(rated_path).reset_index(drop=True)
+            text = parsed['recall_in_temporal_order'].astype(str).str.strip()
+            mask = (text != '') & (text.str.lower() != 'nan')
+        except Exception:
+            mask = None
+        if mask is not None and len(mask) == len(first):
+            if not mask.any():
+                return 'in_progress'
+            first, second = first[mask], second[mask]
+
+        return 'rated' if (first.all() and second.all()) else 'in_progress'
     except Exception as e:
         print(f"benchmark: error reading status {rated_path}: {e}")
         return 'in_progress'
@@ -4570,6 +4657,9 @@ def api_subject(subj_id):
     if BENCHMARK_MODE:
         item = _benchmark_item_for_id(subj_id)
         if item:
+            err = _benchmark_username_error()
+            if err:
+                return err
             return jsonify(_benchmark_subject_payload(item))
     story_events_file, recall_fv, story_transcript_file, causal_rating_file = _parse_file_version_query_args()
     if not causal_rating_file and recall_fv and str(recall_fv).endswith('.xlsx') and 'causal' in str(recall_fv):
@@ -5190,6 +5280,16 @@ def save_rated_events(subj_id):
             item = _benchmark_item_for_id(subj_id)
             if item:
                 return _benchmark_save_rated(item, data)
+            # In benchmark mode we must NOT fall through to the generic pipeline
+            # save (wrong tree + wrong format). The unrated file was likely
+            # moved/renamed under the rater; fail loudly so nothing is misrouted.
+            print(f"benchmark: save failed — could not resolve item for slug {subj_id!r}")
+            return jsonify({
+                'error': 'Could not locate this benchmark item to save. The recall '
+                         'file may have been moved or renamed — your latest changes '
+                         'were not saved.',
+                'error_code': 'item_unresolved',
+            }), 409
 
         segments = data.get('segments', [])
 
