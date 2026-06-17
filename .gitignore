@@ -77,10 +77,12 @@ deploy/
 Thumbs.db
 
 # Built artifacts — regenerate on demand
-# tutorials/ ships the *.pdf guides (committed so users see them after unzipping);
-# the build scripts, source screenshots, and maintainer notes there are local-only.
+# tutorials/ ships the *.pdf guides and the install *.mp4 (committed so users see
+# them after unzipping); the build scripts, source screenshots, and maintainer
+# notes there are local-only.
 tutorials/*
 !tutorials/*.pdf
+!tutorials/*.mp4
 narRaters_installer.app/
 # DMGs are build artifacts; ship via GitHub Releases, not git.
 *.dmg
