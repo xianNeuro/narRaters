@@ -190,7 +190,7 @@ def _require_login():
     decorator (most /api/* endpoints), so nothing is accidentally left open."""
     if not REQUIRE_AUTH or current_user.is_authenticated:
         return None
-    if request.endpoint in _AUTH_EXEMPT_ENDPOINTS or request.path.startswith("/static/"):
+    if request.endpoint in _AUTH_EXEMPT_ENDPOINTS or request.path.startswith("/static/") or request.path == "/favicon.ico":
         return None
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "Authentication required"}), 401
@@ -4807,6 +4807,14 @@ def serve_static(filename):
         return send_from_directory(str(PACKAGE_ROOT / 'static'), filename)
     except NotFound:
         return "File not found", 404
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Serve the favicon at the conventional root path that browsers request
+    automatically, in addition to the explicit <link> tags in the templates."""
+    from flask import send_from_directory
+    return send_from_directory(str(PACKAGE_ROOT / 'static' / 'favicon'), 'favicon.ico')
 
 
 @app.route('/subject/<subj_id>/step3')
