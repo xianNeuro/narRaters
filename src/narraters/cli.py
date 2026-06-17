@@ -225,6 +225,7 @@ def cmd_rate(args: argparse.Namespace, extra: list[str]) -> int:
 def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
     """Launch the Flask web UI in-process."""
     import importlib.util
+    import getpass
 
     ensure_repo_on_path()
     seeded = prepare_serve_workspace()
@@ -252,6 +253,21 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
         # Enforce app-level login in production. The server module reads
         # NARRATERS_REQUIRE_AUTH at import time, so set it before exec below.
         os.environ["NARRATERS_REQUIRE_AUTH"] = "1"
+
+    if benchmark and not production:
+        # Without login every rater's session falls back to the same OS username
+        # (getpass.getuser()), so multiple raters read/write the same
+        # benchmark/rated/<name>/ tree and silently overwrite each other.
+        _RED, _RESET = "\033[1;31m", "\033[0m"
+        print(
+            f"{_RED}WARNING: --benchmark is not meant to run without --production.{_RESET}\n"
+            f"{_RED}         Without login every rater resolves to the same username "
+            f"({getpass.getuser()!r}) and they will overwrite each other's saved "
+            f"ratings.{_RESET}\n"
+            f"{_RED}         Re-run with --production (and create accounts via "
+            f"'narraters users add <name>') for multi-rater use.{_RESET}",
+            file=sys.stderr,
+        )
 
     # Load server/web-interface.py as a module (its filename has a hyphen so
     # we can't use a regular import statement).

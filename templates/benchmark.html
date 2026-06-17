@@ -109,6 +109,21 @@
             margin-bottom: 32px;
         }
 
+        .no-auth-warning {
+            background: #2a0e12;
+            border: 1px solid #e0294b;
+            border-radius: var(--rad);
+            color: #ff6b81;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 14px 16px;
+            margin-bottom: 24px;
+        }
+
+        .no-auth-warning b {
+            color: #ff3b5c;
+        }
+
         .progress {
             color: var(--t1);
             font-size: 14px;
@@ -219,6 +234,15 @@
     <div class="wrap">
         <h1>Hi <i><span class="name">{{ username }}</span></i>!</h1>
         <div class="sub">Pick a recall file to start rating.</div>
+
+        {% if not require_auth %}
+        <div class="no-auth-warning" role="alert">
+            <b>Warning:</b> login is not active, so every rater is being treated as
+            the same user (<i>{{ username }}</i>). Ratings from different people will
+            overwrite each other. This mode is not meant for multiple raters &mdash;
+            please contact the admin to run with login (<code>--production</code>) enabled.
+        </div>
+        {% endif %}
 
         <div class="progress" id="progress"></div>
 

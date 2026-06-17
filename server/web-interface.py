@@ -20,6 +20,7 @@ import json
 import shutil
 import hashlib
 import secrets
+import threading
 from functools import wraps
 
 
@@ -2239,6 +2240,26 @@ _BENCH_RATING_FILE_COL = {'error': 'factual_error'}
 # server restart). Used to drop stale out-of-order benchmark saves (#6).
 _BENCH_SAVE_SEQ = {}
 
+# Per-rated-path lock so the staleness check -> read seed -> build df -> atomic
+# write -> _BENCH_SAVE_SEQ update sequence runs atomically. Without it, two
+# concurrent saves for the same file (debounced autosave racing the
+# beforeunload beacon, or two tabs) can both pass the staleness check before
+# either updates _BENCH_SAVE_SEQ, and the one that os.replace()s last wins
+# regardless of which carried the newer client_seq (lost update). Matters under
+# --production, where Waitress serves requests on multiple threads.
+_BENCH_SAVE_LOCKS = {}
+_BENCH_SAVE_LOCKS_GUARD = threading.Lock()
+
+
+def _bench_save_lock(seq_key):
+    """Return the (process-wide) lock for a rated path, creating it on first use."""
+    with _BENCH_SAVE_LOCKS_GUARD:
+        lock = _BENCH_SAVE_LOCKS.get(seq_key)
+        if lock is None:
+            lock = threading.Lock()
+            _BENCH_SAVE_LOCKS[seq_key] = lock
+        return lock
+
 
 def _bench_file_col(key):
     """Map a frontend rating key to its benchmark-CSV column name."""
@@ -4382,144 +4403,166 @@ def _benchmark_save_rated(item, data):
             client_seq = float(client_seq)
         except (TypeError, ValueError):
             client_seq = None
-    if client_seq is not None and client_seq <= _BENCH_SAVE_SEQ.get(seq_key, float('-inf')):
-        return jsonify({'success': True, 'skipped': 'stale'})
+    # Hold a per-rated-path lock across the whole staleness-check -> read ->
+    # build -> atomic-write -> seq-update sequence so concurrent saves for the
+    # same file can't both pass the staleness check and lose an update (#3).
+    with _bench_save_lock(seq_key):
+        if client_seq is not None and client_seq <= _BENCH_SAVE_SEQ.get(seq_key, float('-inf')):
+            return jsonify({'success': True, 'skipped': 'stale'})
 
-    from helpers.flexible_io import read_parsed_recall_file
-    seed_file = rated_path if rated_path.exists() else item['matched_file']
-    df = read_parsed_recall_file(seed_file)
-    if 'recall_in_temporal_order' not in df.columns:
-        return jsonify({'error': 'Invalid file format'}), 400
+        from helpers.flexible_io import read_parsed_recall_file, read_tabular
+        seed_file = rated_path if rated_path.exists() else item['matched_file']
+        df = read_parsed_recall_file(seed_file)
+        if 'recall_in_temporal_order' not in df.columns:
+            return jsonify({'error': 'Invalid file format'}), 400
 
-    # Abort (without writing) if the file's row count no longer matches the
-    # rater's in-memory segments — the unrated file changed under the rater, so
-    # aligning by integer index would silently drop/misplace data.
-    max_idx = max((s.get('index', -1) for s in segments
-                   if isinstance(s.get('index'), int)), default=-1)
-    if len(segments) != len(df) or max_idx >= len(df):
-        return jsonify({
-            'error': 'The recall file changed since you opened it, so your latest '
-                     'edits were NOT saved. Please take a screenshot of this message '
-                     'and email it to the admin.',
-            'error_code': 'row_mismatch',
-        }), 409
-
-    # Preserve the original benchmark CSV schema (recall_segment, recall_text,
-    # story_segments, summary, …) so the rated file matches the unrated shape.
-    preserve_schema = None
-    sch = _capture_tabular_schema(seed_file)
-    if sch and not (set(c.lower() for c in sch['columns']) <= {'recalled_events', 'recall_in_temporal_order'}):
-        preserve_schema = sch
-
-    # Apply matched events.
-    for segment in segments:
-        idx = segment.get('index')
-        matched_event = segment.get('matched_event', segment.get('recalled_events', '')).strip()
-        if idx is None or not (0 <= idx < len(df)):
-            continue
-        if matched_event:
-            try:
-                parts = [str(int(float(p.strip()))) for p in matched_event.split(',') if p.strip()]
-                matched_event = ', '.join(parts) if parts else ''
-            except (ValueError, AttributeError):
-                matched_event = matched_event.strip()
-        else:
-            matched_event = ''
-        df.at[idx, 'recalled_events'] = matched_event
-
-    # Per-segment "further ratings" + comment (only when the toggle is on).
-    rating_cols = FURTHER_RATING_COLS
-    further_ratings = bool(data.get('further_ratings'))
-
-    def _format_conf(value):
+        # Raw read of the seed file (all original columns, before normalization
+        # collapses df to recalled_events + recall_in_temporal_order). Used below
+        # to carry through extra/admin columns that aren't part of df (#1).
         try:
-            return str(int(float(str(value).strip())))
-        except (ValueError, TypeError):
-            return ''
+            raw_seed = read_tabular(seed_file)
+        except Exception:
+            raw_seed = None
 
-    if further_ratings:
-        rating_by_idx = {r: {} for r in rating_cols}
-        comment_by_idx = {}
-        conf_by_idx = {}
-        first_by_idx = {}
-        second_by_idx = {}
+        # Abort (without writing) unless the rater's segment indices are exactly
+        # the file's row set {0..len(df)-1} — no gaps, no duplicates. A mismatch
+        # means either the unrated file changed under the rater (aligning by
+        # integer index would silently drop/misplace data) or the client sent a
+        # partial/duplicated index list (a duplicate index would silently
+        # overwrite another row's data without raising).
+        indices = [s.get('index') for s in segments]
+        if (any(not isinstance(i, int) for i in indices)
+                or sorted(indices) != list(range(len(df)))):
+            return jsonify({
+                'error': 'The recall file changed since you opened it, so your latest '
+                         'edits were NOT saved. Please take a screenshot of this message '
+                         'and email it to the admin.',
+                'error_code': 'row_mismatch',
+            }), 409
+
+        # Preserve the original benchmark CSV schema (recall_segment, recall_text,
+        # story_segments, summary, …) so the rated file matches the unrated shape.
+        preserve_schema = None
+        sch = _capture_tabular_schema(seed_file)
+        if sch and not (set(c.lower() for c in sch['columns']) <= {'recalled_events', 'recall_in_temporal_order'}):
+            preserve_schema = sch
+
+        # Apply matched events.
         for segment in segments:
             idx = segment.get('index')
-            for r in rating_cols:
-                rating_by_idx[r][idx] = _format_benchmark_rating_cell(bool(segment.get(r)), segment.get(r + '_ranges'))
-            comment_by_idx[idx] = str(segment.get('comment') or '').strip()
-            conf_by_idx[idx] = _format_conf(segment.get(BENCH_CONFIDENCE_COL))
-            first_by_idx[idx] = 'TRUE' if segment.get(BENCH_FIRST_PASS_COL) else ''
-            second_by_idx[idx] = 'TRUE' if segment.get(BENCH_SECOND_PASS_COL) else ''
-        # Rating cats are stored under their benchmark-CSV column name (error -> factual_error).
-        for r in rating_cols:
-            df[_bench_file_col(r)] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
-        df['comment'] = [comment_by_idx.get(i, '') for i in range(len(df))]
-        df[BENCH_CONFIDENCE_COL] = [conf_by_idx.get(i, '') for i in range(len(df))]
-        df[BENCH_FIRST_PASS_COL] = [first_by_idx.get(i, '') for i in range(len(df))]
-        df[BENCH_SECOND_PASS_COL] = [second_by_idx.get(i, '') for i in range(len(df))]
-    else:
-        drop = [_bench_file_col(r) for r in rating_cols if _bench_file_col(r) in df.columns]
-        for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
-            if extra in df.columns:
-                drop.append(extra)
-        if drop:
-            df = df.drop(columns=drop)
-
-    for col in df.columns:
-        df[col] = df[col].fillna('').astype(str).replace('nan', '')
-    df = df.fillna('')
-
-    if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
-        cols = ['recalled_events', 'recall_in_temporal_order']
-        for r in FURTHER_RATING_COLS:
-            if _bench_file_col(r) in df.columns:
-                cols.append(_bench_file_col(r))
-        for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
-            if extra in df.columns:
-                cols.append(extra)
-        df = df[cols]
-
-    out_ext = rated_path.suffix.lower()
-    csv_sep = '\t' if out_ext == '.tsv' else ','
-    if preserve_schema:
-        out_df = pd.DataFrame()
-        for col in preserve_schema['columns']:
-            if col == preserve_schema.get('index_col'):
-                out_df[col] = list(range(len(df)))
-            elif col == preserve_schema.get('recall_col'):
-                out_df[col] = df['recall_in_temporal_order'].values
-            elif col == preserve_schema.get('matches_col'):
-                out_df[col] = df['recalled_events'].values
-            elif col in df.columns:
-                out_df[col] = df[col].values
+            matched_event = segment.get('matched_event', segment.get('recalled_events', '')).strip()
+            if idx is None or not (0 <= idx < len(df)):
+                continue
+            if matched_event:
+                try:
+                    parts = [str(int(float(p.strip()))) for p in matched_event.split(',') if p.strip()]
+                    matched_event = ', '.join(parts) if parts else ''
+                except (ValueError, AttributeError):
+                    matched_event = matched_event.strip()
             else:
-                out_df[col] = [''] * len(df)
-        # Append any rater-input column the unrated schema didn't include (rating
-        # categories, comment, confidence, progress flags) so nothing the rater
-        # entered is silently dropped on files whose header lacked that column.
-        rater_extras = ([_bench_file_col(r) for r in FURTHER_RATING_COLS]
-                        + ['comment', BENCH_CONFIDENCE_COL,
-                           BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL])
-        for extra in rater_extras:
-            if extra not in out_df.columns and extra in df.columns:
-                out_df[extra] = df[extra].values
-        df = out_df
+                matched_event = ''
+            df.at[idx, 'recalled_events'] = matched_event
 
-    # Atomic write: build the file under a sibling temp name, then os.replace so a
-    # crash / killed beforeunload-beacon can never leave a truncated rated file.
-    tmp_path = rated_path.with_name(rated_path.name + '.tmp')
-    try:
-        df.to_csv(tmp_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
-        os.replace(tmp_path, rated_path)
-    except Exception:
+        # Per-segment "further ratings" + comment (only when the toggle is on).
+        rating_cols = FURTHER_RATING_COLS
+        further_ratings = bool(data.get('further_ratings'))
+
+        def _format_conf(value):
+            try:
+                return str(int(float(str(value).strip())))
+            except (ValueError, TypeError):
+                return ''
+
+        if further_ratings:
+            rating_by_idx = {r: {} for r in rating_cols}
+            comment_by_idx = {}
+            conf_by_idx = {}
+            first_by_idx = {}
+            second_by_idx = {}
+            for segment in segments:
+                idx = segment.get('index')
+                for r in rating_cols:
+                    rating_by_idx[r][idx] = _format_benchmark_rating_cell(bool(segment.get(r)), segment.get(r + '_ranges'))
+                comment_by_idx[idx] = str(segment.get('comment') or '').strip()
+                conf_by_idx[idx] = _format_conf(segment.get(BENCH_CONFIDENCE_COL))
+                first_by_idx[idx] = 'TRUE' if segment.get(BENCH_FIRST_PASS_COL) else ''
+                second_by_idx[idx] = 'TRUE' if segment.get(BENCH_SECOND_PASS_COL) else ''
+            # Rating cats are stored under their benchmark-CSV column name (error -> factual_error).
+            for r in rating_cols:
+                df[_bench_file_col(r)] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
+            df['comment'] = [comment_by_idx.get(i, '') for i in range(len(df))]
+            df[BENCH_CONFIDENCE_COL] = [conf_by_idx.get(i, '') for i in range(len(df))]
+            df[BENCH_FIRST_PASS_COL] = [first_by_idx.get(i, '') for i in range(len(df))]
+            df[BENCH_SECOND_PASS_COL] = [second_by_idx.get(i, '') for i in range(len(df))]
+        else:
+            drop = [_bench_file_col(r) for r in rating_cols if _bench_file_col(r) in df.columns]
+            for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+                if extra in df.columns:
+                    drop.append(extra)
+            if drop:
+                df = df.drop(columns=drop)
+
+        for col in df.columns:
+            df[col] = df[col].fillna('').astype(str).replace('nan', '')
+        df = df.fillna('')
+
+        if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
+            cols = ['recalled_events', 'recall_in_temporal_order']
+            for r in FURTHER_RATING_COLS:
+                if _bench_file_col(r) in df.columns:
+                    cols.append(_bench_file_col(r))
+            for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+                if extra in df.columns:
+                    cols.append(extra)
+            df = df[cols]
+
+        out_ext = rated_path.suffix.lower()
+        csv_sep = '\t' if out_ext == '.tsv' else ','
+        if preserve_schema:
+            out_df = pd.DataFrame()
+            for col in preserve_schema['columns']:
+                if col == preserve_schema.get('index_col'):
+                    out_df[col] = list(range(len(df)))
+                elif col == preserve_schema.get('recall_col'):
+                    out_df[col] = df['recall_in_temporal_order'].values
+                elif col == preserve_schema.get('matches_col'):
+                    out_df[col] = df['recalled_events'].values
+                elif col in df.columns:
+                    out_df[col] = df[col].values
+                elif (raw_seed is not None and col in raw_seed.columns
+                      and len(raw_seed) == len(df)):
+                    # Carry through extra source columns (e.g. admin/reference
+                    # metadata) that normalization dropped from df, so they
+                    # aren't silently blanked on save (#1).
+                    out_df[col] = (raw_seed[col].fillna('').astype(str)
+                                   .replace('nan', '').values)
+                else:
+                    out_df[col] = [''] * len(df)
+            # Append any rater-input column the unrated schema didn't include (rating
+            # categories, comment, confidence, progress flags) so nothing the rater
+            # entered is silently dropped on files whose header lacked that column.
+            rater_extras = ([_bench_file_col(r) for r in FURTHER_RATING_COLS]
+                            + ['comment', BENCH_CONFIDENCE_COL,
+                               BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL])
+            for extra in rater_extras:
+                if extra not in out_df.columns and extra in df.columns:
+                    out_df[extra] = df[extra].values
+            df = out_df
+
+        # Atomic write: build the file under a sibling temp name, then os.replace so a
+        # crash / killed beforeunload-beacon can never leave a truncated rated file.
+        tmp_path = rated_path.with_name(rated_path.name + '.tmp')
         try:
-            tmp_path.unlink()
-        except OSError:
-            pass
-        raise
-    if client_seq is not None:
-        _BENCH_SAVE_SEQ[seq_key] = client_seq
+            df.to_csv(tmp_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
+            os.replace(tmp_path, rated_path)
+        except Exception:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+            raise
+        if client_seq is not None:
+            _BENCH_SAVE_SEQ[seq_key] = client_seq
 
     # Copy the segmented story alongside so each rated datasource is self-contained.
     seg_src = item.get('segmented_file')
@@ -4690,6 +4733,17 @@ def api_subject(subj_id):
             if err:
                 return err
             return jsonify(_benchmark_subject_payload(item))
+        # In benchmark mode we must NOT fall through to the generic pipeline
+        # lookups with a bench__… slug (wrong tree + wrong format, yielding an
+        # empty/nonsensical payload). The unrated file was likely moved/renamed
+        # under the rater; fail loudly, mirroring the save endpoint.
+        print(f"benchmark: read failed — could not resolve item for slug {subj_id!r}")
+        return jsonify({
+            'error': 'Could not locate this benchmark item. The recall file may '
+                     'have been moved or renamed — please return to the overview '
+                     'and pick a file again.',
+            'error_code': 'item_unresolved',
+        }), 409
     story_events_file, recall_fv, story_transcript_file, causal_rating_file = _parse_file_version_query_args()
     if not causal_rating_file and recall_fv and str(recall_fv).endswith('.xlsx') and 'causal' in str(recall_fv):
         causal_rating_file, recall_fv = recall_fv, None
