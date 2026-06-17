@@ -2804,21 +2804,22 @@
                 const text = s.text || s.recall_in_temporal_order || '';
                 const checked = k => s[k] === true || String(s[k]).toLowerCase() === 'true';
                 // Plain pills (summary) live in r.on; highlight pills are restored into
-                // r.highlights by locating each saved text fragment back in `text`.
+                // r.highlights from saved {start,end} offset ranges into `text`.
                 const on = [];
                 const highlights = [];
                 BENCH_PILLS.forEach(p => {
                     if (!checked(p.cat)) return;
                     if (!p.hl) { on.push(p.cat); return; }
-                    const spans = Array.isArray(s[p.cat + '_spans']) ? s[p.cat + '_spans'] : [];
+                    const ranges = Array.isArray(s[p.cat + '_ranges']) ? s[p.cat + '_ranges'] : [];
                     let located = false;
-                    spans.forEach(frag => {
-                        const f = String(frag || '');
-                        if (!f) return;
-                        const start = text.indexOf(f);
-                        if (start >= 0) { highlights.push({ cat: p.cat, start, end: start + f.length }); located = true; }
+                    ranges.forEach(r => {
+                        const start = Number(r.start), end = Number(r.end);
+                        if (Number.isInteger(start) && Number.isInteger(end) &&
+                            start >= 0 && start < end && end <= text.length) {
+                            highlights.push({ cat: p.cat, start, end }); located = true;
+                        }
                     });
-                    // Checked but no locatable span (rare TRUE-without-text / changed text):
+                    // Checked but no valid range (rare TRUE-without-span / changed text):
                     // keep it "on" via r.on so the mark isn't lost.
                     if (!located) on.push(p.cat);
                 });
@@ -2868,10 +2869,10 @@
                         };
                         BENCH_PILLS.forEach(p => {
                             if (p.hl) {
-                                const spans = r.highlights.filter(h => h.cat === p.cat)
-                                    .map(h => r.text.slice(h.start, h.end));
-                                seg[p.cat] = spans.length > 0 || r.on.includes(p.cat);
-                                seg[p.cat + '_spans'] = spans;
+                                const ranges = r.highlights.filter(h => h.cat === p.cat)
+                                    .map(h => ({ start: h.start, end: h.end }));
+                                seg[p.cat] = ranges.length > 0 || r.on.includes(p.cat);
+                                seg[p.cat + '_ranges'] = ranges;
                             } else {
                                 seg[p.cat] = r.on.includes(p.cat);
                             }

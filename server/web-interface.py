@@ -2263,6 +2263,43 @@ def _parse_rating_cell(value):
     return True, frags
 
 
+# Benchmark-only highlight cells encode spans as integer offset ranges into the
+# segment's recall_text, e.g. '12-47' or '12-47;50-80' (one range per highlight).
+# This is intentionally NOT the shared _parse_rating_cell format above (which the
+# non-benchmark span editor uses); the two paths diverge by design.
+_BENCH_RANGE_CELL_RE = re.compile(r'^\s*\d+\s*-\s*\d+(\s*;\s*\d+\s*-\s*\d+)*\s*$')
+
+
+def _parse_benchmark_rating_cell(value):
+    """(checked, ranges) where ranges = [{'start','end'}, ...] offsets into
+    recall_text. Only the 'a-b;c-d' format is understood."""
+    s = str(value or '').strip()
+    if not s or s.lower() == 'nan':
+        return False, []
+    if s.lower() in ('true', '1', 'yes', 'x'):
+        return True, []
+    if _BENCH_RANGE_CELL_RE.match(s):
+        ranges = []
+        for pair in s.split(';'):
+            a, b = pair.split('-')
+            start, end = int(a), int(b)
+            if 0 <= start < end:
+                ranges.append({'start': start, 'end': end})
+        return True, ranges
+    # Unrecognized non-empty cell: checked, no locatable span (don't lose it).
+    return True, []
+
+
+def _format_benchmark_rating_cell(checked, ranges):
+    """'a-b;c-d' for ranges; 'TRUE' if checked with none; '' if unchecked."""
+    if not checked:
+        return ''
+    pairs = [f"{int(r['start'])}-{int(r['end'])}"
+             for r in (ranges or [])
+             if r and r.get('start') is not None and r.get('end') is not None]
+    return ';'.join(pairs) if pairs else 'TRUE'
+
+
 def get_rated_texts(subj_id, file_version=None):
     """Get rated recall texts with event matches.
     Prioritizes user-edit version if available, otherwise shows original.
@@ -4240,13 +4277,15 @@ def _benchmark_read_segments(path):
                     matched_str = str(int(float(matched_str)))
             except (ValueError, AttributeError):
                 pass
-        seg = {'text': str(parsed).strip(), 'matched_event': matched_str}
+        # No .strip(): highlight offsets index into the verbatim recall_text, and
+        # recall_in_temporal_order is a verbatim copy of it (flexible_io.py).
+        seg = {'text': str(parsed), 'matched_event': matched_str}
         if raw_df is not None and pos < len(raw_df):
             raw_row = raw_df.iloc[pos]
             for key, filecol in rating_cols:
-                checked, spans = _parse_rating_cell(raw_row.get(filecol, ''))
+                checked, ranges = _parse_benchmark_rating_cell(raw_row.get(filecol, ''))
                 seg[key] = checked
-                seg[key + '_spans'] = spans
+                seg[key + '_ranges'] = ranges
             if has_comment_col:
                 cv = raw_row.get('comment', '')
                 seg['comment'] = '' if (cv is None or str(cv).strip().lower() == 'nan') else str(cv).strip()
@@ -4392,16 +4431,6 @@ def _benchmark_save_rated(item, data):
     rating_cols = FURTHER_RATING_COLS
     further_ratings = bool(data.get('further_ratings'))
 
-    def _format_rating_cell(checked, spans):
-        if not checked:
-            return ''
-        frags = [str(s).strip() for s in (spans or []) if str(s).strip()]
-        if frags:
-            # Keep fragment text verbatim so it round-trips back to the exact
-            # highlighted span (the client re-locates it by indexOf).
-            return '; '.join("'" + f + "'" for f in frags)
-        return 'TRUE'
-
     def _format_conf(value):
         try:
             return str(int(float(str(value).strip())))
@@ -4417,7 +4446,7 @@ def _benchmark_save_rated(item, data):
         for segment in segments:
             idx = segment.get('index')
             for r in rating_cols:
-                rating_by_idx[r][idx] = _format_rating_cell(bool(segment.get(r)), segment.get(r + '_spans'))
+                rating_by_idx[r][idx] = _format_benchmark_rating_cell(bool(segment.get(r)), segment.get(r + '_ranges'))
             comment_by_idx[idx] = str(segment.get('comment') or '').strip()
             conf_by_idx[idx] = _format_conf(segment.get(BENCH_CONFIDENCE_COL))
             first_by_idx[idx] = 'TRUE' if segment.get(BENCH_FIRST_PASS_COL) else ''
