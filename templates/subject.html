@@ -2471,7 +2471,7 @@
         .br-recall-card.done:hover { opacity: .85; }
 
         .br-recall-body { flex: 1; min-width: 0; padding: 7px 14px; }
-        .br-recall-text { color: var(--t1); font-size: .95rem; line-height: 1.45; margin: 0; }
+        .br-recall-text { color: var(--t1); font-size: .95rem; line-height: 1.45; margin: 0; cursor: text; }
         .br-recall-card.active .br-recall-text { color: var(--t0); margin-bottom: 12px; }
 
         .br-controls { display: grid; gap: 11px; }
@@ -2501,6 +2501,8 @@
         .br-pill[data-cat="inference"].on     { background: var(--blu); }
         .br-pill[data-cat="meta"].on          { background: var(--t2); }
         .br-pill[data-cat="comment"].on       { background: var(--t2); }
+        .br-pill-x { margin-left: 6px; font-weight: 700; opacity: .85; }
+        .br-hl { text-decoration-line: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
         .br-comment-box {
             width: 100%; padding: 8px 12px; background: var(--bg3); border: 1.5px solid var(--bdr);
@@ -2786,6 +2788,7 @@
                     commentOpen: !!comment,
                     conf: null,   // in-memory only (no benchmark CSV column yet)
                     visited: false, // pass-1 "rated" = opened at least once
+                    highlights: [], // {cat,start,end} spans into text; in-memory only
                 };
             });
 
@@ -2793,6 +2796,8 @@
             // pass (everything matched -> start rating), manual toggle still works.
             let currentPass = (recall.length && recall.every(r => parseMatches(r.matches).length > 0)) ? 'p2' : 'p1';
             let activeIdx = 0;
+            // Transient: which highlight pill is armed for the active segment (null = none).
+            let armedCat = null;
 
             // Dev mode keeps the clickable manual toggle; otherwise the pass is
             // shown as a read-only indicator and advanced only by the action button.
@@ -2860,6 +2865,101 @@
                 return currentPass === 'p1' ? !!r.visited : r.conf !== null;
             }
 
+            // A small I-beam tinted to hex, as a CSS cursor (graceful `text` fallback).
+            // encodeURIComponent encodes # / < > " so the unquoted url() stays valid.
+            function ibeamCursor(hex) {
+                const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="18" viewBox="0 0 12 18"><g fill="none" stroke="${hex}" stroke-width="1.5"><path d="M6 2v14"/><path d="M3 2h6"/><path d="M3 16h6"/></g></svg>`;
+                return `url(data:image/svg+xml,${encodeURIComponent(svg)}) 6 9, text`;
+            }
+
+            // Render a recall segment's text, splicing colored underlines for its
+            // highlight spans. The active+armed card also gets a colored I-beam cursor.
+            function renderRecallText(r, isActive) {
+                const text = r.text || '';
+                const hls = r.highlights || [];
+                let inner;
+                if (!hls.length) {
+                    inner = escapeHtml(text);
+                } else {
+                    // Assign each span a "lane" via greedy interval partitioning so
+                    // overlapping spans stack on parallel underlines while disjoint
+                    // ones reuse lane 0 (single highlight => base offset, unchanged).
+                    const lane = new Map();
+                    const laneEnds = []; // laneEnds[l] = end of last span placed in lane l
+                    [...hls].sort((a, b) => a.start - b.start || a.end - b.end).forEach(h => {
+                        let l = 0;
+                        while (l < laneEnds.length && laneEnds[l] > h.start) l++;
+                        laneEnds[l] = h.end;
+                        lane.set(h, l);
+                    });
+                    // cut at every span edge; each slice carries one underline per
+                    // covering span (nested), offset by lane so they don't collide
+                    const pts = new Set([0, text.length]);
+                    hls.forEach(h => { pts.add(h.start); pts.add(h.end); });
+                    const bounds = [...pts].filter(p => p >= 0 && p <= text.length).sort((a, b) => a - b);
+                    let out = '';
+                    for (let j = 0; j < bounds.length - 1; j++) {
+                        const a = bounds[j], b = bounds[j + 1];
+                        if (b <= a) continue;
+                        let piece = escapeHtml(text.slice(a, b));
+                        // outer span = lowest lane, so deeper lanes sit further down
+                        hls.filter(h => h.start <= a && h.end >= b)
+                           .sort((x, y) => lane.get(y) - lane.get(x))
+                           .forEach(h => {
+                               const hex = CAT_HEX[h.cat] || '#888';
+                               const off = 3 + lane.get(h) * 4; // px below the baseline
+                               piece = `<span class="br-hl" style="text-decoration-color:${hex};text-underline-offset:${off}px">${piece}</span>`;
+                           });
+                        out += piece;
+                    }
+                    inner = out;
+                }
+                const cur = (isActive && armedCat) ? ` style="cursor:${ibeamCursor(CAT_HEX[armedCat] || '#888')}"` : '';
+                return `<div class="br-recall-text"${cur}>${inner}</div>`;
+            }
+
+            // Offsets {start,end} of the current selection if it lies inside the
+            // active segment's recall text and is non-empty; otherwise null.
+            function activeSelectionSpan() {
+                const card = recallList.querySelector(`.br-recall-card[data-idx="${activeIdx}"]`);
+                const textEl = card && card.querySelector('.br-recall-text');
+                if (!textEl) return null;
+                const sel = window.getSelection();
+                if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+                const range = sel.getRangeAt(0);
+                if (!textEl.contains(range.startContainer) || !textEl.contains(range.endContainer)) return null;
+                const pre = document.createRange();
+                pre.selectNodeContents(textEl);
+                pre.setEnd(range.startContainer, range.startOffset);
+                const start = pre.toString().length;
+                const len = sel.toString().length;
+                if (len <= 0) return null;
+                return { start, end: start + len };
+            }
+
+            // Record a span for cat on the active segment (one span per pill), and
+            // drop the live selection.
+            function addHighlight(cat, span) {
+                const r = recall[activeIdx];
+                if (!r) return;
+                r.highlights = r.highlights.filter(h => h.cat !== cat);
+                r.highlights.push({ cat, start: span.start, end: span.end });
+                const sel = window.getSelection();
+                if (sel) sel.removeAllRanges();
+            }
+
+            // Armed-pill path: a fresh selection marks the armed category. One
+            // listener (registered once below) drives this for the active segment.
+            function captureHighlight() {
+                if (!armedCat) return;
+                const span = activeSelectionSpan();
+                if (!span) return;
+                addHighlight(armedCat, span);
+                armedCat = null;
+                renderRecall();
+            }
+            document.addEventListener('mouseup', captureHighlight);
+
             function renderRecall() {
                 // viewing a segment marks it visited -> rated for pass 1
                 if (recall[activeIdx]) recall[activeIdx].visited = true;
@@ -2879,7 +2979,13 @@
                         if (currentPass === 'p2') {
                             const pills = `
                                 <div class="br-pill-row">
-                                    ${RATING_KEYS.map(k => `<span class="br-pill ${r.on.includes(k) ? 'on' : ''}" data-cat="${k}">${ratingLabel(k)}</span>`).join('')}
+                                    ${BENCH_PILLS.map(p => {
+                                        const on = p.hl
+                                            ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat))
+                                            : r.on.includes(p.cat);
+                                        const x = (p.hl && on) ? '<span class="br-pill-x">×</span>' : '';
+                                        return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${p.hl ? 1 : 0}">${p.label}${x}</span>`;
+                                    }).join('')}
                                     <span class="br-pill ${r.commentOpen ? 'on' : ''}" data-cat="comment">Comment</span>
                                 </div>`;
                             const commentBox = r.commentOpen ? `
@@ -2903,7 +3009,7 @@
                         <div class="br-recall-card ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${rated ? 'rated' : ''}" data-idx="${i}" data-matches="${escapeHtml(r.matches)}">
                             <div class="br-rail">${r.n}</div>
                             <div class="br-recall-body">
-                                <div class="br-recall-text">${escapeHtml(r.text)}</div>
+                                ${renderRecallText(r, isActive)}
                                 ${controls}
                             </div>
                         </div>`;
@@ -2955,6 +3061,7 @@
                         const i = +card.dataset.idx;
                         if (i === activeIdx) return;
                         activeIdx = i;
+                        armedCat = null; // arming is transient to the active segment
                         renderRecall();
                     });
                     const events = parseMatches(card.dataset.matches);
@@ -2962,19 +3069,39 @@
                     card.addEventListener('mouseleave', () => events.forEach(e => storyByEvent[e] && storyByEvent[e].classList.remove('linked')));
                 });
 
-                // pills (second pass) — rating cats toggle; the Comment pill opens/closes its box
+                // pills (second pass): Comment toggles its box; Summary is a plain
+                // tag; highlight pills arm/disarm or drop their span (the × is a child
+                // of the pill, so clicking it lands here too).
                 recallList.querySelectorAll('.br-pill').forEach(p => p.addEventListener('click', e => {
                     e.stopPropagation();
                     const i = +p.closest('.br-recall-card').dataset.idx;
                     const cat = p.dataset.cat;
+                    const isHl = p.dataset.hl === '1';
                     if (cat === 'comment') {
                         recall[i].commentOpen = !recall[i].commentOpen;
+                    } else if (isHl) {
+                        const r = recall[i];
+                        const span = (i === activeIdx) ? activeSelectionSpan() : null;
+                        if (span) {                                            // mark a live selection directly
+                            addHighlight(cat, span);
+                            armedCat = null;
+                        } else if (armedCat === cat) armedCat = null;          // cancel arming
+                        else if (r.highlights.some(h => h.cat === cat))        // remove span
+                            r.highlights = r.highlights.filter(h => h.cat !== cat);
+                        else armedCat = cat;                                   // arm (replaces other)
                     } else {
                         const arr = recall[i].on;
                         const pos = arr.indexOf(cat);
                         if (pos >= 0) arr.splice(pos, 1); else arr.push(cat);
                     }
                     renderRecall();
+                }));
+
+                // Keep a live text selection alive when a highlight pill is pressed
+                // (pills are user-select:none, so preventDefault stops the selection
+                // from being cleared) — the click then marks the selection directly.
+                recallList.querySelectorAll('.br-pill[data-hl="1"]').forEach(p => p.addEventListener('mousedown', e => {
+                    if (!window.getSelection().isCollapsed) e.preventDefault();
                 }));
 
                 // confidence (second pass) — set value (in-memory)
@@ -4947,6 +5074,20 @@
             opinion: 'Opinion', inference: 'Inference', meta: 'Meta'
         };
         function ratingLabel(k) { return RATING_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1)); }
+        // Benchmark rating pills: own order + labels (decoupled from RATING_KEYS so
+        // the normal view is untouched). hl = highlight-to-span pill; non-hl = plain toggle.
+        const BENCH_PILLS = [
+            { cat: 'summary',       label: 'Summary',       hl: false },
+            { cat: 'error',         label: 'Factual error', hl: true  },
+            { cat: 'confabulation', label: 'Confabulation', hl: true  },
+            { cat: 'inference',     label: 'Inference',     hl: true  },
+            { cat: 'opinion',       label: 'Opinion',       hl: true  },
+            { cat: 'meta',          label: 'Meta',          hl: true  },
+        ];
+        // Hex (not var()) so the same value drives the inline underline color AND the
+        // SVG data-URI cursor, which can't read CSS variables.
+        const CAT_HEX = { summary:'#6c63ff', error:'#ef4444', confabulation:'#f59e0b',
+                          inference:'#3b82f6', opinion:'#22c55e', meta:'#8890a8' };
         // What each rating means (HTML; shown one-per-step in the further-ratings tutorial
         // and, stripped to plain text, as each checkbox's hover tooltip).
         const RATING_MEANINGS = {
