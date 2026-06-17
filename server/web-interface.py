@@ -721,6 +721,10 @@ CAUSAL_RATED_DIR = OUTPUT_DIR / 'causal_rated'
 # user (see HOSTING.md "Sync benchmark data"). It is admin-set in systemd, never
 # request-controlled.
 BENCHMARK_MODE = os.environ.get('NARRATERS_BENCHMARK') == '1'
+# Developer mode (`narraters serve --dev`): keep the benchmark rater's manual
+# pass toggle interactive. Off (the default) leaves only a read-only pass
+# indicator, with the in-view action buttons advancing the pass.
+DEV_MODE = os.environ.get('NARRATERS_DEV') == '1'
 BENCHMARK_DIR = Path(
     os.environ.get('NARRATERS_BENCHMARK_DIR') or (WORKSPACE_ROOT / 'benchmark')
 ).expanduser().resolve()
@@ -4232,6 +4236,7 @@ def _benchmark_subject_payload(item):
         'subject_id': item['id'],
         'username': username,
         'benchmark': True,
+        'dev': DEV_MODE,
         'benchmark_meta': {
             'datasource': item['datasource'],
             'story': item['story'],
@@ -4380,7 +4385,8 @@ def _benchmark_save_rated(item, data):
 @login_required
 def benchmark_overview():
     """Benchmark overview: the recall files to rate (and which are done)."""
-    return render_template('benchmark.html', username=_benchmark_username())
+    return render_template('benchmark.html', username=_benchmark_username(),
+                           require_auth=REQUIRE_AUTH)
 
 
 @app.route('/api/benchmark/files')

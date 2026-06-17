@@ -135,6 +135,10 @@
         wrap.appendChild(outBtn);
         document.body.appendChild(wrap);
 
+        // Small public API so other UI (e.g. the benchmark rater view's own
+        // "Smaller"/"Bigger" buttons) can drive the same zoom ladder.
+        window.PageZoom = { in: function () { step(1); }, out: function () { step(-1); } };
+
         if (factor !== 1) applyZoom();
         else updateButtons();
     }
