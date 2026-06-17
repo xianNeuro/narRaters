@@ -67,6 +67,7 @@ developer/*
 # Coding-agent context (keep local; do not publish)
 /CLAUDE.md
 CLAUDE.local.md
+.claude
 
 # Personal-site deploy snippets (Google Sites paste helpers — local only)
 deploy/
