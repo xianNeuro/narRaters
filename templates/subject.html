@@ -2786,8 +2786,9 @@
                     on: on,
                     comment: comment,
                     commentOpen: !!comment,
-                    conf: null,   // in-memory only (no benchmark CSV column yet)
-                    visited: false, // pass-1 "rated" = opened at least once
+                    // restored from the rated CSV (confidence col + first-pass-rated flag)
+                    conf: (s.confidence === 0 || s.confidence) ? Number(s.confidence) : null,
+                    visited: !!s.first_pass, // pass-1 "rated" = opened at least once
                     highlights: [], // {cat,start,end} spans into text; in-memory only
                 };
             });
@@ -2798,6 +2799,59 @@
             let activeIdx = 0;
             // Transient: which highlight pill is armed for the active segment (null = none).
             let armedCat = null;
+
+            // ---- autosave -------------------------------------------------
+            // Saving is idempotent: every trigger posts the FULL recall state to
+            // the benchmark save endpoint, which writes benchmark/rated/<user>/…
+            // first-pass-rated = segment visited; second-pass-rated = confidence set.
+            const SUBJECT_ID = data.subject_id;
+            let saveTimer = null, saveSeq = 0;
+            function buildSavePayload() {
+                return {
+                    further_ratings: true,
+                    segments: recall.map((r, i) => {
+                        const seg = {
+                            index: i,
+                            matched_event: r.matches,
+                            comment: r.comment,
+                            confidence: r.conf,
+                            'first-pass-rated': !!r.visited,
+                            'second-pass-rated': r.conf !== null,
+                        };
+                        RATING_KEYS.forEach(k => { seg[k] = r.on.includes(k); });
+                        return seg;
+                    }),
+                };
+            }
+            async function saveBenchmark() {
+                const seq = ++saveSeq;
+                try {
+                    const resp = await fetch(`/api/subject/${encodeURIComponent(SUBJECT_ID)}/save-rated`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(buildSavePayload()),
+                    });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    if (seq === saveSeq) showActionMsg('Saved ✓', 'ok');
+                } catch (e) {
+                    if (seq === saveSeq) showActionMsg('Could not save: ' + e.message, 'err');
+                }
+            }
+            function scheduleSave(delay = 800) {
+                if (saveTimer) clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => { saveTimer = null; saveBenchmark(); }, delay);
+            }
+            function flushSave() {
+                if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+                saveBenchmark();
+            }
+            // Best-effort save if the rater closes the tab mid-segment.
+            window.addEventListener('beforeunload', () => {
+                try {
+                    const blob = new Blob([JSON.stringify(buildSavePayload())], { type: 'application/json' });
+                    navigator.sendBeacon(`/api/subject/${encodeURIComponent(SUBJECT_ID)}/save-rated`, blob);
+                } catch (e) { /* best effort */ }
+            });
 
             // Dev mode keeps the clickable manual toggle; otherwise the pass is
             // shown as a read-only indicator and advanced only by the action button.
@@ -2844,6 +2898,7 @@
                 if (pos >= 0) list.splice(pos, 1); else list.push(eventNum);
                 r.matches = [...new Set(list)].sort((a, b) => a - b).join(', ');
                 renderRecall();
+                scheduleSave();
             }
             storyList.querySelectorAll('.br-story-card').forEach(c =>
                 c.addEventListener('click', () => toggleMatch(+c.dataset.event)));
@@ -3044,6 +3099,7 @@
                     activeIdx = 0;
                     setPass('p2');
                     recallList.closest('.br-scroll')?.scrollTo({ top: 0 });
+                    flushSave();
                 } else {
                     const bad = recall.findIndex(r => r.conf === null);
                     if (bad >= 0) {
@@ -3051,6 +3107,7 @@
                         showActionMsg(`Recall segment ${recall[bad].n} hasn't been rated yet — set its confidence before finishing.`, 'err');
                         return;
                     }
+                    flushSave();
                     showActionMsg('All segments rated — finished. ✓', 'ok');
                 }
             }
@@ -3063,6 +3120,7 @@
                         activeIdx = i;
                         armedCat = null; // arming is transient to the active segment
                         renderRecall();
+                        flushSave(); // moving on -> persist
                     });
                     const events = parseMatches(card.dataset.matches);
                     card.addEventListener('mouseenter', () => events.forEach(e => storyByEvent[e] && storyByEvent[e].classList.add('linked')));
@@ -3095,6 +3153,7 @@
                         if (pos >= 0) arr.splice(pos, 1); else arr.push(cat);
                     }
                     renderRecall();
+                    scheduleSave();
                 }));
 
                 // Keep a live text selection alive when a highlight pill is pressed
@@ -3104,19 +3163,21 @@
                     if (!window.getSelection().isCollapsed) e.preventDefault();
                 }));
 
-                // confidence (second pass) — set value (in-memory)
+                // confidence (second pass) — set value (persisted to the confidence column)
                 recallList.querySelectorAll('.br-conf-cell').forEach(cell => cell.addEventListener('click', e => {
                     e.stopPropagation();
                     const i = +cell.closest('.br-recall-card').dataset.idx;
                     recall[i].conf = +cell.dataset.val;
                     renderRecall();
+                    scheduleSave();
                 }));
 
-                // comment box — keep editing without collapsing; persist in-memory
+                // comment box — keep editing without collapsing; persisted on save
                 recallList.querySelectorAll('.br-comment-box').forEach(box => {
                     box.addEventListener('click', e => e.stopPropagation());
                     box.addEventListener('input', () => {
                         recall[+box.closest('.br-recall-card').dataset.idx].comment = box.value;
+                        scheduleSave();
                     });
                 });
 
@@ -3128,6 +3189,7 @@
                         recall[+card.dataset.idx].matches = inp.value;
                         card.dataset.matches = inp.value;
                         updateStoryMatched();
+                        scheduleSave();
                     });
                 });
 
@@ -3160,6 +3222,7 @@
                     activeIdx += 1;
                     renderRecall();
                     recallList.querySelector('.br-recall-card.active')?.scrollIntoView({ block: 'nearest' });
+                    flushSave(); // moving on -> persist
                 }
             });
 

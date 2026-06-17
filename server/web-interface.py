@@ -2226,6 +2226,20 @@ def get_parsed_texts(subj_id, file_version=None):
 # frontend RATING_KEYS list in templates/subject.html.
 FURTHER_RATING_COLS = ('summary', 'error', 'confabulation', 'opinion', 'inference', 'meta')
 
+# Benchmark CSV column names. The unrated benchmark files carry a richer schema
+# than the canonical two-column rated files: confidence + (when the rater has
+# started) two per-segment progress flags. The frontend rating key `error` is
+# stored under the file column `factual_error`; every other key maps to itself.
+BENCH_CONFIDENCE_COL = 'confidence'
+BENCH_FIRST_PASS_COL = 'first-pass-rated'
+BENCH_SECOND_PASS_COL = 'second-pass-rated'
+_BENCH_RATING_FILE_COL = {'error': 'factual_error'}
+
+
+def _bench_file_col(key):
+    """Map a frontend rating key to its benchmark-CSV column name."""
+    return _BENCH_RATING_FILE_COL.get(key, key)
+
 
 def _parse_rating_cell(value):
     """Inverse of the frontend rating cell: turn a saved "further ratings" cell
@@ -4175,8 +4189,16 @@ def _benchmark_read_segments(path):
         raw_df = read_tabular(path).reset_index(drop=True)
     except Exception:
         raw_df = None
-    rating_cols = [c for c in FURTHER_RATING_COLS if raw_df is not None and c in raw_df.columns]
+    # (frontend rating key, file column) pairs actually present in the file.
+    rating_cols = [(k, _bench_file_col(k)) for k in FURTHER_RATING_COLS
+                   if raw_df is not None and _bench_file_col(k) in raw_df.columns]
     has_comment_col = raw_df is not None and 'comment' in raw_df.columns
+    has_conf_col = raw_df is not None and BENCH_CONFIDENCE_COL in raw_df.columns
+    has_first_col = raw_df is not None and BENCH_FIRST_PASS_COL in raw_df.columns
+    has_second_col = raw_df is not None and BENCH_SECOND_PASS_COL in raw_df.columns
+
+    def _truthy_cell(v):
+        return str(v).strip().lower() in ('true', '1', 'yes', 'x')
 
     segments = []
     for pos, (_, row) in enumerate(df.iterrows()):
@@ -4196,15 +4218,25 @@ def _benchmark_read_segments(path):
             except (ValueError, AttributeError):
                 pass
         seg = {'text': str(parsed).strip(), 'matched_event': matched_str}
-        if (rating_cols or has_comment_col) and raw_df is not None and pos < len(raw_df):
+        if raw_df is not None and pos < len(raw_df):
             raw_row = raw_df.iloc[pos]
-            for rating in rating_cols:
-                checked, spans = _parse_rating_cell(raw_row.get(rating, ''))
-                seg[rating] = checked
-                seg[rating + '_spans'] = spans
+            for key, filecol in rating_cols:
+                checked, spans = _parse_rating_cell(raw_row.get(filecol, ''))
+                seg[key] = checked
+                seg[key + '_spans'] = spans
             if has_comment_col:
                 cv = raw_row.get('comment', '')
                 seg['comment'] = '' if (cv is None or str(cv).strip().lower() == 'nan') else str(cv).strip()
+            if has_conf_col:
+                cv = raw_row.get(BENCH_CONFIDENCE_COL, '')
+                try:
+                    seg['confidence'] = int(float(str(cv).strip()))
+                except (ValueError, TypeError):
+                    seg['confidence'] = ''
+            if has_first_col:
+                seg['first_pass'] = _truthy_cell(raw_row.get(BENCH_FIRST_PASS_COL, ''))
+            if has_second_col:
+                seg['second_pass'] = _truthy_cell(raw_row.get(BENCH_SECOND_PASS_COL, ''))
         segments.append(seg)
     return segments
 
@@ -4315,21 +4347,38 @@ def _benchmark_save_rated(item, data):
             return '; '.join("'" + f.replace("'", "’") + "'" for f in frags)
         return 'TRUE'
 
+    def _format_conf(value):
+        try:
+            return str(int(float(str(value).strip())))
+        except (ValueError, TypeError):
+            return ''
+
     if further_ratings:
         rating_by_idx = {r: {} for r in rating_cols}
         comment_by_idx = {}
+        conf_by_idx = {}
+        first_by_idx = {}
+        second_by_idx = {}
         for segment in segments:
             idx = segment.get('index')
             for r in rating_cols:
                 rating_by_idx[r][idx] = _format_rating_cell(bool(segment.get(r)), segment.get(r + '_spans'))
             comment_by_idx[idx] = str(segment.get('comment') or '').strip()
+            conf_by_idx[idx] = _format_conf(segment.get(BENCH_CONFIDENCE_COL))
+            first_by_idx[idx] = 'TRUE' if segment.get(BENCH_FIRST_PASS_COL) else ''
+            second_by_idx[idx] = 'TRUE' if segment.get(BENCH_SECOND_PASS_COL) else ''
+        # Rating cats are stored under their benchmark-CSV column name (error -> factual_error).
         for r in rating_cols:
-            df[r] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
+            df[_bench_file_col(r)] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
         df['comment'] = [comment_by_idx.get(i, '') for i in range(len(df))]
+        df[BENCH_CONFIDENCE_COL] = [conf_by_idx.get(i, '') for i in range(len(df))]
+        df[BENCH_FIRST_PASS_COL] = [first_by_idx.get(i, '') for i in range(len(df))]
+        df[BENCH_SECOND_PASS_COL] = [second_by_idx.get(i, '') for i in range(len(df))]
     else:
-        drop = [r for r in rating_cols if r in df.columns]
-        if 'comment' in df.columns:
-            drop.append('comment')
+        drop = [_bench_file_col(r) for r in rating_cols if _bench_file_col(r) in df.columns]
+        for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+            if extra in df.columns:
+                drop.append(extra)
         if drop:
             df = df.drop(columns=drop)
 
@@ -4339,9 +4388,12 @@ def _benchmark_save_rated(item, data):
 
     if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
         cols = ['recalled_events', 'recall_in_temporal_order']
-        for r in FURTHER_RATING_COLS + ('comment',):
-            if r in df.columns:
-                cols.append(r)
+        for r in FURTHER_RATING_COLS:
+            if _bench_file_col(r) in df.columns:
+                cols.append(_bench_file_col(r))
+        for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+            if extra in df.columns:
+                cols.append(extra)
         df = df[cols]
 
     out_ext = rated_path.suffix.lower()
@@ -4359,6 +4411,11 @@ def _benchmark_save_rated(item, data):
                 out_df[col] = df[col].values
             else:
                 out_df[col] = [''] * len(df)
+        # Append progress/confidence columns the unrated schema may not include yet,
+        # so a rater's progress is recorded even on files that never had them.
+        for extra in (BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+            if extra not in out_df.columns and extra in df.columns:
+                out_df[extra] = df[extra].values
         df = out_df
 
     df.to_csv(rated_path, index=False, sep=csv_sep, encoding='utf-8', na_rep='')
@@ -4381,6 +4438,32 @@ def _benchmark_save_rated(item, data):
     })
 
 
+def _benchmark_rated_status(item, username):
+    """Progress of a rater's work on a benchmark item, from the two tracking
+    columns: 'not_rated' (no file), 'rated' (every segment done in both passes),
+    or 'in_progress' (file exists but not fully done)."""
+    rated_path = _benchmark_rated_path(item, username)
+    if not rated_path.exists():
+        return 'not_rated'
+    try:
+        from helpers.flexible_io import read_tabular
+        raw = read_tabular(rated_path)
+        if len(raw) == 0:
+            return 'in_progress'
+        if BENCH_FIRST_PASS_COL not in raw.columns or BENCH_SECOND_PASS_COL not in raw.columns:
+            return 'in_progress'
+
+        def _truthy(v):
+            return str(v).strip().lower() in ('true', '1', 'yes', 'x')
+
+        first_done = raw[BENCH_FIRST_PASS_COL].map(_truthy).all()
+        second_done = raw[BENCH_SECOND_PASS_COL].map(_truthy).all()
+        return 'rated' if (first_done and second_done) else 'in_progress'
+    except Exception as e:
+        print(f"benchmark: error reading status {rated_path}: {e}")
+        return 'in_progress'
+
+
 @app.route('/benchmark')
 @login_required
 def benchmark_overview():
@@ -4395,12 +4478,14 @@ def api_benchmark_files():
     username = _benchmark_username()
     files = []
     for item in _benchmark_scan():
+        status = _benchmark_rated_status(item, username)
         files.append({
             'id': item['id'],
             'datasource': item['datasource'],
             'story': item['story'],
             'sub_id': item['sub_id'],
-            'rated': _benchmark_rated_path(item, username).exists(),
+            'status': status,
+            'rated': status == 'rated',
         })
     return jsonify({'username': username, 'files': files})
 
