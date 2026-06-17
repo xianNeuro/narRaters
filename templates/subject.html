@@ -2459,6 +2459,7 @@
         .br-recall-card .br-rail { color: var(--t3); }
         .br-recall-card.rated .br-rail { color: var(--acc); }
         body.pass-2 .br-recall-card.rated .br-rail { color: var(--acc-p2); }
+        .br-recall-card.invalid .br-rail { color: #b5544f; }
 
         .br-recall-card:not(.active):hover { background: var(--bg1); }
         .br-recall-card.active {
@@ -2489,6 +2490,8 @@
         }
         .br-match-input:focus { outline: none; border-color: var(--acc); box-shadow: 0 0 0 3px var(--accbg); }
         body.pass-2 .br-match-input:focus { border-color: var(--acc-p2); box-shadow: 0 0 0 3px var(--accbg-p2); }
+        .br-match-input.invalid { border-color: var(--red); background: rgba(239, 68, 68, .08); }
+        .br-match-input.invalid:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(239, 68, 68, .25); }
         .br-match-input::placeholder { color: var(--t3); opacity: .5; }
 
         .br-pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -2780,6 +2783,18 @@
             const story = (data.story_events || []).map(e => ({
                 n: getIntEvent(e.event), text: e.text || ''
             }));
+
+            // Valid match targets = the story's event indices. Empty matches are allowed;
+            // otherwise every comma-separated token must be a plain integer (no text /
+            // decimals / junk) AND a real story-event index. If the event list failed to
+            // load (size 0) we skip the range check so the view degrades gracefully.
+            const validEvents = new Set(story.map(s => s.n));
+            function matchesValid(r) {
+                const tokens = (r.matches || '').split(',').map(s => s.trim()).filter(Boolean);
+                if (!tokens.length) return true;                       // empty = no matches, allowed
+                if (!tokens.every(t => /^\d+$/.test(t))) return false; // only integers are valid input
+                return !validEvents.size || tokens.every(t => validEvents.has(Number(t)));
+            }
             const recall = (data.rated_texts || []).map((s, i) => {
                 const on = RATING_KEYS.filter(k => s[k] === true || String(s[k]).toLowerCase() === 'true');
                 const comment = (s.comment != null ? String(s.comment) : '');
@@ -2820,8 +2835,8 @@
                             matched_event: r.matches,
                             comment: r.comment,
                             confidence: r.conf,
-                            'first-pass-rated': !!r.visited,
-                            'second-pass-rated': r.conf !== null,
+                            'first-pass-rated': !!r.visited && matchesValid(r),
+                            'second-pass-rated': r.conf !== null && matchesValid(r),
                         };
                         RATING_KEYS.forEach(k => { seg[k] = r.on.includes(k); });
                         return seg;
@@ -2922,6 +2937,7 @@
             // pass 2 = confidence set.
             function isRated(i) {
                 const r = recall[i];
+                if (!matchesValid(r)) return false;          // bad matches never count as rated
                 return currentPass === 'p1' ? !!r.visited : r.conf !== null;
             }
 
@@ -3034,7 +3050,7 @@
                         const matchRow = `
                             <div class="br-match-row">
                                 <span class="br-lbl">matches</span>
-                                <input class="br-match-input" value="${escapeHtml(r.matches)}" placeholder="e.g. 1, 2, 3">
+                                <input class="br-match-input ${matchesValid(r) ? '' : 'invalid'}" value="${escapeHtml(r.matches)}" placeholder="e.g. 1, 2, 3">
                             </div>`;
                         if (currentPass === 'p2') {
                             const pills = `
@@ -3068,7 +3084,7 @@
                     const confBadge = (!isActive && r.conf != null)
                         ? `<span class="br-conf-badge">conf: ${r.conf}</span>` : '';
                     return `
-                        <div class="br-recall-card ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${rated ? 'rated' : ''}" data-idx="${i}" data-matches="${escapeHtml(r.matches)}">
+                        <div class="br-recall-card ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${rated ? 'rated' : ''} ${matchesValid(r) ? '' : 'invalid'}" data-idx="${i}" data-matches="${escapeHtml(r.matches)}">
                             <div class="br-rail">${r.n}</div>
                             <div class="br-recall-body">
                                 ${renderRecallText(r, isActive)}
@@ -3104,6 +3120,11 @@
                         showActionMsg(`Recall segment ${recall[bad].n} hasn't been viewed yet — open it before starting the second pass.`, 'err');
                         return;
                     }
+                    const badMatch = recall.findIndex(r => !matchesValid(r));
+                    if (badMatch >= 0) {
+                        showActionMsg(`Recall segment ${recall[badMatch].n} has matches outside the story segments — fix them before starting the second pass.`, 'err');
+                        return;
+                    }
                     activeIdx = 0;
                     setPass('p2');
                     recallList.closest('.br-scroll')?.scrollTo({ top: 0 });
@@ -3113,6 +3134,11 @@
                     if (bad >= 0) {
                         // flag the gap without selecting or scrolling away
                         showActionMsg(`Recall segment ${recall[bad].n} hasn't been rated yet — set its confidence before finishing.`, 'err');
+                        return;
+                    }
+                    const badMatch = recall.findIndex(r => !matchesValid(r));
+                    if (badMatch >= 0) {
+                        showActionMsg(`Recall segment ${recall[badMatch].n} has matches outside the story segments — fix them before finishing.`, 'err');
                         return;
                     }
                     flushSave();
@@ -3196,6 +3222,9 @@
                         const card = inp.closest('.br-recall-card');
                         recall[+card.dataset.idx].matches = inp.value;
                         card.dataset.matches = inp.value;
+                        const ok = matchesValid(recall[+card.dataset.idx]);
+                        inp.classList.toggle('invalid', !ok);
+                        card.classList.toggle('invalid', !ok);
                         updateStoryMatched();
                         scheduleSave();
                     });
