@@ -1,12 +1,13 @@
 [project]
 name = "narRaters"
-version = "0.4.0a1"
+version = "0.4.0a2"
 description = "AI-assisted narrative processing with human-screening — pipeline + web UI for audio/text narratives."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Xian Li", email = "xianl.cogneuro@gmail.com" },
+    { name = "Gabriel Kressin Palacios", email = "gkressi1@jhu.edu"}
 ]
 keywords = [
     "narrative",
