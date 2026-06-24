@@ -31,6 +31,8 @@
             --acc-p2: #a766e0;
             --accbg-p2: rgba(167, 102, 224, 0.15);
             --blu: #3b82f6;
+            --cyan: #06b6d4;
+            --sky: #0ea5e9;
             --red: #ef4444;
             --grn: #22c55e;
             --ylw: #f59e0b;
@@ -2512,6 +2514,9 @@
         .br-pill[data-cat="confabulation"].on { background: var(--ylw); color: var(--bg0); }
         .br-pill[data-cat="opinion"].on       { background: var(--grn); }
         .br-pill[data-cat="inference"].on     { background: var(--blu); }
+        .br-pill[data-cat="inference_fact_world"].on     { background: var(--blu); }
+        .br-pill[data-cat="inference_mental_emotion"].on { background: var(--cyan); }
+        .br-pill[data-cat="inference_event"].on          { background: var(--sky); }
         .br-pill[data-cat="meta"].on          { background: var(--t2); }
         .br-pill[data-cat="comment"].on       { background: var(--t2); }
         .br-pill-x { margin-left: 6px; font-weight: 700; opacity: .85; }
@@ -5246,7 +5251,18 @@
         function ratingLabel(k) { return RATING_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1)); }
         // Benchmark rating pills: own order + labels (decoupled from RATING_KEYS so
         // the normal view is untouched). hl = highlight-to-span pill; non-hl = plain toggle.
-        const BENCH_PILLS = [
+        // Benchmark mode (--benchmark) splits Inference into three pills.
+        const BENCH_MODE = {{ 'true' if benchmark else 'false' }};
+        const BENCH_PILLS = BENCH_MODE ? [
+            { cat: 'summary',                  label: 'Summary',                  hl: false },
+            { cat: 'error',                    label: 'Factual error',            hl: true  },
+            { cat: 'confabulation',            label: 'Confabulation',            hl: true  },
+            { cat: 'inference_fact_world',     label: 'Inference Fact/World',     hl: true  },
+            { cat: 'inference_mental_emotion', label: 'Inference Mental/Emotion', hl: true  },
+            { cat: 'inference_event',          label: 'Inference Event',          hl: true  },
+            { cat: 'opinion',                  label: 'Opinion',                  hl: true  },
+            { cat: 'meta',                     label: 'Meta',                     hl: true  },
+        ] : [
             { cat: 'summary',       label: 'Summary',       hl: false },
             { cat: 'error',         label: 'Factual error', hl: true  },
             { cat: 'confabulation', label: 'Confabulation', hl: true  },
@@ -5257,7 +5273,9 @@
         // Hex (not var()) so the same value drives the inline underline color AND the
         // SVG data-URI cursor, which can't read CSS variables.
         const CAT_HEX = { summary:'#6c63ff', error:'#ef4444', confabulation:'#f59e0b',
-                          inference:'#3b82f6', opinion:'#22c55e', meta:'#8890a8' };
+                          inference:'#3b82f6', inference_fact_world:'#3b82f6',
+                          inference_mental_emotion:'#06b6d4', inference_event:'#0ea5e9',
+                          opinion:'#22c55e', meta:'#8890a8' };
         // What each rating means (HTML; shown one-per-step in the further-ratings tutorial
         // and, stripped to plain text, as each checkbox's hover tooltip).
         const RATING_MEANINGS = {
@@ -5265,6 +5283,9 @@
             error: 'The segment states something that <strong>factually contradicts</strong> the original story.<br><em>E.g. &ldquo;The boy accused his dog of being possessed&rdquo; — but it was a cat, not a dog.</em>',
             confabulation: '<strong>Fabricated information</strong> not present in the original story.<br><em>E.g. &ldquo;…the ghost was screaming boo&rdquo; — but no screaming was mentioned in the story.</em>',
             inference: '<strong>Plausible but unmentioned details</strong> drawn from prior knowledge or reasonable interpretation.<br><em>E.g. recall says &ldquo;she opened the door and walked up the stairs&rdquo; when the story only said &ldquo;from the garden she walked up to the first floor&rdquo;.</em>',
+            inference_fact_world: '<strong>Plausible but unmentioned facts about the world or external events</strong> drawn from prior knowledge or reasonable interpretation.<br><em>E.g. recall says &ldquo;she opened the door and walked up the stairs&rdquo; when the story only said &ldquo;from the garden she walked up to the first floor&rdquo;.</em>',
+            inference_mental_emotion: '<strong>Plausible but unmentioned mental states, thoughts, intentions or emotions</strong> attributed to a character but never stated in the story.<br><em>E.g. recall says &ldquo;she was nervous and wanted to escape&rdquo; when the story never described her feelings.</em>',
+            inference_event: '<strong>An inference about something that happened or will happen</strong> which was not described in the story.<br><em>E.g. recall says &ldquo;they must have locked the door before leaving&rdquo; when the story never mentioned it.</em>',
             opinion: 'The segment <strong>evaluates actions or the story from the participant&rsquo;s own perspective</strong>.<br><em>E.g. &ldquo;I do not like this character&rdquo;, &ldquo;that was so nice of her to do&rdquo;.</em>',
             meta: 'The segment <strong>refers to something outside the story</strong>.<br><em>E.g. &ldquo;I&rsquo;m done&rdquo;, &ldquo;Should I start now?&rdquo;.</em>'
         };

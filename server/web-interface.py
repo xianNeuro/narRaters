@@ -2228,6 +2228,15 @@ def get_parsed_texts(subj_id, file_version=None):
 # frontend RATING_KEYS list in templates/subject.html.
 FURTHER_RATING_COLS = ('summary', 'error', 'confabulation', 'opinion', 'inference', 'meta')
 
+# Benchmark mode rates inference at finer granularity, splitting the single
+# `inference` rating into three file columns. Used only by the benchmark
+# read/save paths (which only run under BENCHMARK_MODE); the normal
+# subject/matching UI keeps FURTHER_RATING_COLS with a single `inference`.
+BENCH_RATING_COLS = (
+    'summary', 'error', 'confabulation', 'opinion',
+    'inference_fact_world', 'inference_mental_emotion', 'inference_event', 'meta',
+)
+
 # Benchmark CSV column names. The unrated benchmark files carry a richer schema
 # than the canonical two-column rated files: confidence + (when the rater has
 # started) two per-segment progress flags. The frontend rating key `error` is
@@ -4272,7 +4281,7 @@ def _benchmark_read_segments(path):
     except Exception:
         raw_df = None
     # (frontend rating key, file column) pairs actually present in the file.
-    rating_cols = [(k, _bench_file_col(k)) for k in FURTHER_RATING_COLS
+    rating_cols = [(k, _bench_file_col(k)) for k in BENCH_RATING_COLS
                    if raw_df is not None and _bench_file_col(k) in raw_df.columns]
     has_comment_col = raw_df is not None and 'comment' in raw_df.columns
     has_conf_col = raw_df is not None and BENCH_CONFIDENCE_COL in raw_df.columns
@@ -4465,7 +4474,7 @@ def _benchmark_save_rated(item, data):
             df.at[idx, 'recalled_events'] = matched_event
 
         # Per-segment "further ratings" + comment (only when the toggle is on).
-        rating_cols = FURTHER_RATING_COLS
+        rating_cols = BENCH_RATING_COLS
         further_ratings = bool(data.get('further_ratings'))
 
         def _format_conf(value):
@@ -4509,7 +4518,7 @@ def _benchmark_save_rated(item, data):
 
         if 'recalled_events' in df.columns and 'recall_in_temporal_order' in df.columns:
             cols = ['recalled_events', 'recall_in_temporal_order']
-            for r in FURTHER_RATING_COLS:
+            for r in BENCH_RATING_COLS:
                 if _bench_file_col(r) in df.columns:
                     cols.append(_bench_file_col(r))
             for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
