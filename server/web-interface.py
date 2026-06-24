@@ -373,6 +373,7 @@ from narraters.accounts import (  # noqa: E402
     verify_password,
     verify_user,
 )
+from narraters import __version__  # noqa: E402
 
 
 def get_users():
@@ -4628,7 +4629,7 @@ def _benchmark_rated_status(item, username):
 def benchmark_overview():
     """Benchmark overview: the recall files to rate (and which are done)."""
     return render_template('benchmark.html', username=_benchmark_username(),
-                           require_auth=REQUIRE_AUTH)
+                           require_auth=REQUIRE_AUTH, version=__version__)
 
 
 @app.route('/api/benchmark/files')

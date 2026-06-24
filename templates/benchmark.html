@@ -50,6 +50,13 @@
             position: fixed; top: 20px; right: 20px;
             display: flex; align-items: center; gap: 8px; z-index: 1000;
         }
+        .bench-version {
+            font-style: italic;
+            color: var(--t2);
+            font-size: 0.85em;
+            opacity: 0.8;
+            user-select: none;
+        }
         .back-link {
             color: var(--t0);
             text-decoration: none;
@@ -223,6 +230,7 @@
 
 <body>
     <div class="bench-controls">
+        <span class="bench-version" title="narRaters version">v{{ version }}</span>
         <button type="button" class="back-link" onclick="if(window.PageZoom)PageZoom.out()" title="Make the page smaller">-</button>
         <button type="button" class="back-link" onclick="if(window.PageZoom)PageZoom.in()" title="Make the page bigger">+</button>
         {% if require_auth %}
