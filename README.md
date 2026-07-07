@@ -6,7 +6,7 @@
 
 <h3 align="center">Turn complex narratives into structured, reviewable data — with a web UI at every step</h3>
 
-<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">v0.3.15</a></p>
+<p align="center"><strong>GitHub:</strong> <a href="https://github.com/xianNeuro/narRaters">github.com/xianNeuro/narRaters</a> · <strong>PyPI:</strong> <a href="https://pypi.org/project/narraters/">v0.3.16</a></p>
 
 <p align="center">
   <a href="https://pypi.org/project/narraters/"><img src="https://img.shields.io/pypi/v/narraters?label=PyPI&color=3775A9" alt="PyPI version"></a>
@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://xianneuro.github.io/narRaters/">🏠 Project home</a>
   ·
-  <a href="https://pypi.org/project/narraters/">📦 v0.3.15</a>
+  <a href="https://pypi.org/project/narraters/">📦 v0.3.16</a>
   ·
   <a href="tutorials/narRater_Tutorial.pdf">📖 Tutorial (PDF)</a>
   ·
@@ -60,7 +60,7 @@ Works for audio or text, stories or other long narratives (including movie annot
 <table>
   <tr>
     <td width="72" align="center"><strong>1</strong></td>
-    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.15.zip">v0.3.15 ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
+    <td><strong>Download & open</strong><br>Get the <a href="https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.16.zip">v0.3.16 ZIP</a>, unzip, and double-click <code>narRater.app</code> (macOS) or <code>narRaters_installer.bat</code> (Windows). Needs <a href="https://www.python.org/downloads/">Python 3.10+</a>.</td>
   </tr>
   <tr>
     <td align="center"><strong>2</strong></td>
@@ -194,7 +194,7 @@ Needs **[Python 3.10+](https://www.python.org/downloads/)**. Windows: check **�
 
 ### ZIP download (double-click launcher)
 
-1. **[Download the ZIP (v0.3.15)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.15.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.15`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
+1. **[Download the ZIP (v0.3.16)](https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.16.zip)** and unzip it — or on the [GitHub repo page](https://github.com/xianNeuro/narRaters) use green **Code ▾** → **Download ZIP** for the current `main` branch. You'll get **`narRaters-0.3.16`**, **`narRaters-main`**, or **`narRaters`** (if you used `git clone`).
 2. **Launch:** **macOS** — double-click **`narRater.app`**. **Windows** — double-click **`narRaters_installer.bat`**. **Linux** — in Terminal, `cd` into the folder and run `bash install.sh`.
 3. Your browser opens **`http://127.0.0.1:5000/pipeline-config`** with bundled examples. Put your data in **`data/`**. Restart later by double-clicking the same launcher.
 
@@ -681,7 +681,7 @@ If you use narRaters in research, please cite the archived release.
 
 **Reference list (APA 7):**
 
-> Li, X. (2026). *narRaters: Naturalistic narratives processing platform* (Version 0.3.15) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
+> Li, X. (2026). *narRaters: Naturalistic narratives processing platform* (Version 0.3.16) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20486080
 
 Replace the version number with the release you used (see [Zenodo](https://doi.org/10.5281/zenodo.20486080) for the latest).
 
@@ -694,7 +694,7 @@ Replace the version number with the release you used (see [Zenodo](https://doi.o
 > We used narRaters (Li, 2026), an open-source pipeline for transcribing, segmenting, parsing, matching, and rating narrative recall data, with human review at each step.
 
 *Software / code availability:*
-> narRaters (Version 0.3.15) is available at https://doi.org/10.5281/zenodo.20486080.
+> narRaters (Version 0.3.16) is available at https://doi.org/10.5281/zenodo.20486080.
 
 *Data processing statement:*
 > Story events, parsed recall clauses, recall-to-event matches, and causal ratings were produced with narRaters (Li, 2026; https://doi.org/10.5281/zenodo.20486080).
