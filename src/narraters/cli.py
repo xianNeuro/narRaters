@@ -243,11 +243,6 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
         # import time, so set it before exec below.
         os.environ["NARRATERS_BENCHMARK"] = "1"
 
-    if getattr(args, "dev", False):
-        # Keep the benchmark rater's manual pass toggle interactive. The server
-        # module reads NARRATERS_DEV at import time, so set it before exec below.
-        os.environ["NARRATERS_DEV"] = "1"
-
     production = getattr(args, "production", False)
     if production:
         # Enforce app-level login in production. The server module reads
@@ -616,12 +611,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Open the text-matching benchmark overview instead of the pipeline config. "
         "Lists recall files under benchmark/unrated/ to rate; rated files are saved under "
         "benchmark/rated/<username>/.",
-    )
-    p_serve.add_argument(
-        "--dev",
-        action="store_true",
-        help="Developer mode: keep the manual pass toggle in the benchmark rater "
-        "(normally a read-only indicator that only the in-view buttons advance).",
     )
     p_serve.add_argument(
         "--production",

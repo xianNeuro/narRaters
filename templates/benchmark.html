@@ -261,12 +261,13 @@
                         <th>Dataset</th>
                         <th>Story</th>
                         <th>Sub&nbsp;ID</th>
-                        <th>Status</th>
+                        <th>First&nbsp;pass</th>
+                        <th>Second&nbsp;pass</th>
                     </tr>
                 </thead>
                 <tbody id="rows">
                     <tr>
-                        <td colspan="4" class="loading">Loading…</td>
+                        <td colspan="5" class="loading">Loading…</td>
                     </tr>
                 </tbody>
             </table>
@@ -298,34 +299,33 @@
                 const files = data.files || [];
 
                 if (!files.length) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="empty">No recall files found under benchmark/unrated/.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty">No recall files found under benchmark/unrated/.</td></tr>';
                     document.getElementById('progress').textContent = '';
                     return;
                 }
 
-                const statusOf = f => f.status || (f.rated ? 'rated' : 'not_rated');
-                const ratedCount = files.filter(f => statusOf(f) === 'rated').length;
-                const inProgressCount = files.filter(f => statusOf(f) === 'in_progress').length;
+                const firstCount = files.filter(f => f.first_pass === 'complete').length;
+                const secondCount = files.filter(f => f.second_pass === 'complete').length;
                 document.getElementById('progress').innerHTML =
-                    '<b>' + ratedCount + '</b> of <b>' + files.length + '</b> rated' +
-                    (inProgressCount ? ' · <b>' + inProgressCount + '</b> in progress' : '');
+                    '<b>' + firstCount + '</b> of <b>' + files.length + '</b> first pass · ' +
+                    '<b>' + secondCount + '</b> of <b>' + files.length + '</b> second pass';
+
+                const passBadge = state =>
+                    state === 'complete' ? '<span class="badge rated">Done</span>' :
+                    state === 'partial'  ? '<span class="badge in-progress">In progress</span>' :
+                                           '<span class="badge">Pending</span>';
 
                 tbody.innerHTML = files.map(f => {
-                    const st = statusOf(f);
-                    const status = st === 'rated'
-                        ? '<span class="badge rated">Rated</span>'
-                        : st === 'in_progress'
-                            ? '<span class="badge in-progress">In progress</span>'
-                            : '<span class="badge">Not rated</span>';
                     return '<tr onclick="openItem(\'' + escapeHtml(f.id) + '\')">' +
                         '<td class="ds">' + escapeHtml(f.datasource) + '</td>' +
                         '<td>' + escapeHtml(f.story) + '</td>' +
                         '<td class="mono">' + escapeHtml(f.sub_id) + '</td>' +
-                        '<td>' + status + '</td>' +
+                        '<td>' + passBadge(f.first_pass) + '</td>' +
+                        '<td>' + passBadge(f.second_pass) + '</td>' +
                         '</tr>';
                 }).join('');
             } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty">Failed to load files: ' + escapeHtml(e.message) + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load files: ' + escapeHtml(e.message) + '</td></tr>';
             }
         }
 

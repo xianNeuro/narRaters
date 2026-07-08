@@ -31,8 +31,6 @@
             --acc-p2: #a766e0;
             --accbg-p2: rgba(167, 102, 224, 0.15);
             --blu: #3b82f6;
-            --cyan: #06b6d4;
-            --sky: #0ea5e9;
             --red: #ef4444;
             --grn: #22c55e;
             --ylw: #f59e0b;
@@ -2420,13 +2418,6 @@
         .br-ps-btn:not(.active):hover { color: var(--t0); }
         .br-ps-btn[data-pass="p1"].active { background: var(--acc); color: #fff; }
         .br-ps-btn[data-pass="p2"].active { background: var(--acc-p2); color: #fff; }
-        /* read-only pass indicator (non-dev): no manual toggling */
-        .br-pass-indicator {
-            display: inline-flex; align-items: center; padding: 5px 14px;
-            border-radius: 18px; background: var(--bg1); border: 1px solid var(--bdr);
-            font-size: .85rem; font-weight: 700; letter-spacing: .01em; color: var(--acc);
-        }
-        body.pass-2 .br-pass-indicator { color: var(--acc-p2); }
 
         /* ---- story segments: compact rail; only matched rows marked ---- */
         .br-story-list { display: flex; flex-direction: column; }
@@ -2514,9 +2505,6 @@
         .br-pill[data-cat="confabulation"].on { background: var(--ylw); color: var(--bg0); }
         .br-pill[data-cat="opinion"].on       { background: var(--grn); }
         .br-pill[data-cat="inference"].on     { background: var(--blu); }
-        .br-pill[data-cat="inference_fact_world"].on     { background: var(--blu); }
-        .br-pill[data-cat="inference_mental_emotion"].on { background: var(--cyan); }
-        .br-pill[data-cat="inference_event"].on          { background: var(--sky); }
         .br-pill[data-cat="meta"].on          { background: var(--t2); }
         .br-pill[data-cat="comment"].on       { background: var(--t2); }
         .br-pill-x { margin-left: 6px; font-weight: 700; opacity: .85; }
@@ -2565,6 +2553,9 @@
         /* pass 2: confirm in a calm, not-too-bright green */
         body.pass-2 .br-action-btn { background: #16a34a; }
         .br-action-btn:hover { filter: brightness(1.08); }
+        /* post-pass choice: primary advance button + neutral "back to overview" */
+        .br-action-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .br-action-btn.secondary { background: var(--bg2); color: var(--t1); }
         .br-action-msg { font-size: .85rem; font-weight: 600; text-align: center; min-height: 1.1em; }
         .br-action-msg.err { color: var(--red); }
         .br-action-msg.ok  { color: var(--grn); }
@@ -2837,9 +2828,11 @@
                     on: on,
                     comment: comment,
                     commentOpen: !!comment,
-                    // restored from the rated CSV (confidence col + first-pass-rated flag)
+                    // restored from the rated CSV. Both passes rate confidence:
+                    // conf1 (first pass) -> confidence_1, conf (second pass) -> confidence.
                     conf: (s.confidence === 0 || s.confidence) ? Number(s.confidence) : null,
-                    visited: !!s.first_pass, // pass-1 "rated" = opened at least once
+                    conf1: (s.confidence_1 === 0 || s.confidence_1) ? Number(s.confidence_1) : null,
+                    visited: !!s.first_pass, // opened at least once (pass-1 "done" = conf1 set)
                     highlights: highlights, // {cat,start,end} spans into text
                 };
             });
@@ -2854,7 +2847,7 @@
             // ---- autosave -------------------------------------------------
             // Saving is idempotent: every trigger posts the FULL recall state to
             // the benchmark save endpoint, which writes benchmark/rated/<user>/…
-            // first-pass-rated = segment visited; second-pass-rated = confidence set.
+            // first-pass-rated = first-pass confidence set; second-pass-rated = confidence set.
             const SUBJECT_ID = data.subject_id;
             let saveTimer = null, saveSeq = 0;
             function buildSavePayload() {
@@ -2867,9 +2860,10 @@
                             matched_event: r.matches,
                             comment: r.comment,
                             confidence: r.conf,
+                            confidence_1: r.conf1,
                             // progress is recorded independently of match validity so an
                             // invalid match can't silently regress recorded progress.
-                            'first-pass-rated': !!r.visited,
+                            'first-pass-rated': r.conf1 !== null,
                             'second-pass-rated': r.conf !== null,
                         };
                         BENCH_PILLS.forEach(p => {
@@ -2925,15 +2919,12 @@
                 } catch (e) { /* best effort */ }
             });
 
-            // Dev mode keeps the clickable manual toggle; otherwise the pass is
-            // shown as a read-only indicator and advanced only by the action button.
-            const dev = !!data.dev;
-            const passControl = dev
-                ? `<div class="br-pass-switch">
+            // The First/Second pass toggle is always interactive: the rater can
+            // jump between matching (pass 1) and rating (pass 2) at any time.
+            const passControl = `<div class="br-pass-switch">
                        <button type="button" class="br-ps-btn" data-pass="p1">First pass</button>
                        <button type="button" class="br-ps-btn" data-pass="p2">Second pass</button>
-                   </div>`
-                : `<span class="br-pass-indicator" id="br-pass-indicator"></span>`;
+                   </div>`;
 
             content.innerHTML = `
                 <div class="br-grid">
@@ -2978,6 +2969,8 @@
             // S1: story event shows the orange number/bar ONLY while the currently
             //     selected recall segment lists it as a match (not permanent).
             function updateStoryMatched() {
+                // drop any hover highlight left over from a segment we navigated away from
+                storyList.querySelectorAll('.br-story-card.linked').forEach(c => c.classList.remove('linked'));
                 const set = new Set(parseMatches(recall[activeIdx] ? recall[activeIdx].matches : ''));
                 story.forEach(s => { const c = storyByEvent[s.n]; if (c) c.classList.toggle('matched', set.has(s.n)); });
             }
@@ -2985,12 +2978,12 @@
             const recallList = document.getElementById('br-recall-list');
 
             // a segment counts as "rated" (dimmed once you leave it) when its
-            // current-pass task is done: pass 1 = opened/visited (matches optional),
-            // pass 2 = confidence set.
+            // current-pass task is done: pass 1 = first-pass confidence set,
+            // pass 2 = confidence set (matches must be valid in both).
             function isRated(i) {
                 const r = recall[i];
                 if (!matchesValid(r)) return false;          // bad matches never count as rated
-                return currentPass === 'p1' ? !!r.visited : r.conf !== null;
+                return currentPass === 'p1' ? r.conf1 !== null : r.conf !== null;
             }
 
             // A small I-beam tinted to hex, as a CSS cursor (graceful `text` fallback).
@@ -3104,37 +3097,38 @@
                                 <span class="br-lbl">matches</span>
                                 <input class="br-match-input ${matchesValid(r) ? '' : 'invalid'}" value="${escapeHtml(r.matches)}" placeholder="e.g. 1, 2, 3">
                             </div>`;
-                        if (currentPass === 'p2') {
-                            const pills = `
-                                <div class="br-pill-row">
-                                    ${BENCH_PILLS.map(p => {
-                                        const on = p.hl
-                                            ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
-                                            : r.on.includes(p.cat);
-                                        const x = (p.hl && on) ? '<span class="br-pill-x">×</span>' : '';
-                                        return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${p.hl ? 1 : 0}">${p.label}${x}</span>`;
-                                    }).join('')}
-                                    <span class="br-pill ${r.commentOpen ? 'on' : ''}" data-cat="comment">Comment</span>
-                                </div>`;
-                            const commentBox = r.commentOpen ? `
-                                <textarea class="br-comment-box" rows="2" placeholder="Add your comment...">${escapeHtml(r.comment)}</textarea>` : '';
-                            const cells = [1, 2, 3, 4, 5].map(v =>
-                                `<span class="br-conf-cell ${r.conf === v ? 'sel' : ''}" data-val="${v}" title="${v} of 5">${v}</span>`).join('');
-                            const confidence = `
-                                <div class="br-confidence">
-                                    <span class="br-conf-label">confidence</span>
-                                    <span class="br-conf-end">low</span>
-                                    <div class="br-conf-scale">${cells}</div>
-                                    <span class="br-conf-end">high</span>
-                                </div>`;
-                            // p2 order: 1 text (above), 2 matches, 3 pills (+comment box), 4 confidence
-                            controls = `<div class="br-controls">${matchRow}${pills}${commentBox}${confidence}</div>`;
-                        } else {
-                            controls = matchRow;
-                        }
+                        // Comment pill + box and the confidence scale appear in BOTH passes.
+                        // The rating/highlight pills (BENCH_PILLS) are second-pass only.
+                        // Confidence is bound to the pass-appropriate field: conf1 (p1) / conf (p2).
+                        const commentPill = `<span class="br-pill ${r.commentOpen ? 'on' : ''}" data-cat="comment">Comment</span>`;
+                        const ratingPills = currentPass === 'p2'
+                            ? BENCH_PILLS.map(p => {
+                                const on = p.hl
+                                    ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
+                                    : r.on.includes(p.cat);
+                                const x = (p.hl && on) ? '<span class="br-pill-x">×</span>' : '';
+                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${p.hl ? 1 : 0}">${p.label}${x}</span>`;
+                            }).join('')
+                            : '';
+                        const pills = `<div class="br-pill-row">${ratingPills}${commentPill}</div>`;
+                        const commentBox = r.commentOpen ? `
+                            <textarea class="br-comment-box" rows="2" placeholder="Add your comment...">${escapeHtml(r.comment)}</textarea>` : '';
+                        const confVal = currentPass === 'p1' ? r.conf1 : r.conf;
+                        const cells = [1, 2, 3, 4, 5].map(v =>
+                            `<span class="br-conf-cell ${confVal === v ? 'sel' : ''}" data-val="${v}" title="${v} of 5">${v}</span>`).join('');
+                        const confidence = `
+                            <div class="br-confidence">
+                                <span class="br-conf-label">confidence</span>
+                                <span class="br-conf-end">low</span>
+                                <div class="br-conf-scale">${cells}</div>
+                                <span class="br-conf-end">high</span>
+                            </div>`;
+                        // order: 1 text (above), 2 matches, 3 pills (+comment box), 4 confidence
+                        controls = `<div class="br-controls">${matchRow}${pills}${commentBox}${confidence}</div>`;
                     }
-                    const confBadge = (!isActive && r.conf != null)
-                        ? `<span class="br-conf-badge">conf: ${r.conf}</span>` : '';
+                    const badgeConf = currentPass === 'p1' ? r.conf1 : r.conf;
+                    const confBadge = (!isActive && badgeConf != null)
+                        ? `<span class="br-conf-badge">conf: ${badgeConf}</span>` : '';
                     return `
                         <div class="br-recall-card ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${rated ? 'rated' : ''} ${matchesValid(r) ? '' : 'invalid'}" data-idx="${i}" data-matches="${escapeHtml(r.matches)}">
                             <div class="br-rail">${r.n}</div>
@@ -3147,7 +3141,7 @@
                 }).join('') + `
                     <div class="br-actions">
                         <button type="button" class="br-action-btn" id="br-action-btn">${
-                            currentPass === 'p1' ? 'Start second pass' : 'Confirm: Finished rating'}</button>
+                            currentPass === 'p1' ? 'Finish first pass' : 'Confirm: Finished rating'}</button>
                         <div class="br-action-msg" id="br-action-msg" role="status"></div>
                     </div>`;
                 wireRecall();
@@ -3162,14 +3156,51 @@
                 el.className = 'br-action-msg' + (kind ? ' ' + kind : '');
             }
 
-            // Validate the current pass; advance (p1) or confirm (p2), else point
-            // the rater at the first segment still needing work.
+            // Persist, then leave for the benchmark overview ('/' redirects to
+            // /benchmark). Shared by the post-pass "Back to overview" buttons.
+            function goToOverview() {
+                flushSave();
+                window.location.href = '/';
+            }
+
+            // Enter the second pass at the first segment.
+            function startSecondPass() {
+                activeIdx = 0;
+                setPass('p2');
+                recallList.closest('.br-scroll')?.scrollTo({ top: 0 });
+                flushSave();
+            }
+
+            // Replace the action footer's button(s). Each entry is [label, class,
+            // handler]; the message line below is preserved/reset by callers.
+            function renderActionButtons(buttons) {
+                const actions = recallList.querySelector('.br-actions');
+                if (!actions) return;
+                const row = document.createElement('div');
+                row.className = 'br-action-row';
+                buttons.forEach(([label, cls, handler]) => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'br-action-btn' + (cls ? ' ' + cls : '');
+                    b.textContent = label;
+                    b.addEventListener('click', handler);
+                    row.appendChild(b);
+                });
+                const btn = actions.querySelector('#br-action-btn');
+                if (btn) btn.remove();
+                actions.insertBefore(row, actions.querySelector('.br-action-msg'));
+            }
+
+            // Validate the current pass; on success offer the rater a choice
+            // (continue to the second pass / go back to the overview) — this lets
+            // them do the first pass of other subjects before rating. Otherwise
+            // point them at the first segment still needing work.
             function runPassAction() {
                 if (currentPass === 'p1') {
-                    const bad = recall.findIndex(r => !r.visited);
+                    const bad = recall.findIndex(r => r.conf1 === null);
                     if (bad >= 0) {
                         // flag the gap without selecting or scrolling away
-                        showActionMsg(`Recall segment ${recall[bad].n} hasn't been viewed yet — open it before starting the second pass.`, 'err');
+                        showActionMsg(`Recall segment ${recall[bad].n} hasn't been rated yet — set its confidence before starting the second pass.`, 'err');
                         return;
                     }
                     const badMatch = recall.findIndex(r => !matchesValid(r));
@@ -3177,10 +3208,12 @@
                         showActionMsg(`Recall segment ${recall[badMatch].n} has matches outside the story segments — fix them before starting the second pass.`, 'err');
                         return;
                     }
-                    activeIdx = 0;
-                    setPass('p2');
-                    recallList.closest('.br-scroll')?.scrollTo({ top: 0 });
                     flushSave();
+                    showActionMsg('First pass finished. ✓', 'ok');
+                    renderActionButtons([
+                        ['Start second pass', '', startSecondPass],
+                        ['Back to overview', 'secondary', goToOverview],
+                    ]);
                 } else {
                     const bad = recall.findIndex(r => r.conf === null);
                     if (bad >= 0) {
@@ -3195,6 +3228,9 @@
                     }
                     flushSave();
                     showActionMsg('All segments rated — finished. ✓', 'ok');
+                    renderActionButtons([
+                        ['Back to overview', 'secondary', goToOverview],
+                    ]);
                 }
             }
 
@@ -3250,13 +3286,11 @@
                     if (!window.getSelection().isCollapsed) e.preventDefault();
                 }));
 
-                // confidence (second pass) — set value (persisted to the confidence column)
+                // confidence — set value and advance to the next segment (both passes).
+                // p1 -> confidence_1, p2 -> confidence.
                 recallList.querySelectorAll('.br-conf-cell').forEach(cell => cell.addEventListener('click', e => {
                     e.stopPropagation();
-                    const i = +cell.closest('.br-recall-card').dataset.idx;
-                    recall[i].conf = +cell.dataset.val;
-                    renderRecall();
-                    scheduleSave();
+                    rateActiveAndAdvance(+cell.dataset.val);
                 }));
 
                 // comment box — keep editing without collapsing; persisted on save
@@ -3292,50 +3326,34 @@
                 currentPass = pass;
                 document.body.classList.toggle('pass-1', pass === 'p1');
                 document.body.classList.toggle('pass-2', pass === 'p2');
-                // dev: highlight the active toggle button; non-dev: update the indicator
+                // highlight the active toggle button
                 document.querySelectorAll('.br-ps-btn').forEach(b => b.classList.toggle('active', b.dataset.pass === pass));
-                const indicator = document.getElementById('br-pass-indicator');
-                if (indicator) indicator.textContent = pass === 'p1' ? 'First pass' : 'Second pass';
                 renderRecall();
             }
-            if (dev) document.querySelectorAll('.br-ps-btn').forEach(b => b.addEventListener('click', () => setPass(b.dataset.pass)));
+            document.querySelectorAll('.br-ps-btn').forEach(b => b.addEventListener('click', () => setPass(b.dataset.pass)));
 
-            // Pass 1: Space = "save and move to the next recall segment". Ignored
-            // while typing in the matches input (so Space still types a space).
-            document.addEventListener('keydown', (e) => {
-                if (e.code !== 'Space' && e.key !== ' ') return;
-                if (currentPass !== 'p1') return;
-                const t = e.target;
-                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-                e.preventDefault();
-                if (activeIdx < recall.length - 1) {
-                    activeIdx += 1;
-                    renderRecall();
-                    recallList.querySelector('.br-recall-card.active')?.scrollIntoView({ block: 'nearest' });
-                    flushSave(); // moving on -> persist
-                }
-            });
+            // Set the active segment's confidence (p1 -> conf1, p2 -> conf) and advance
+            // to the next segment. Shared by the confidence click and the 1-5 keys so
+            // both passes behave identically.
+            function rateActiveAndAdvance(v) {
+                if (currentPass === 'p1') recall[activeIdx].conf1 = v;
+                else recall[activeIdx].conf = v;
+                if (activeIdx < recall.length - 1) activeIdx += 1;
+                renderRecall();
+                recallList.querySelector('.br-recall-card.active')?.scrollIntoView({ block: 'nearest' });
+                flushSave(); // confirming a value -> persist immediately
+            }
 
-            // Pass 2: digit 1-5 = set confidence and advance to the next segment
-            // (mirrors Pass 1's Space-to-advance). Ignored while typing in an
-            // input/textarea/contentEditable so the comment box and matches input
+            // Digit 1-5 = set confidence and advance (both passes). Ignored while typing
+            // in an input/textarea/contentEditable so the comment box and matches input
             // still take digits normally.
             document.addEventListener('keydown', (e) => {
-                if (currentPass !== 'p2') return;
                 const v = Number(e.key);
                 if (!Number.isInteger(v) || v < 1 || v > 5) return;
                 const t = e.target;
                 if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
                 e.preventDefault();
-                recall[activeIdx].conf = v;
-                if (activeIdx < recall.length - 1) {
-                    activeIdx += 1;
-                    renderRecall();
-                    recallList.querySelector('.br-recall-card.active')?.scrollIntoView({ block: 'nearest' });
-                } else {
-                    renderRecall();
-                }
-                flushSave(); // confirming a value -> persist immediately, like Space does in p1
+                rateActiveAndAdvance(v);
             });
 
             updateStoryMatched();
@@ -5251,17 +5269,14 @@
         function ratingLabel(k) { return RATING_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1)); }
         // Benchmark rating pills: own order + labels (decoupled from RATING_KEYS so
         // the normal view is untouched). hl = highlight-to-span pill; non-hl = plain toggle.
-        // Benchmark mode (--benchmark) splits Inference into three pills.
         const BENCH_MODE = {{ 'true' if benchmark else 'false' }};
         const BENCH_PILLS = BENCH_MODE ? [
-            { cat: 'summary',                  label: 'Summary',                  hl: false },
-            { cat: 'error',                    label: 'Factual error',            hl: true  },
-            { cat: 'confabulation',            label: 'Confabulation',            hl: true  },
-            { cat: 'inference_fact_world',     label: 'Inference Fact/World',     hl: true  },
-            { cat: 'inference_mental_emotion', label: 'Inference Mental/Emotion', hl: true  },
-            { cat: 'inference_event',          label: 'Inference Event',          hl: true  },
-            { cat: 'opinion',                  label: 'Opinion',                  hl: true  },
-            { cat: 'meta',                     label: 'Meta',                     hl: true  },
+            { cat: 'summary',       label: 'Broad summary', hl: false },
+            { cat: 'error',         label: 'Factual error', hl: true  },
+            { cat: 'confabulation', label: 'Confabulation', hl: true  },
+            { cat: 'inference',     label: 'Inference',     hl: true  },
+            { cat: 'opinion',       label: 'Opinion',       hl: true  },
+            { cat: 'meta',          label: 'Meta',          hl: true  },
         ] : [
             { cat: 'summary',       label: 'Summary',       hl: false },
             { cat: 'error',         label: 'Factual error', hl: true  },
@@ -5273,9 +5288,7 @@
         // Hex (not var()) so the same value drives the inline underline color AND the
         // SVG data-URI cursor, which can't read CSS variables.
         const CAT_HEX = { summary:'#6c63ff', error:'#ef4444', confabulation:'#f59e0b',
-                          inference:'#3b82f6', inference_fact_world:'#3b82f6',
-                          inference_mental_emotion:'#06b6d4', inference_event:'#0ea5e9',
-                          opinion:'#22c55e', meta:'#8890a8' };
+                          inference:'#3b82f6', opinion:'#22c55e', meta:'#8890a8' };
         // What each rating means (HTML; shown one-per-step in the further-ratings tutorial
         // and, stripped to plain text, as each checkbox's hover tooltip).
         const RATING_MEANINGS = {
@@ -5283,9 +5296,6 @@
             error: 'The segment states something that <strong>factually contradicts</strong> the original story.<br><em>E.g. &ldquo;The boy accused his dog of being possessed&rdquo; — but it was a cat, not a dog.</em>',
             confabulation: '<strong>Fabricated information</strong> not present in the original story.<br><em>E.g. &ldquo;…the ghost was screaming boo&rdquo; — but no screaming was mentioned in the story.</em>',
             inference: '<strong>Plausible but unmentioned details</strong> drawn from prior knowledge or reasonable interpretation.<br><em>E.g. recall says &ldquo;she opened the door and walked up the stairs&rdquo; when the story only said &ldquo;from the garden she walked up to the first floor&rdquo;.</em>',
-            inference_fact_world: '<strong>Plausible but unmentioned facts about the world or external events</strong> drawn from prior knowledge or reasonable interpretation.<br><em>E.g. recall says &ldquo;she opened the door and walked up the stairs&rdquo; when the story only said &ldquo;from the garden she walked up to the first floor&rdquo;.</em>',
-            inference_mental_emotion: '<strong>Plausible but unmentioned mental states, thoughts, intentions or emotions</strong> attributed to a character but never stated in the story.<br><em>E.g. recall says &ldquo;she was nervous and wanted to escape&rdquo; when the story never described her feelings.</em>',
-            inference_event: '<strong>An inference about something that happened or will happen</strong> which was not described in the story.<br><em>E.g. recall says &ldquo;they must have locked the door before leaving&rdquo; when the story never mentioned it.</em>',
             opinion: 'The segment <strong>evaluates actions or the story from the participant&rsquo;s own perspective</strong>.<br><em>E.g. &ldquo;I do not like this character&rdquo;, &ldquo;that was so nice of her to do&rdquo;.</em>',
             meta: 'The segment <strong>refers to something outside the story</strong>.<br><em>E.g. &ldquo;I&rsquo;m done&rdquo;, &ldquo;Should I start now?&rdquo;.</em>'
         };
