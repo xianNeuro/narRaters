@@ -151,6 +151,17 @@ Manage accounts later with
 sudo -u /srv/narraters/.venv/bin/narraters users list | passwd <name> | remove <name>
 ```
 
+In `--benchmark` mode every rater starts locked to the first (matching) pass.
+Unlock a rater's second (rating) pass — after which they work only in the
+second pass — or switch them back with:
+```bash
+sudo -u narraters /srv/narraters/.venv/bin/narraters users second-pass alice
+sudo -u narraters /srv/narraters/.venv/bin/narraters users first-pass alice
+```
+The second pass is kept in a separate rated file (`…-matched_second-pass.csv`
+next to the first-pass file), pre-populated from the rater's first pass the
+first time they save in the second pass.
+
 ## 9. Verify
 
 Browse to **`https://narraters.example.com/`** — you should get a valid certificate

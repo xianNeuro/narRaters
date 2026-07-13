@@ -367,6 +367,7 @@ _migrate_legacy_pipeline_config_once()
 # without importing this Flask server module. Imported under the historical
 # names so the rest of this file is unchanged.
 from narraters.accounts import (  # noqa: E402
+    get_benchmark_pass,
     load_users,
     save_users,
     hash_password,
@@ -4250,15 +4251,44 @@ def _benchmark_username_error():
     return None
 
 
-def _benchmark_rated_path(item, username):
+def _benchmark_active_pass(username):
+    """Which pass this rater is locked to (1 = matching, 2 = rating). Admin-set
+    via `narraters users second-pass/first-pass <name>`; defaults to 1."""
+    try:
+        return get_benchmark_pass(username)
+    except Exception:
+        return 1
+
+
+def _benchmark_rated_path(item, username, pass_no=1):
     """Destination for a rater's edited matches:
     rated/<user>/<user>-<datasource>-matching/<story>/matches/<same-filename>.
-    """
+    The two passes live in separate files: pass 1 keeps the unrated filename,
+    pass 2 appends `_second-pass` before the extension."""
+    name = item['matched_file'].name
+    if pass_no == 2:
+        p = Path(name)
+        name = f"{p.stem}_second-pass{p.suffix}"
     return (
         BENCHMARK_RATED_DIR / username
         / f"{username}-{item['datasource']}-matching"
-        / item['story'] / 'matches' / item['matched_file'].name
+        / item['story'] / 'matches' / name
     )
+
+
+def _benchmark_pass_seed(item, username, pass_no):
+    """The file a rater's view/save of ``pass_no`` starts from: that pass's own
+    rated file if present; for the second pass, otherwise the first-pass rated
+    file (so pass 2 opens pre-populated with the rater's first-pass work);
+    otherwise the unrated source file."""
+    rated_path = _benchmark_rated_path(item, username, pass_no)
+    if rated_path.exists():
+        return rated_path
+    if pass_no == 2:
+        first_path = _benchmark_rated_path(item, username, 1)
+        if first_path.exists():
+            return first_path
+    return item['matched_file']
 
 
 def _benchmark_read_segments(path):
@@ -4347,8 +4377,9 @@ def _benchmark_story_events(path):
 def _benchmark_subject_payload(item):
     """Build the /api/subject payload for a benchmark item (matching UI, step3)."""
     username = _benchmark_username()
-    rated_path = _benchmark_rated_path(item, username)
-    source = rated_path if rated_path.exists() else item['matched_file']
+    active_pass = _benchmark_active_pass(username)
+    rated_path = _benchmark_rated_path(item, username, active_pass)
+    source = _benchmark_pass_seed(item, username, active_pass)
     try:
         rated_texts = _benchmark_read_segments(source)
     except Exception as e:
@@ -4358,6 +4389,7 @@ def _benchmark_subject_payload(item):
         'subject_id': item['id'],
         'username': username,
         'benchmark': True,
+        'benchmark_pass': active_pass,
         'benchmark_meta': {
             'datasource': item['datasource'],
             'story': item['story'],
@@ -4395,8 +4427,11 @@ def _benchmark_save_rated(item, data):
     if not segments:
         return jsonify({'error': 'No segments provided'}), 400
 
+    # The active pass is resolved server-side, so a client can only ever write
+    # the pass file it is locked to.
     username = _benchmark_username()
-    rated_path = _benchmark_rated_path(item, username)
+    active_pass = _benchmark_active_pass(username)
+    rated_path = _benchmark_rated_path(item, username, active_pass)
     rated_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Drop stale writes: a debounced save built from an older snapshot must not
@@ -4417,7 +4452,9 @@ def _benchmark_save_rated(item, data):
             return jsonify({'success': True, 'skipped': 'stale'})
 
         from helpers.flexible_io import read_parsed_recall_file, read_tabular
-        seed_file = rated_path if rated_path.exists() else item['matched_file']
+        # For the second pass's first save this seeds from the first-pass rated
+        # file (pre-populating it); afterwards the two pass files stay separate.
+        seed_file = _benchmark_pass_seed(item, username, active_pass)
         df = read_parsed_recall_file(seed_file)
         if 'recall_in_temporal_order' not in df.columns:
             return jsonify({'error': 'Invalid file format'}), 400
@@ -4591,29 +4628,23 @@ def _benchmark_save_rated(item, data):
     })
 
 
-def _benchmark_pass_status(item, username):
-    """Per-pass completion of a rater's work on a benchmark item, from the two
-    tracking columns. Returns {'exists', 'first', 'second'}: 'exists' is whether a
-    rated file is present; 'first'/'second' are each one of 'complete' (every
-    non-blank segment done in that pass), 'partial' (some but not all done), or
-    'none' (nothing done). A missing file or unreadable/absent columns -> both
-    'none'."""
-    rated_path = _benchmark_rated_path(item, username)
+def _benchmark_pass_col_state(rated_path, col):
+    """Completion of one pass, from its tracking column in one rated file:
+    'complete' (every non-blank segment done), 'partial' (some but not all
+    done), or 'none' (nothing done / missing file / unreadable or absent
+    column)."""
     if not rated_path.exists():
-        return {'exists': False, 'first': 'none', 'second': 'none'}
+        return 'none'
     try:
         from helpers.flexible_io import read_tabular, read_parsed_recall_file
         raw = read_tabular(rated_path).reset_index(drop=True)
-        if len(raw) == 0:
-            return {'exists': True, 'first': 'none', 'second': 'none'}
-        if BENCH_FIRST_PASS_COL not in raw.columns or BENCH_SECOND_PASS_COL not in raw.columns:
-            return {'exists': True, 'first': 'none', 'second': 'none'}
+        if len(raw) == 0 or col not in raw.columns:
+            return 'none'
 
         def _truthy(v):
             return str(v).strip().lower() in ('true', '1', 'yes', 'x')
 
-        first = raw[BENCH_FIRST_PASS_COL].map(_truthy).reset_index(drop=True)
-        second = raw[BENCH_SECOND_PASS_COL].map(_truthy).reset_index(drop=True)
+        flags = raw[col].map(_truthy).reset_index(drop=True)
 
         # Blank recall rows are kept for display but are never rated; exclude them
         # from the completion check so an item that's fully rated apart from
@@ -4624,20 +4655,32 @@ def _benchmark_pass_status(item, username):
             mask = (text != '') & (text.str.lower() != 'nan')
         except Exception:
             mask = None
-        if mask is not None and len(mask) == len(first):
+        if mask is not None and len(mask) == len(flags):
             if not mask.any():
-                return {'exists': True, 'first': 'none', 'second': 'none'}
-            first, second = first[mask], second[mask]
+                return 'none'
+            flags = flags[mask]
 
-        def _state(col):
-            if col.all():
-                return 'complete'
-            return 'partial' if col.any() else 'none'
-
-        return {'exists': True, 'first': _state(first), 'second': _state(second)}
+        if flags.all():
+            return 'complete'
+        return 'partial' if flags.any() else 'none'
     except Exception as e:
         print(f"benchmark: error reading status {rated_path}: {e}")
-        return {'exists': True, 'first': 'none', 'second': 'none'}
+        return 'none'
+
+
+def _benchmark_pass_status(item, username):
+    """Per-pass completion of a rater's work on a benchmark item. Each pass is
+    read from its own rated file (pass 1 = unrated filename, pass 2 =
+    `_second-pass` suffix). Returns {'exists', 'first', 'second'}: 'exists' is
+    whether either rated file is present; 'first'/'second' are each one of
+    'complete', 'partial', or 'none' (see _benchmark_pass_col_state)."""
+    first_path = _benchmark_rated_path(item, username, 1)
+    second_path = _benchmark_rated_path(item, username, 2)
+    return {
+        'exists': first_path.exists() or second_path.exists(),
+        'first': _benchmark_pass_col_state(first_path, BENCH_FIRST_PASS_COL),
+        'second': _benchmark_pass_col_state(second_path, BENCH_SECOND_PASS_COL),
+    }
 
 
 def _benchmark_rated_status(item, username):

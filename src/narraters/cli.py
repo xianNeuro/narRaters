@@ -463,6 +463,25 @@ def cmd_users(args: argparse.Namespace, extra: list[str]) -> int:
         print(f"Removed user '{args.username}' ({accounts.users_file()})")
         return 0
 
+    # Benchmark pass switching: which pass a rater is locked to in
+    # `narraters serve --benchmark`. Independent of login accounts so it also
+    # works for local (no-login) raters identified by their OS username.
+    if action in ("second-pass", "first-pass"):
+        pass_no = 2 if action == "second-pass" else 1
+        if not accounts.user_exists(args.username):
+            print(
+                f"Note: no login account named '{args.username}' exists; the "
+                f"setting applies to any rater using that name.",
+                file=sys.stderr,
+            )
+        if not accounts.set_benchmark_pass(args.username, pass_no):
+            print("narraters: failed to write benchmark passes file.", file=sys.stderr)
+            return 1
+        which = "second" if pass_no == 2 else "first"
+        print(f"Rater '{args.username}' is now locked to the {which} pass "
+              f"({accounts.passes_file()})")
+        return 0
+
     # Usernames double as benchmark rated/ directory names + filename prefixes,
     # so they must be filesystem/regex-safe. Reject unsafe names at creation so
     # the stored account name always equals its sanitized form.
@@ -649,6 +668,17 @@ def build_parser() -> argparse.ArgumentParser:
     pu_rm = users_sub.add_parser("remove", help="Delete an account.")
     pu_rm.add_argument("username", help="Username to delete.")
     users_sub.add_parser("list", help="List existing accounts.")
+    pu_p2 = users_sub.add_parser(
+        "second-pass",
+        help="Unlock the second (rating) pass for a rater in 'serve --benchmark'; "
+        "they then work only in the second pass.",
+    )
+    pu_p2.add_argument("username", help="Rater whose second pass to unlock.")
+    pu_p1 = users_sub.add_parser(
+        "first-pass",
+        help="Switch a rater back to the first (matching) pass in 'serve --benchmark' (the default).",
+    )
+    pu_p1.add_argument("username", help="Rater to switch back to the first pass.")
     p_users.set_defaults(func=cmd_users)
 
     return parser

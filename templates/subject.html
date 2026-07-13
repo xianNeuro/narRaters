@@ -2418,6 +2418,8 @@
         .br-ps-btn:not(.active):hover { color: var(--t0); }
         .br-ps-btn[data-pass="p1"].active { background: var(--acc); color: #fff; }
         .br-ps-btn[data-pass="p2"].active { background: var(--acc-p2); color: #fff; }
+        /* pass locked server-side: buttons stay visible but are inert */
+        .br-ps-btn.locked { cursor: default; pointer-events: none; }
 
         /* ---- story segments: compact rail; only matched rows marked ---- */
         .br-story-list { display: flex; flex-direction: column; }
@@ -2433,17 +2435,12 @@
             background: transparent; border-right: none;
         }
         .br-story-text { padding: 7px 14px; color: var(--t1); font-size: .95rem; line-height: 1.45; }
-        .br-story-card.matched { box-shadow: inset 3px 0 0 var(--ylw); }
+        .br-story-card.matched {
+            box-shadow: inset 3px 0 0 var(--ylw);
+            border-color: var(--ylw); border-radius: 8px;
+        }
         .br-story-card.matched .br-rail { color: var(--ylw); }
-        .br-story-card:hover,
-        .br-story-card.linked {
-            background: var(--bg3); border-color: var(--ylw); border-radius: 7px;
-            box-shadow: 0 0 22px rgba(245,158,11,.18);
-        }
-        .br-story-card.matched:hover,
-        .br-story-card.matched.linked {
-            box-shadow: inset 3px 0 0 var(--ylw), 0 0 22px rgba(245,158,11,.18);
-        }
+        .br-story-card:hover { background: var(--bg3); }
 
         /* ---- recall segments: flat compact rails, expandable ---- */
         .br-recall-list { display: flex; flex-direction: column; }
@@ -2458,6 +2455,12 @@
         .br-recall-card.rated .br-rail { color: var(--acc); }
         body.pass-2 .br-recall-card.rated .br-rail { color: var(--acc-p2); }
         .br-recall-card.invalid .br-rail { color: #b5544f; }
+        /* skipped-over segment still missing this pass's confidence rating */
+        .br-recall-card.needs-conf .br-rail { color: var(--red); }
+        .br-conf-missing {
+            flex-shrink: 0; font-size: .8rem; font-style: italic;
+            color: var(--red); white-space: nowrap;
+        }
 
         .br-recall-card:not(.active):hover { background: var(--bg1); }
         .br-recall-card.active {
@@ -2472,7 +2475,15 @@
         .br-recall-body { flex: 1; min-width: 0; padding: 7px 14px; }
         .br-recall-text { color: var(--t1); font-size: .95rem; line-height: 1.45; margin: 0; cursor: text; }
         .br-recall-card.active .br-recall-text { color: var(--t0); margin-bottom: 12px; }
-        /* collapsed-segment confidence readout, kept low-emphasis */
+        /* collapsed-segment rating readout, kept low-emphasis: matches · pills
+           flow directly after the recall text; conf sits at the right edge */
+        .br-recall-card:not(.active) .br-recall-body {
+            display: flex; align-items: baseline; gap: 12px;
+        }
+        .br-recap {
+            flex-shrink: 1; min-width: 0; font-size: .8rem; font-style: italic; color: var(--t2);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
         .br-conf-badge {
             align-self: center; flex-shrink: 0; padding: 0 14px;
             font-size: .8rem; font-style: italic; color: var(--t2); white-space: nowrap;
@@ -2763,13 +2774,14 @@
         //        segments BUT expandable: click -> active, collapses previous.
         //        active = bg lift + accent inset left bar + radius; number kept
         //        in pass accent colour (indigo/purple).
-        //     R4 p2 active stack order: 1 text, 2 matches, 3 pills, 4 confidence.
-        //        p1 active: text + matches only. non-active card: text only.
+        //     R4 active stack order: 1 text, 2 matches, 3 pills, 4 confidence.
+        //        p1 pills: Broad summary + Meta (plain) + Comment; p2: full set.
+        //        non-active card: text (+ rating recap badge once rated).
         //   STORY box:
         //     S1 .matched (orange number + orange inset left bar) shown ONLY for
         //        events listed by the CURRENTLY SELECTED recall segment;
         //        recomputed on active change + match edits. Not permanent.
-        //     S2 hover/.linked glow-box highlight = keep as is.
+        //     S2 hover = subtle background only (no orange glow/link highlight).
         // App wiring: pills = RATING_KEYS (6 cats) + a 7th "Comment" pill that
         //   opens a per-segment comment box. Confidence = 7-pt scale, in-memory
         //   only (no benchmark CSV column, no Save this pass).
@@ -2837,9 +2849,10 @@
                 };
             });
 
-            // First pass = matching, second pass = rating. Auto-pick the opening
-            // pass (everything matched -> start rating), manual toggle still works.
-            let currentPass = (recall.length && recall.every(r => parseMatches(r.matches).length > 0)) ? 'p2' : 'p1';
+            // First pass = matching, second pass = rating. The pass is fixed
+            // server-side per rater (`narraters users second-pass <name>` unlocks
+            // pass 2, `... first-pass <name>` switches back); no in-page switching.
+            const currentPass = data.benchmark_pass === 2 ? 'p2' : 'p1';
             let activeIdx = 0;
             // Transient: which highlight pill is armed for the active segment (null = none).
             let armedCat = null;
@@ -2898,9 +2911,11 @@
                         }
                         throw new Error(body.error || ('HTTP ' + resp.status));
                     }
-                    if (seq === saveSeq) showActionMsg('Saved ✓', 'ok');
+                    if (seq === saveSeq && !stickyActionMsg) showActionMsg('Saved ✓', 'ok');
                 } catch (e) {
-                    if (seq === saveSeq) showActionMsg('Could not save: ' + e.message, 'err');
+                    // leaving the page aborts in-flight fetches; the beforeunload
+                    // beacon re-sends the state, so don't flash a bogus error
+                    if (seq === saveSeq && !unloading) showActionMsg('Could not save: ' + e.message, 'err');
                 }
             }
             function scheduleSave(delay = 800) {
@@ -2909,21 +2924,24 @@
             }
             function flushSave() {
                 if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-                saveBenchmark();
+                return saveBenchmark();
             }
             // Best-effort save if the rater closes the tab mid-segment.
+            let unloading = false;
             window.addEventListener('beforeunload', () => {
+                unloading = true;
                 try {
                     const blob = new Blob([JSON.stringify(buildSavePayload())], { type: 'application/json' });
                     navigator.sendBeacon(`/api/subject/${encodeURIComponent(SUBJECT_ID)}/save-rated`, blob);
                 } catch (e) { /* best effort */ }
             });
 
-            // The First/Second pass toggle is always interactive: the rater can
-            // jump between matching (pass 1) and rating (pass 2) at any time.
+            // The First/Second pass indicator stays visible but is not
+            // interactive: the rater's pass is locked server-side, so the
+            // buttons are inert (no click handler, no pointer cursor, no error).
             const passControl = `<div class="br-pass-switch">
-                       <button type="button" class="br-ps-btn" data-pass="p1">First pass</button>
-                       <button type="button" class="br-ps-btn" data-pass="p2">Second pass</button>
+                       <button type="button" class="br-ps-btn locked" data-pass="p1" aria-disabled="true">First pass</button>
+                       <button type="button" class="br-ps-btn locked" data-pass="p2" aria-disabled="true">Second pass</button>
                    </div>`;
 
             content.innerHTML = `
@@ -2969,8 +2987,6 @@
             // S1: story event shows the orange number/bar ONLY while the currently
             //     selected recall segment lists it as a match (not permanent).
             function updateStoryMatched() {
-                // drop any hover highlight left over from a segment we navigated away from
-                storyList.querySelectorAll('.br-story-card.linked').forEach(c => c.classList.remove('linked'));
                 const set = new Set(parseMatches(recall[activeIdx] ? recall[activeIdx].matches : ''));
                 story.forEach(s => { const c = storyByEvent[s.n]; if (c) c.classList.toggle('matched', set.has(s.n)); });
             }
@@ -3098,18 +3114,21 @@
                                 <input class="br-match-input ${matchesValid(r) ? '' : 'invalid'}" value="${escapeHtml(r.matches)}" placeholder="e.g. 1, 2, 3">
                             </div>`;
                         // Comment pill + box and the confidence scale appear in BOTH passes.
-                        // The rating/highlight pills (BENCH_PILLS) are second-pass only.
+                        // Pass 1 shows only Broad summary + Meta, as plain toggles; pass 2
+                        // shows the full rating/highlight pill set.
                         // Confidence is bound to the pass-appropriate field: conf1 (p1) / conf (p2).
                         const commentPill = `<span class="br-pill ${r.commentOpen ? 'on' : ''}" data-cat="comment">Comment</span>`;
-                        const ratingPills = currentPass === 'p2'
-                            ? BENCH_PILLS.map(p => {
+                        const P1_CATS = ['summary', 'meta'];
+                        const ratingPills = BENCH_PILLS
+                            .filter(p => currentPass === 'p2' || P1_CATS.includes(p.cat))
+                            .map(p => {
+                                const hl = p.hl && currentPass === 'p2';
                                 const on = p.hl
                                     ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
                                     : r.on.includes(p.cat);
-                                const x = (p.hl && on) ? '<span class="br-pill-x">×</span>' : '';
-                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${p.hl ? 1 : 0}">${p.label}${x}</span>`;
-                            }).join('')
-                            : '';
+                                const x = (hl && on) ? '<span class="br-pill-x">×</span>' : '';
+                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${hl ? 1 : 0}">${p.label}${x}</span>`;
+                            }).join('');
                         const pills = `<div class="br-pill-row">${ratingPills}${commentPill}</div>`;
                         const commentBox = r.commentOpen ? `
                             <textarea class="br-comment-box" rows="2" placeholder="Add your comment...">${escapeHtml(r.comment)}</textarea>` : '';
@@ -3126,14 +3145,32 @@
                         // order: 1 text (above), 2 matches, 3 pills (+comment box), 4 confidence
                         controls = `<div class="br-controls">${matchRow}${pills}${commentBox}${confidence}</div>`;
                     }
+                    // collapsed rated rows recap the full rating: matches + active
+                    // pills (incl. Comment) directly after the text, the pass's
+                    // confidence pinned to the right edge
                     const badgeConf = currentPass === 'p1' ? r.conf1 : r.conf;
-                    const confBadge = (!isActive && badgeConf != null)
-                        ? `<span class="br-conf-badge">conf: ${badgeConf}</span>` : '';
+                    // segments above the active one still missing this pass's
+                    // confidence get flagged (0 is a valid rating, so == null)
+                    const needsConf = i < activeIdx && badgeConf == null;
+                    let recapBadge = '', confBadge = '';
+                    if (!isActive && badgeConf != null) {
+                        const m = parseMatches(r.matches);
+                        const pillNames = BENCH_PILLS
+                            .filter(p => r.on.includes(p.cat) || r.highlights.some(h => h.cat === p.cat))
+                            .map(p => p.label);
+                        if (r.commentOpen) pillNames.push('Comment');
+                        const parts = [`matches: ${m.length ? m.join(', ') : 'none'}`];
+                        if (pillNames.length) parts.push(pillNames.join(', '));
+                        recapBadge = `<span class="br-recap">${parts.join(' · ')}</span>`;
+                        confBadge = `<span class="br-conf-badge">conf: ${badgeConf}</span>`;
+                    }
                     return `
-                        <div class="br-recall-card ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${rated ? 'rated' : ''} ${matchesValid(r) ? '' : 'invalid'}" data-idx="${i}" data-matches="${escapeHtml(r.matches)}">
+                        <div class="br-recall-card ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${rated ? 'rated' : ''} ${matchesValid(r) ? '' : 'invalid'} ${needsConf ? 'needs-conf' : ''}" data-idx="${i}" data-matches="${escapeHtml(r.matches)}">
                             <div class="br-rail">${r.n}</div>
                             <div class="br-recall-body">
                                 ${renderRecallText(r, isActive)}
+                                ${needsConf ? '<span class="br-conf-missing">rate confidence</span>' : ''}
+                                ${recapBadge}
                                 ${controls}
                             </div>
                             ${confBadge}
@@ -3144,31 +3181,31 @@
                             currentPass === 'p1' ? 'Finish first pass' : 'Confirm: Finished rating'}</button>
                         <div class="br-action-msg" id="br-action-msg" role="status"></div>
                     </div>`;
+                stickyActionMsg = false; // the message element was just rebuilt empty
                 wireRecall();
                 updateStoryMatched();
             }
 
             // Show a message under the action button (re-rendered each pass).
-            function showActionMsg(text, kind) {
+            // sticky = survives the autosave's "Saved ✓" confirmation (which
+            // lands async, moments later, and would otherwise overwrite it);
+            // save errors still overwrite. Cleared on the next re-render.
+            let stickyActionMsg = false;
+            function showActionMsg(text, kind, sticky = false) {
                 const el = document.getElementById('br-action-msg');
                 if (!el) return;
                 el.textContent = text;
                 el.className = 'br-action-msg' + (kind ? ' ' + kind : '');
+                stickyActionMsg = sticky;
             }
 
             // Persist, then leave for the benchmark overview ('/' redirects to
             // /benchmark). Shared by the post-pass "Back to overview" buttons.
-            function goToOverview() {
-                flushSave();
+            // Awaits the save: navigating right away would abort the in-flight
+            // fetch and flash its "Could not save" error before the page unloads.
+            async function goToOverview() {
+                await flushSave();
                 window.location.href = '/';
-            }
-
-            // Enter the second pass at the first segment.
-            function startSecondPass() {
-                activeIdx = 0;
-                setPass('p2');
-                recallList.closest('.br-scroll')?.scrollTo({ top: 0 });
-                flushSave();
             }
 
             // Replace the action footer's button(s). Each entry is [label, class,
@@ -3191,27 +3228,26 @@
                 actions.insertBefore(row, actions.querySelector('.br-action-msg'));
             }
 
-            // Validate the current pass; on success offer the rater a choice
-            // (continue to the second pass / go back to the overview) — this lets
-            // them do the first pass of other subjects before rating. Otherwise
-            // point them at the first segment still needing work.
+            // Validate the current pass; on success confirm it and offer the way
+            // back to the overview (the second pass is unlocked by an admin, not
+            // from this page). Otherwise point them at the first segment still
+            // needing work.
             function runPassAction() {
                 if (currentPass === 'p1') {
                     const bad = recall.findIndex(r => r.conf1 === null);
                     if (bad >= 0) {
                         // flag the gap without selecting or scrolling away
-                        showActionMsg(`Recall segment ${recall[bad].n} hasn't been rated yet — set its confidence before starting the second pass.`, 'err');
+                        showActionMsg(`Recall segment ${recall[bad].n} hasn't been rated yet — set its confidence before finishing the first pass.`, 'err');
                         return;
                     }
                     const badMatch = recall.findIndex(r => !matchesValid(r));
                     if (badMatch >= 0) {
-                        showActionMsg(`Recall segment ${recall[badMatch].n} has matches outside the story segments — fix them before starting the second pass.`, 'err');
+                        showActionMsg(`Recall segment ${recall[badMatch].n} has matches outside the story segments — fix them before finishing the first pass.`, 'err');
                         return;
                     }
                     flushSave();
-                    showActionMsg('First pass finished. ✓', 'ok');
+                    showActionMsg('First pass finished. ✓', 'ok', true);
                     renderActionButtons([
-                        ['Start second pass', '', startSecondPass],
                         ['Back to overview', 'secondary', goToOverview],
                     ]);
                 } else {
@@ -3227,7 +3263,7 @@
                         return;
                     }
                     flushSave();
-                    showActionMsg('All segments rated — finished. ✓', 'ok');
+                    showActionMsg('All segments rated — finished. ✓', 'ok', true);
                     renderActionButtons([
                         ['Back to overview', 'secondary', goToOverview],
                     ]);
@@ -3244,14 +3280,11 @@
                         renderRecall();
                         flushSave(); // moving on -> persist
                     });
-                    const events = parseMatches(card.dataset.matches);
-                    card.addEventListener('mouseenter', () => events.forEach(e => storyByEvent[e] && storyByEvent[e].classList.add('linked')));
-                    card.addEventListener('mouseleave', () => events.forEach(e => storyByEvent[e] && storyByEvent[e].classList.remove('linked')));
                 });
 
-                // pills (second pass): Comment toggles its box; Summary is a plain
-                // tag; highlight pills arm/disarm or drop their span (the × is a child
-                // of the pill, so clicking it lands here too).
+                // pills: Comment toggles its box; plain tags (Summary; Meta in pass 1)
+                // toggle on/off; highlight pills arm/disarm or drop their span (the ×
+                // is a child of the pill, so clicking it lands here too).
                 recallList.querySelectorAll('.br-pill').forEach(p => p.addEventListener('click', e => {
                     e.stopPropagation();
                     const i = +p.closest('.br-recall-card').dataset.idx;
@@ -3271,9 +3304,13 @@
                             r.highlights = r.highlights.filter(h => h.cat !== cat);
                         else armedCat = cat;                                   // arm (replaces other)
                     } else {
-                        const arr = recall[i].on;
-                        const pos = arr.indexOf(cat);
-                        if (pos >= 0) arr.splice(pos, 1); else arr.push(cat);
+                        // effective "on" includes spans made while the pill was a
+                        // highlight pill (Meta in pass 2) — toggling off clears those too
+                        const r = recall[i];
+                        const wasOn = r.on.includes(cat) || r.highlights.some(h => h.cat === cat);
+                        r.on = r.on.filter(c => c !== cat);
+                        r.highlights = r.highlights.filter(h => h.cat !== cat);
+                        if (!wasOn) r.on.push(cat);
                     }
                     renderRecall();
                     scheduleSave();
@@ -3286,11 +3323,10 @@
                     if (!window.getSelection().isCollapsed) e.preventDefault();
                 }));
 
-                // confidence — set value and advance to the next segment (both passes).
-                // p1 -> confidence_1, p2 -> confidence.
+                // confidence — set the value (both passes). p1 -> confidence_1, p2 -> confidence.
                 recallList.querySelectorAll('.br-conf-cell').forEach(cell => cell.addEventListener('click', e => {
                     e.stopPropagation();
-                    rateActiveAndAdvance(+cell.dataset.val);
+                    rateActive(+cell.dataset.val);
                 }));
 
                 // comment box — keep editing without collapsing; persisted on save
@@ -3322,42 +3358,52 @@
                 if (actionBtn) actionBtn.addEventListener('click', runPassAction);
             }
 
-            function setPass(pass) {
-                currentPass = pass;
-                document.body.classList.toggle('pass-1', pass === 'p1');
-                document.body.classList.toggle('pass-2', pass === 'p2');
-                // highlight the active toggle button
-                document.querySelectorAll('.br-ps-btn').forEach(b => b.classList.toggle('active', b.dataset.pass === pass));
+            // Reflect the (server-locked) pass in the page chrome: body accent
+            // classes + which pass-indicator button reads as active.
+            function applyPass() {
+                document.body.classList.toggle('pass-1', currentPass === 'p1');
+                document.body.classList.toggle('pass-2', currentPass === 'p2');
+                document.querySelectorAll('.br-ps-btn').forEach(b => b.classList.toggle('active', b.dataset.pass === currentPass));
                 renderRecall();
             }
-            document.querySelectorAll('.br-ps-btn').forEach(b => b.addEventListener('click', () => setPass(b.dataset.pass)));
 
-            // Set the active segment's confidence (p1 -> conf1, p2 -> conf) and advance
-            // to the next segment. Shared by the confidence click and the 1-5 keys so
-            // both passes behave identically.
-            function rateActiveAndAdvance(v) {
+            // Set the active segment's confidence (p1 -> conf1, p2 -> conf). Shared by
+            // the confidence click and the 1-5 keys so both passes behave identically.
+            function rateActive(v) {
                 if (currentPass === 'p1') recall[activeIdx].conf1 = v;
                 else recall[activeIdx].conf = v;
-                if (activeIdx < recall.length - 1) activeIdx += 1;
                 renderRecall();
-                recallList.querySelector('.br-recall-card.active')?.scrollIntoView({ block: 'nearest' });
                 flushSave(); // confirming a value -> persist immediately
             }
 
-            // Digit 1-5 = set confidence and advance (both passes). Ignored while typing
-            // in an input/textarea/contentEditable so the comment box and matches input
-            // still take digits normally.
+            // Digit 1-5 = set confidence, Space = advance to the next segment
+            // (both passes). Ignored while typing in an input/textarea/
+            // contentEditable so the comment box and matches input still take
+            // digits and spaces normally; Space also skips buttons so it keeps
+            // activating a focused action button.
             document.addEventListener('keydown', (e) => {
-                const v = Number(e.key);
-                if (!Number.isInteger(v) || v < 1 || v > 5) return;
                 const t = e.target;
                 if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+                if (e.key === ' ') {
+                    if (t && t.tagName === 'BUTTON') return;
+                    e.preventDefault(); // don't scroll the page
+                    if (activeIdx >= recall.length - 1) return; // last segment: nowhere to go
+                    activeIdx++;
+                    armedCat = null; // arming is transient to the active segment
+                    renderRecall();
+                    flushSave(); // moving on -> persist
+                    const card = recallList.querySelector(`.br-recall-card[data-idx="${activeIdx}"]`);
+                    if (card) card.scrollIntoView({ block: 'nearest' });
+                    return;
+                }
+                const v = Number(e.key);
+                if (!Number.isInteger(v) || v < 1 || v > 5) return;
                 e.preventDefault();
-                rateActiveAndAdvance(v);
+                rateActive(v);
             });
 
             updateStoryMatched();
-            setPass(currentPass);
+            applyPass();
             // size the Story/Recall boxes down to the window bottom (zoom-aware)
             requestAnimationFrame(fitInspectionViewports);
         }

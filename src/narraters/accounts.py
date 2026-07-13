@@ -197,6 +197,56 @@ def remove_user(username: str) -> bool:
     return save_users(users)
 
 
+# --- Benchmark pass state ----------------------------------------------------
+#
+# In `narraters serve --benchmark` each rater is locked to one pass at a time:
+# pass 1 (matching) by default, pass 2 (rating) once an admin enables it with
+# `narraters users second-pass <name>` (`narraters users first-pass <name>`
+# switches back). Kept in its own JSON file (not users.json) so it also covers
+# local no-login raters, whose name is the OS username and has no account.
+
+def passes_file() -> Path:
+    return account_data_dir() / "benchmark_passes.json"
+
+
+def _load_passes() -> dict:
+    path = passes_file()
+    if path.exists():
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except Exception as e:
+            print(f"Error loading benchmark passes file: {e}")
+            return {}
+    return {}
+
+
+def get_benchmark_pass(username: str) -> int:
+    """Which benchmark pass ``username`` is locked to: 1 (default) or 2."""
+    try:
+        return 2 if int(_load_passes().get(username, 1)) == 2 else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def set_benchmark_pass(username: str, pass_no: int) -> bool:
+    """Lock ``username`` to benchmark pass 1 or 2."""
+    if pass_no not in (1, 2):
+        raise ValueError(f"pass_no must be 1 or 2, got {pass_no!r}")
+    passes = _load_passes()
+    passes[username] = pass_no
+    try:
+        d = account_data_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        with open(passes_file(), "w") as f:
+            json.dump(passes, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving benchmark passes file: {e}")
+        return False
+
+
 def verify_user(username: str, password: str) -> bool:
     """Verify credentials, upgrading a legacy hash in place on success."""
     users = load_users()
