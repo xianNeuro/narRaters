@@ -4152,6 +4152,15 @@ _BENCH_MATCHED_RE = re.compile(
 )
 
 
+# Preferred display order for benchmark items on the overview page (and the
+# spacebar next-item flow). Matched against the story folder name first, then
+# the datasource name; anything unlisted is appended after, alphabetically.
+BENCHMARK_STORY_ORDER = [
+    'sirens2', 'georgiou', 'flashfiction', 'memsearch', 'monthiversary',
+    'sherlock', 'alice', 'emomem', 'eternal_sunshine',
+]
+
+
 def _benchmark_datasource_name(ds_dir_name):
     """`narraters-monthiversary-matching` -> `monthiversary`."""
     name = ds_dir_name
@@ -4176,7 +4185,8 @@ def _benchmark_scan():
 
     Layout: unrated/<ds_dir>/<story>/matches/<sub>-recall-<story>-matched.csv
     Returns a list of item dicts (id, ds_dir, datasource, story, sub_id,
-    matched_file, segmented_file), sorted by datasource, story, sub_id.
+    matched_file, segmented_file), ordered by BENCHMARK_STORY_ORDER, then
+    by datasource, story, sub_id.
     """
     items = []
     if not BENCHMARK_UNRATED_DIR.is_dir():
@@ -4203,6 +4213,14 @@ def _benchmark_scan():
                     'matched_file': mf,
                     'segmented_file': segmented,
                 })
+
+    def rank(item):
+        for key in (item['story'], item['datasource']):
+            if key in BENCHMARK_STORY_ORDER:
+                return BENCHMARK_STORY_ORDER.index(key)
+        return len(BENCHMARK_STORY_ORDER)
+
+    items.sort(key=lambda it: (rank(it), it['datasource'], it['story'], it['sub_id']))
     return items
 
 
