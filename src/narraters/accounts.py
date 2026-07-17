@@ -247,6 +247,60 @@ def set_benchmark_pass(username: str, pass_no: int) -> bool:
         return False
 
 
+# --- Benchmark batch visibility ------------------------------------------------
+#
+# In `narraters serve --benchmark` the items are grouped into hardcoded batches
+# (see BENCHMARK_BATCHES in server/web-interface.py). The admin shows/hides
+# batches per rater from the admin page. Stored as {username: {batch: bool}};
+# batches with no stored entry fall back to the server's default (only the
+# first batch visible). Same rationale as benchmark_passes.json for living in
+# its own file: it also covers local no-login raters without an account.
+
+def batches_file() -> Path:
+    return account_data_dir() / "benchmark_batches.json"
+
+
+def _load_batch_visibility() -> dict:
+    path = batches_file()
+    if path.exists():
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except Exception as e:
+            print(f"Error loading benchmark batches file: {e}")
+            return {}
+    return {}
+
+
+def get_batch_visibility(username: str) -> dict:
+    """Explicit per-batch visibility overrides for ``username``: {batch: bool}.
+    Batches absent from the dict have no override (server default applies)."""
+    record = _load_batch_visibility().get(username, {})
+    if not isinstance(record, dict):
+        return {}
+    return {str(k): bool(v) for k, v in record.items()}
+
+
+def set_batch_visible(username: str, batch: str, visible: bool) -> bool:
+    """Show or hide one benchmark batch for ``username``."""
+    data = _load_batch_visibility()
+    record = data.get(username)
+    if not isinstance(record, dict):
+        record = {}
+    record[batch] = bool(visible)
+    data[username] = record
+    try:
+        d = account_data_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        with open(batches_file(), "w") as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving benchmark batches file: {e}")
+        return False
+
+
 def verify_user(username: str, password: str) -> bool:
     """Verify credentials, upgrading a legacy hash in place on success."""
     users = load_users()

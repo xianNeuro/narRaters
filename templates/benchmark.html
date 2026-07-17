@@ -218,6 +218,24 @@
             background: rgba(96, 165, 250, 0.12);
         }
 
+        tr.batch-header {
+            cursor: default;
+        }
+
+        tr.batch-header:hover {
+            background: var(--bg2);
+        }
+
+        tr.batch-header td {
+            background: var(--bg2);
+            color: var(--t0);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 6px 18px;
+        }
+
         .empty,
         .loading {
             padding: 40px 18px;
@@ -262,7 +280,7 @@
                         <th>Story</th>
                         <th>Sub&nbsp;ID</th>
                         <th>First&nbsp;pass</th>
-                        <th>Second&nbsp;pass</th>
+                        <th id="second-pass-th" hidden>Second&nbsp;pass</th>
                     </tr>
                 </thead>
                 <tbody id="rows">
@@ -304,25 +322,44 @@
                     return;
                 }
 
+                // The second-pass column only appears once the admin has moved
+                // this rater to pass 2 (`narraters users second-pass <name>`).
+                const showSecond = data.active_pass === 2;
+                document.getElementById('second-pass-th').hidden = !showSecond;
+
                 const firstCount = files.filter(f => f.first_pass === 'complete').length;
                 const secondCount = files.filter(f => f.second_pass === 'complete').length;
                 document.getElementById('progress').innerHTML =
-                    '<b>' + firstCount + '</b> of <b>' + files.length + '</b> first pass · ' +
-                    '<b>' + secondCount + '</b> of <b>' + files.length + '</b> second pass';
+                    '<b>' + firstCount + '</b> of <b>' + files.length + '</b> first pass' +
+                    (showSecond
+                        ? ' · <b>' + secondCount + '</b> of <b>' + files.length + '</b> second pass'
+                        : '');
 
                 const passBadge = state =>
                     state === 'complete' ? '<span class="badge rated">Done</span>' :
                     state === 'partial'  ? '<span class="badge in-progress">In progress</span>' :
                                            '<span class="badge">Pending</span>';
 
+                // Items arrive ordered by batch; insert a header row whenever
+                // the batch changes. Batches hidden for this rater are already
+                // filtered out server-side.
+                const cols = showSecond ? 5 : 4;
+                let prevBatch = null;
                 tbody.innerHTML = files.map(f => {
-                    return '<tr onclick="openItem(\'' + escapeHtml(f.id) + '\')">' +
+                    let html = '';
+                    if (f.batch !== prevBatch) {
+                        prevBatch = f.batch;
+                        html += '<tr class="batch-header"><td colspan="' + cols + '">Batch: ' +
+                            escapeHtml(f.batch) + '</td></tr>';
+                    }
+                    html += '<tr onclick="openItem(\'' + escapeHtml(f.id) + '\')">' +
                         '<td class="ds">' + escapeHtml(f.datasource) + '</td>' +
                         '<td>' + escapeHtml(f.story) + '</td>' +
                         '<td class="mono">' + escapeHtml(f.sub_id) + '</td>' +
                         '<td>' + passBadge(f.first_pass) + '</td>' +
-                        '<td>' + passBadge(f.second_pass) + '</td>' +
+                        (showSecond ? '<td>' + passBadge(f.second_pass) + '</td>' : '') +
                         '</tr>';
+                    return html;
                 }).join('');
             } catch (e) {
                 tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load files: ' + escapeHtml(e.message) + '</td></tr>';

@@ -440,7 +440,11 @@ def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
 
 
 def cmd_users(args: argparse.Namespace, extra: list[str]) -> int:
-    """Manage app-level login accounts (used by `narraters serve --production`)."""
+    """Manage app-level login accounts (used by `narraters serve --production`).
+
+    The account named "admin" gets a web admin panel (/admin) instead of the
+    rating overview; create it with `narraters users add admin`.
+    """
     import getpass
 
     from narraters import accounts

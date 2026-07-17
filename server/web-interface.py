@@ -199,6 +199,32 @@ def _require_login():
     return redirect("/login?next=" + quote(request.full_path))
 
 
+# --- Admin account -----------------------------------------------------------
+#
+# The account named "admin" gets the user-management panel (/admin) instead of
+# the rating overview. In production the identity comes from the authenticated
+# login; in local no-auth mode the free-text rater name suffices (a local
+# operator already owns users.json, so this grants nothing extra).
+ADMIN_USERNAME = 'admin'
+
+
+def _is_admin():
+    """True when the current request comes from the admin account."""
+    if REQUIRE_AUTH:
+        return current_user.is_authenticated and current_user.get_id() == ADMIN_USERNAME
+    return session.get('username') == ADMIN_USERNAME
+
+
+def admin_required(f):
+    """Server-side admin gate for /api/admin/* (UI hiding alone is not enough)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not _is_admin():
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def _apply_recall_rmatch_api_key(env, step_options, api_key):
     """Deprecated: rMatch recall path removed. Kept as no-op for older callers."""
     return
@@ -367,9 +393,16 @@ _migrate_legacy_pipeline_config_once()
 # without importing this Flask server module. Imported under the historical
 # names so the rest of this file is unchanged.
 from narraters.accounts import (  # noqa: E402
+    add_user,
+    get_batch_visibility,
     get_benchmark_pass,
+    is_safe_username,
     load_users,
+    remove_user,
     save_users,
+    set_batch_visible,
+    set_benchmark_pass,
+    set_password,
     hash_password,
     verify_password,
     verify_user,
@@ -4152,13 +4185,71 @@ _BENCH_MATCHED_RE = re.compile(
 )
 
 
-# Preferred display order for benchmark items on the overview page (and the
-# spacebar next-item flow). Matched against the story folder name first, then
-# the datasource name; anything unlisted is appended after, alphabetically.
-BENCHMARK_STORY_ORDER = [
-    'sirens2', 'georgiou', 'flashfiction', 'memsearch', 'monthiversary',
-    'sherlock', 'alice', 'emomem', 'eternal_sunshine',
+# Benchmark items are grouped into hardcoded batches, released to raters one
+# batch at a time (the admin shows/hides batches per rater on /admin; only the
+# FIRST batch is visible by default). Batches also define the display order.
+#
+# Each batch lists matchers; an item belongs to the first batch with a matcher
+# it satisfies (all keys of a matcher must match). Matcher keys:
+#   'name'       — matches the story folder name OR the datasource name
+#   'datasource' — datasource name (`narraters-<datasource>-matching`)
+#   'story'      — story folder name
+#   'sub_ids'    — list of subject ids; lets one story's subjects be split
+#                  across batches, e.g. {'story': 'sirens2', 'sub_ids': [...]}
+#                  in an early batch and {'story': 'sirens2'} in a later one.
+# Items matching no batch fall into an implicit trailing 'other' batch.
+BENCHMARK_BATCHES = [
+    {'name': 'sirens2',          'match': [{'name': 'sirens2'}]},
+    {'name': 'georgiou',         'match': [{'name': 'georgiou'}]},
+    {'name': 'flashfiction',     'match': [{'name': 'flashfiction'}]},
+    {'name': 'memsearch',        'match': [{'name': 'memsearch'}]},
+    {'name': 'monthiversary',    'match': [{'name': 'monthiversary'}]},
+    {'name': 'sherlock',         'match': [{'name': 'sherlock'}]},
+    {'name': 'alice',            'match': [{'name': 'alice'}]},
+    {'name': 'emomem',           'match': [{'name': 'emomem'}]},
+    {'name': 'eternal_sunshine', 'match': [{'name': 'eternal_sunshine'}]},
 ]
+BENCHMARK_OTHER_BATCH = 'other'
+
+
+def _benchmark_matcher_hits(matcher, item):
+    """Whether one batch matcher matches one scanned item (all keys must hold)."""
+    if 'name' in matcher and matcher['name'] not in (item['story'], item['datasource']):
+        return False
+    if 'datasource' in matcher and matcher['datasource'] != item['datasource']:
+        return False
+    if 'story' in matcher and matcher['story'] != item['story']:
+        return False
+    if 'sub_ids' in matcher and item['sub_id'] not in matcher['sub_ids']:
+        return False
+    return True
+
+
+def _benchmark_batch_for(item):
+    """Name of the first batch in BENCHMARK_BATCHES that matches ``item``."""
+    for batch in BENCHMARK_BATCHES:
+        if any(_benchmark_matcher_hits(m, item) for m in batch['match']):
+            return batch['name']
+    return BENCHMARK_OTHER_BATCH
+
+
+def _benchmark_batch_index(batch_name):
+    """Position of a batch in the display order ('other' sorts last)."""
+    for i, batch in enumerate(BENCHMARK_BATCHES):
+        if batch['name'] == batch_name:
+            return i
+    return len(BENCHMARK_BATCHES)
+
+
+def _benchmark_batch_names(items=None):
+    """Batch names in display order; 'other' appended only when some scanned
+    item actually falls into it. Pass ``items`` to reuse an existing scan."""
+    names = [b['name'] for b in BENCHMARK_BATCHES]
+    if items is None:
+        items = _benchmark_scan()
+    if any(it['batch'] == BENCHMARK_OTHER_BATCH for it in items):
+        names.append(BENCHMARK_OTHER_BATCH)
+    return names
 
 
 def _benchmark_datasource_name(ds_dir_name):
@@ -4184,9 +4275,9 @@ def _benchmark_scan():
     """Discover all recall files to rate under benchmark/unrated/.
 
     Layout: unrated/<ds_dir>/<story>/matches/<sub>-recall-<story>-matched.csv
-    Returns a list of item dicts (id, ds_dir, datasource, story, sub_id,
-    matched_file, segmented_file), ordered by BENCHMARK_STORY_ORDER, then
-    by datasource, story, sub_id.
+    Returns a list of item dicts (id, ds_dir, datasource, story, sub_id, batch,
+    matched_file, segmented_file), ordered by BENCHMARK_BATCHES, then by
+    datasource, story, sub_id.
     """
     items = []
     if not BENCHMARK_UNRATED_DIR.is_dir():
@@ -4204,7 +4295,7 @@ def _benchmark_scan():
                     continue
                 sub_id = m.group('sub')
                 story = story_dir.name
-                items.append({
+                item = {
                     'id': f"bench__{ds_dir.name}__{story}__{sub_id}",
                     'ds_dir': ds_dir.name,
                     'datasource': datasource,
@@ -4212,15 +4303,12 @@ def _benchmark_scan():
                     'sub_id': sub_id,
                     'matched_file': mf,
                     'segmented_file': segmented,
-                })
+                }
+                item['batch'] = _benchmark_batch_for(item)
+                items.append(item)
 
-    def rank(item):
-        for key in (item['story'], item['datasource']):
-            if key in BENCHMARK_STORY_ORDER:
-                return BENCHMARK_STORY_ORDER.index(key)
-        return len(BENCHMARK_STORY_ORDER)
-
-    items.sort(key=lambda it: (rank(it), it['datasource'], it['story'], it['sub_id']))
+    items.sort(key=lambda it: (_benchmark_batch_index(it['batch']),
+                               it['datasource'], it['story'], it['sub_id']))
     return items
 
 
@@ -4276,6 +4364,34 @@ def _benchmark_active_pass(username):
         return get_benchmark_pass(username)
     except Exception:
         return 1
+
+
+def _benchmark_default_batch_visible(batch_name):
+    """Server default for batches the admin has not explicitly toggled: only
+    the first hardcoded batch is visible."""
+    return bool(BENCHMARK_BATCHES) and batch_name == BENCHMARK_BATCHES[0]['name']
+
+
+def _benchmark_visible_batches(username, items=None):
+    """Set of batch names ``username`` may see. Admin-set overrides come from
+    benchmark_batches.json; unset batches use the default (first batch only).
+    The admin account sees every batch."""
+    names = _benchmark_batch_names(items)
+    if _is_admin():
+        return set(names)
+    try:
+        overrides = get_batch_visibility(username)
+    except Exception:
+        overrides = {}
+    return {n for n in names
+            if overrides.get(n, _benchmark_default_batch_visible(n))}
+
+
+def _benchmark_item_blocked(item):
+    """Whether the current rater may not open/save this item because its batch
+    is hidden for them (direct-URL guard behind the overview filter)."""
+    username = _benchmark_username()
+    return item['batch'] not in _benchmark_visible_batches(username)
 
 
 def _benchmark_rated_path(item, username, pass_no=1):
@@ -4714,16 +4830,23 @@ def _benchmark_rated_status(item, username):
 @login_required
 def benchmark_overview():
     """Benchmark overview: the recall files to rate (and which are done)."""
+    if _is_admin():
+        return redirect('/admin')
     return render_template('benchmark.html', username=_benchmark_username(),
                            require_auth=REQUIRE_AUTH, version=__version__)
 
 
 @app.route('/api/benchmark/files')
 def api_benchmark_files():
-    """List benchmark recall files with their rated status for the overview."""
+    """List benchmark recall files with their rated status for the overview.
+    Only items in batches visible to the current rater are returned."""
     username = _benchmark_username()
+    items = _benchmark_scan()
+    visible = _benchmark_visible_batches(username, items)
     files = []
-    for item in _benchmark_scan():
+    for item in items:
+        if item['batch'] not in visible:
+            continue
         st = _benchmark_pass_status(item, username)
         rated = st['first'] == 'complete' and st['second'] == 'complete'
         status = 'not_rated' if not st['exists'] else ('rated' if rated else 'in_progress')
@@ -4732,12 +4855,176 @@ def api_benchmark_files():
             'datasource': item['datasource'],
             'story': item['story'],
             'sub_id': item['sub_id'],
+            'batch': item['batch'],
             'status': status,
             'rated': rated,
             'first_pass': st['first'],
             'second_pass': st['second'],
         })
-    return jsonify({'username': username, 'files': files})
+    return jsonify({'username': username, 'files': files,
+                    'active_pass': _benchmark_active_pass(username)})
+
+
+# --- Admin panel ---------------------------------------------------------
+#
+# User management for the account named ADMIN_USERNAME ("admin"): add/remove
+# raters, change passwords, and switch a rater between pass 1 and pass 2.
+# Every endpoint enforces the admin identity server-side (@admin_required);
+# account logic lives in narraters.accounts. Removing an account never touches
+# the user's rated data or their benchmark_passes.json entry.
+
+@app.route('/admin')
+@login_required
+def admin_page():
+    """Admin panel page; non-admins are sent back to the overview."""
+    if not _is_admin():
+        return redirect('/benchmark')
+    return render_template('admin.html', username=ADMIN_USERNAME,
+                           require_auth=REQUIRE_AUTH, version=__version__)
+
+
+@app.route('/api/admin/users')
+@admin_required
+def api_admin_list_users():
+    """All accounts with their created date and active benchmark pass."""
+    users = []
+    for name, record in sorted(load_users().items()):
+        created = record.get('created', '') if isinstance(record, dict) else ''
+        users.append({
+            'username': name,
+            'created': created,
+            'pass': get_benchmark_pass(name),
+            'is_admin': name == ADMIN_USERNAME,
+        })
+    return jsonify({'success': True, 'users': users})
+
+
+@app.route('/api/admin/users', methods=['POST'])
+@admin_required
+def api_admin_add_user():
+    """Create an account: {username, password}."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    if not is_safe_username(username):
+        return jsonify({'success': False,
+                        'error': 'Invalid username: use letters, digits, and underscores only (max 32).'}), 400
+    if not password.strip():
+        return jsonify({'success': False, 'error': 'Password must not be empty.'}), 400
+    if not add_user(username, password):
+        if username in load_users():
+            return jsonify({'success': False, 'error': f'User "{username}" already exists.'}), 409
+        return jsonify({'success': False, 'error': 'Could not save the users file.'}), 500
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/users/<username>', methods=['DELETE'])
+@admin_required
+def api_admin_remove_user(username):
+    """Delete an account. The user's rated data files are left untouched."""
+    if not is_safe_username(username):
+        return jsonify({'success': False, 'error': 'Invalid username.'}), 400
+    if username == ADMIN_USERNAME:
+        return jsonify({'success': False, 'error': 'Cannot remove the admin account.'}), 400
+    if not remove_user(username):
+        if username not in load_users():
+            return jsonify({'success': False, 'error': f'User "{username}" not found.'}), 404
+        return jsonify({'success': False, 'error': 'Could not save the users file.'}), 500
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/users/<username>/password', methods=['POST'])
+@admin_required
+def api_admin_set_password(username):
+    """Change an account's password: {password}."""
+    if not is_safe_username(username):
+        return jsonify({'success': False, 'error': 'Invalid username.'}), 400
+    data = request.get_json(silent=True) or {}
+    password = data.get('password') or ''
+    if not password.strip():
+        return jsonify({'success': False, 'error': 'Password must not be empty.'}), 400
+    if not set_password(username, password):
+        if username not in load_users():
+            return jsonify({'success': False, 'error': f'User "{username}" not found.'}), 404
+        return jsonify({'success': False, 'error': 'Could not save the users file.'}), 500
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/users/<username>/pass', methods=['POST'])
+@admin_required
+def api_admin_set_pass(username):
+    """Lock a rater to benchmark pass 1 or 2: {pass: 1|2}."""
+    if not is_safe_username(username):
+        return jsonify({'success': False, 'error': 'Invalid username.'}), 400
+    data = request.get_json(silent=True) or {}
+    pass_no = data.get('pass')
+    if isinstance(pass_no, bool) or pass_no not in (1, 2):
+        return jsonify({'success': False, 'error': 'pass must be 1 or 2.'}), 400
+    if not set_benchmark_pass(username, pass_no):
+        return jsonify({'success': False, 'error': 'Could not save the passes file.'}), 500
+    return jsonify({'success': True, 'pass': pass_no})
+
+
+@app.route('/api/admin/batches')
+@admin_required
+def api_admin_batches():
+    """Batch overview for the admin page: the batches in order (with item
+    counts) and, per non-admin account, each batch's visibility and that
+    rater's per-pass progress within it."""
+    items = _benchmark_scan()
+    batch_names = _benchmark_batch_names(items)
+    totals = {name: 0 for name in batch_names}
+    for item in items:
+        totals[item['batch']] += 1
+
+    users = []
+    for name in sorted(load_users()):
+        if name == ADMIN_USERNAME:
+            continue
+        overrides = get_batch_visibility(name)
+        progress = {bn: {'visible': overrides.get(bn, _benchmark_default_batch_visible(bn)),
+                         'total': totals[bn],
+                         'first_done': 0, 'first_partial': 0,
+                         'second_done': 0, 'second_partial': 0}
+                    for bn in batch_names}
+        for item in items:
+            st = _benchmark_pass_status(item, name)
+            cell = progress[item['batch']]
+            if st['first'] == 'complete':
+                cell['first_done'] += 1
+            elif st['first'] == 'partial':
+                cell['first_partial'] += 1
+            if st['second'] == 'complete':
+                cell['second_done'] += 1
+            elif st['second'] == 'partial':
+                cell['second_partial'] += 1
+        users.append({'username': name, 'pass': get_benchmark_pass(name),
+                      'batches': progress})
+
+    return jsonify({'success': True,
+                    'batches': [{'name': bn, 'total_items': totals[bn]}
+                                for bn in batch_names],
+                    'users': users})
+
+
+@app.route('/api/admin/users/<username>/batches', methods=['POST'])
+@admin_required
+def api_admin_set_batch(username):
+    """Show or hide one benchmark batch for a rater: {batch, visible}."""
+    if not is_safe_username(username):
+        return jsonify({'success': False, 'error': 'Invalid username.'}), 400
+    if username not in load_users():
+        return jsonify({'success': False, 'error': f'User "{username}" not found.'}), 404
+    data = request.get_json(silent=True) or {}
+    batch = data.get('batch')
+    visible = data.get('visible')
+    if batch not in _benchmark_batch_names():
+        return jsonify({'success': False, 'error': 'Unknown batch.'}), 400
+    if not isinstance(visible, bool):
+        return jsonify({'success': False, 'error': 'visible must be true or false.'}), 400
+    if not set_batch_visible(username, batch, visible):
+        return jsonify({'success': False, 'error': 'Could not save the batches file.'}), 500
+    return jsonify({'success': True, 'batch': batch, 'visible': visible})
 
 
 @app.route('/')
@@ -4823,6 +5110,12 @@ def api_subject(subj_id):
             err = _benchmark_username_error()
             if err:
                 return err
+            if _benchmark_item_blocked(item):
+                return jsonify({
+                    'error': 'This item is not available to you (its batch is '
+                             'hidden). Please return to the overview.',
+                    'error_code': 'batch_hidden',
+                }), 403
             return jsonify(_benchmark_subject_payload(item))
         # In benchmark mode we must NOT fall through to the generic pipeline
         # lookups with a bench__… slug (wrong tree + wrong format, yielding an
@@ -4978,6 +5271,8 @@ def subject_view(subj_id):
     if BENCHMARK_MODE:
         item = _benchmark_item_for_id(subj_id)
         if item:
+            if _benchmark_item_blocked(item):
+                return redirect('/benchmark')
             return render_template(
                 'subject.html', subject_id=subj_id, step=step,
                 benchmark=True,
@@ -5453,6 +5748,12 @@ def save_rated_events(subj_id):
         if BENCHMARK_MODE:
             item = _benchmark_item_for_id(subj_id)
             if item:
+                if _benchmark_item_blocked(item):
+                    return jsonify({
+                        'error': 'This item is not available to you (its batch '
+                                 'is hidden) — your changes were not saved.',
+                        'error_code': 'batch_hidden',
+                    }), 403
                 return _benchmark_save_rated(item, data)
             # In benchmark mode we must NOT fall through to the generic pipeline
             # save (wrong tree + wrong format). The unrated file was likely
