@@ -14,7 +14,7 @@ import os
 import sys
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request, send_file, redirect, session, g
 import json
 import shutil
@@ -662,6 +662,50 @@ def _migrate_legacy_manage_dir_once():
 
 
 _migrate_legacy_manage_dir_once()
+
+# Per-user window-activity heartbeats for the admin activity panel: append-only
+# JSONL, one file per user (activity/<username>.jsonl, lines {"t": unix, "p": page}).
+# Written by /api/activity/ping, aggregated by /api/admin/activity.
+ACTIVITY_DIR = MANAGE_DIR / "activity"
+ACTIVITY_HEARTBEAT_SECONDS = 60
+# Pings further apart than this belong to different sessions (2.5x heartbeat).
+ACTIVITY_GAP_SECONDS = 150
+_ACTIVITY_LOCK = threading.Lock()
+# Last appended ping time per user (in-memory, resets on restart). Bounds the
+# append rate when visibilitychange fires in bursts (tab flipping).
+_ACTIVITY_LAST = {}
+
+
+def _summarize_activity(timestamps):
+    """Sessionize a sorted list of heartbeat unix timestamps.
+
+    Returns ``(total_seconds, session_count, per_day)`` where ``per_day`` maps
+    ISO local dates to seconds. Adjacent pings <= ACTIVITY_GAP_SECONDS apart
+    extend a session and credit their delta to the earlier ping's day; every
+    session's final ping adds one heartbeat interval (so a lone ping counts as
+    one heartbeat, not zero)."""
+    total = 0
+    sessions = 0
+    per_day = {}
+
+    def credit(t, seconds):
+        nonlocal total
+        day = datetime.fromtimestamp(t).date().isoformat()
+        per_day[day] = per_day.get(day, 0) + seconds
+        total += seconds
+
+    prev = None
+    for t in timestamps:
+        if prev is None or t - prev > ACTIVITY_GAP_SECONDS:
+            if prev is not None:
+                credit(prev, ACTIVITY_HEARTBEAT_SECONDS)
+            sessions += 1
+        else:
+            credit(prev, t - prev)
+        prev = t
+    if prev is not None:
+        credit(prev, ACTIVITY_HEARTBEAT_SECONDS)
+    return total, sessions, per_day
 
 
 def get_user_records():
@@ -2266,9 +2310,20 @@ FURTHER_RATING_COLS = ('summary', 'error', 'confabulation', 'opinion', 'inferenc
 # the second pass writes `confidence`; the `comment` column is shared.
 BENCH_CONFIDENCE_COL = 'confidence'
 BENCH_CONFIDENCE1_COL = 'confidence_1'
+# Unix timestamp (seconds) of when each pass's confidence was assigned. Stamped
+# server-side on save: refreshed when the confidence value is newly set or
+# changed, preserved while it stays the same, cleared with the value.
+BENCH_CONFIDENCE_TS_COL = 'confidence_ts'
+BENCH_CONFIDENCE1_TS_COL = 'confidence_1_ts'
 BENCH_FIRST_PASS_COL = 'first-pass-rated'
 BENCH_SECOND_PASS_COL = 'second-pass-rated'
 _BENCH_RATING_FILE_COL = {'error': 'factual_error'}
+
+# Rater-input columns beyond the rating categories, in saved-column order.
+BENCH_EXTRA_COLS = ('comment',
+                    BENCH_CONFIDENCE_COL, BENCH_CONFIDENCE_TS_COL,
+                    BENCH_CONFIDENCE1_COL, BENCH_CONFIDENCE1_TS_COL,
+                    BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL)
 
 # Last-accepted client save sequence per rated file path (in-memory; resets on
 # server restart). Used to drop stale out-of-order benchmark saves (#6).
@@ -4666,6 +4721,35 @@ def _benchmark_save_rated(item, data):
                 conf1_by_idx[idx] = _format_conf(segment.get(BENCH_CONFIDENCE1_COL))
                 first_by_idx[idx] = 'TRUE' if segment.get(BENCH_FIRST_PASS_COL) else ''
                 second_by_idx[idx] = 'TRUE' if segment.get(BENCH_SECOND_PASS_COL) else ''
+            # When each confidence was assigned (unix seconds), judged against the
+            # previously saved file: unchanged values keep their old timestamp,
+            # newly set / changed values are stamped now, cleared values lose it.
+            # Rows saved before the ts columns existed stay blank until their
+            # value changes (unknown beats a misleading save-time stamp).
+            now_ts = str(int(_time.time()))
+            prior_ok = raw_seed is not None and len(raw_seed) == len(df)
+
+            def _prior_col(col, fmt):
+                if prior_ok and col in raw_seed.columns:
+                    return [fmt(v) for v in raw_seed[col]]
+                return None
+
+            for conf_col, ts_col, conf_map in (
+                    (BENCH_CONFIDENCE_COL, BENCH_CONFIDENCE_TS_COL, conf_by_idx),
+                    (BENCH_CONFIDENCE1_COL, BENCH_CONFIDENCE1_TS_COL, conf1_by_idx)):
+                prior_conf = _prior_col(conf_col, _format_conf)
+                prior_ts = _prior_col(ts_col, _format_conf)
+                cells = []
+                for i in range(len(df)):
+                    new = conf_map.get(i, '')
+                    if not new:
+                        cells.append('')
+                    elif prior_conf is not None and new == prior_conf[i]:
+                        cells.append(prior_ts[i] if prior_ts is not None else '')
+                    else:
+                        cells.append(now_ts)
+                df[ts_col] = cells
+
             # Rating cats are stored under their benchmark-CSV column name (error -> factual_error).
             for r in rating_cols:
                 df[_bench_file_col(r)] = [rating_by_idx[r].get(i, '') for i in range(len(df))]
@@ -4676,7 +4760,7 @@ def _benchmark_save_rated(item, data):
             df[BENCH_SECOND_PASS_COL] = [second_by_idx.get(i, '') for i in range(len(df))]
         else:
             drop = [_bench_file_col(r) for r in rating_cols if _bench_file_col(r) in df.columns]
-            for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_CONFIDENCE1_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+            for extra in BENCH_EXTRA_COLS:
                 if extra in df.columns:
                     drop.append(extra)
             if drop:
@@ -4691,7 +4775,7 @@ def _benchmark_save_rated(item, data):
             for r in FURTHER_RATING_COLS:
                 if _bench_file_col(r) in df.columns:
                     cols.append(_bench_file_col(r))
-            for extra in ('comment', BENCH_CONFIDENCE_COL, BENCH_CONFIDENCE1_COL, BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL):
+            for extra in BENCH_EXTRA_COLS:
                 if extra in df.columns:
                     cols.append(extra)
             df = df[cols]
@@ -4722,8 +4806,7 @@ def _benchmark_save_rated(item, data):
             # categories, comment, confidence, progress flags) so nothing the rater
             # entered is silently dropped on files whose header lacked that column.
             rater_extras = ([_bench_file_col(r) for r in FURTHER_RATING_COLS]
-                            + ['comment', BENCH_CONFIDENCE_COL, BENCH_CONFIDENCE1_COL,
-                               BENCH_FIRST_PASS_COL, BENCH_SECOND_PASS_COL])
+                            + list(BENCH_EXTRA_COLS))
             for extra in rater_extras:
                 if extra not in out_df.columns and extra in df.columns:
                     out_df[extra] = df[extra].values
@@ -5025,6 +5108,84 @@ def api_admin_set_batch(username):
     if not set_batch_visible(username, batch, visible):
         return jsonify({'success': False, 'error': 'Could not save the batches file.'}), 500
     return jsonify({'success': True, 'batch': batch, 'visible': visible})
+
+
+@app.route('/api/activity/ping', methods=['POST'])
+def api_activity_ping():
+    """Heartbeat from open rater windows (subject + overview pages), roughly
+    once a minute per visible tab. Appends a unix timestamp to the caller's
+    activity JSONL for the admin activity panel. Telemetry only: always
+    answers success so a failure here can never disturb a rater."""
+    try:
+        if REQUIRE_AUTH and not session.get('username'):
+            return jsonify({'success': True, 'skipped': 'unauthenticated'})
+        username = _benchmark_username()
+        if not username or sanitize_rater_name(username) != username:
+            return jsonify({'success': True, 'skipped': 'bad_username'})
+        data = request.get_json(silent=True) or {}
+        page = data.get('page')
+        if page not in ('subject', 'overview'):
+            page = 'other'
+        now = int(_time.time())
+        with _ACTIVITY_LOCK:
+            if now - _ACTIVITY_LAST.get(username, 0) < ACTIVITY_HEARTBEAT_SECONDS // 2:
+                return jsonify({'success': True, 'skipped': 'debounced'})
+            _ACTIVITY_LAST[username] = now
+            ACTIVITY_DIR.mkdir(parents=True, exist_ok=True)
+            with open(ACTIVITY_DIR / f'{username}.jsonl', 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'t': now, 'p': page}) + '\n')
+    except Exception as e:
+        print(f"Warning: could not record activity ping: {e}")
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/activity')
+@admin_required
+def api_admin_activity():
+    """Active-time overview for the admin page, aggregated from the heartbeat
+    JSONL files via _summarize_activity. ``days`` (default 14) bounds the
+    per-day breakdown; totals and session counts are all-time."""
+    try:
+        days = max(1, min(90, int(request.args.get('days', 14))))
+    except (TypeError, ValueError):
+        days = 14
+    today = datetime.now().date()
+    day_labels = [(today - timedelta(days=d)).isoformat()
+                  for d in range(days - 1, -1, -1)]
+
+    users = []
+    if ACTIVITY_DIR.is_dir():
+        for path in sorted(ACTIVITY_DIR.glob('*.jsonl')):
+            timestamps = []
+            try:
+                with open(path, encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            t = json.loads(line).get('t')
+                        except (ValueError, AttributeError):
+                            continue
+                        if isinstance(t, (int, float)) and not isinstance(t, bool):
+                            timestamps.append(int(t))
+            except OSError:
+                continue
+            if not timestamps:
+                continue
+            timestamps.sort()
+            total, sessions, per_day = _summarize_activity(timestamps)
+            users.append({
+                'username': path.stem,
+                'total_seconds': total,
+                'session_count': sessions,
+                'last_active': timestamps[-1],
+                'days': {d: per_day[d] for d in day_labels if d in per_day},
+            })
+    users.sort(key=lambda u: u['last_active'], reverse=True)
+
+    return jsonify({'success': True,
+                    'heartbeat_seconds': ACTIVITY_HEARTBEAT_SECONDS,
+                    'gap_seconds': ACTIVITY_GAP_SECONDS,
+                    'day_labels': day_labels,
+                    'users': users})
 
 
 @app.route('/')

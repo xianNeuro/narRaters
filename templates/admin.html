@@ -368,7 +368,8 @@
       </h1>
       <div class="sub">
         Manage rater accounts: add or remove users, change passwords, move
-        raters between first and second pass, and show/hide batches per rater.
+        raters between first and second pass, show/hide batches per rater, and
+        see when and how long raters have been active.
       </div>
 
       <div id="msg"></div>
@@ -422,6 +423,25 @@
               <tr id="batch-head"></tr>
             </thead>
             <tbody id="batch-rows">
+              <tr>
+                <td class="loading">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          Activity — active time per rater, from a once-a-minute heartbeat
+          while a rating window is visible
+        </div>
+        <div class="scroll-x">
+          <table id="activity-table">
+            <thead>
+              <tr id="activity-head"></tr>
+            </thead>
+            <tbody id="activity-rows">
               <tr>
                 <td class="loading">Loading…</td>
               </tr>
@@ -785,6 +805,86 @@
         }
       }
 
+      const activityHead = document.getElementById("activity-head");
+      const activityBody = document.getElementById("activity-rows");
+      const ACTIVITY_DAYS_SHOWN = 7;
+
+      function fmtDur(seconds) {
+        if (!seconds) return "—";
+        const m = Math.round(seconds / 60);
+        if (m < 60) return m + "m";
+        return Math.floor(m / 60) + "h " + (m % 60) + "m";
+      }
+
+      function fmtLastActive(unix) {
+        const d = new Date(unix * 1000);
+        const pad = (n) => String(n).padStart(2, "0");
+        return (
+          d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+          " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
+        );
+      }
+
+      async function loadActivity() {
+        try {
+          const resp = await fetch("/api/admin/activity");
+          const data = await resp.json();
+          if (!resp.ok || data.success !== true) {
+            throw new Error(
+              data.error || "Request failed (HTTP " + resp.status + ")",
+            );
+          }
+          const dayLabels = (data.day_labels || []).slice(-ACTIVITY_DAYS_SHOWN);
+          const users = data.users || [];
+
+          activityHead.innerHTML = "";
+          for (const label of ["Rater", "Total", "Last active"].concat(dayLabels)) {
+            const th = document.createElement("th");
+            th.textContent = label;
+            activityHead.appendChild(th);
+          }
+
+          activityBody.innerHTML = "";
+          if (!users.length) {
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = dayLabels.length + 3;
+            td.className = "empty";
+            td.textContent = "No activity recorded yet.";
+            tr.appendChild(td);
+            activityBody.appendChild(tr);
+            return;
+          }
+          for (const u of users) {
+            const tr = document.createElement("tr");
+            const tdUser = document.createElement("td");
+            tdUser.className = "user";
+            tdUser.textContent = u.username;
+            tr.appendChild(tdUser);
+            const tdTotal = document.createElement("td");
+            tdTotal.textContent = fmtDur(u.total_seconds);
+            tr.appendChild(tdTotal);
+            const tdLast = document.createElement("td");
+            tdLast.textContent = fmtLastActive(u.last_active);
+            tr.appendChild(tdLast);
+            for (const day of dayLabels) {
+              const td = document.createElement("td");
+              td.textContent = fmtDur((u.days || {})[day] || 0);
+              tr.appendChild(td);
+            }
+            activityBody.appendChild(tr);
+          }
+        } catch (e) {
+          activityBody.innerHTML = "";
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.className = "empty";
+          td.textContent = "Failed to load activity: " + e.message;
+          tr.appendChild(td);
+          activityBody.appendChild(tr);
+        }
+      }
+
       document
         .getElementById("add-form")
         .addEventListener("submit", async (ev) => {
@@ -818,6 +918,7 @@
 
       load();
       loadBatches();
+      loadActivity();
     </script>
   </body>
 </html>

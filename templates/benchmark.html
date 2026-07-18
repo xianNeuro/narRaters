@@ -367,6 +367,28 @@
         }
 
         load();
+
+        // Activity heartbeat: ping about once a minute while this tab is
+        // visible, so the admin panel can show when and how long raters have
+        // the window open. Fire-and-forget: failures are swallowed.
+        (function () {
+            const INTERVAL_MS = 60000;
+            let lastPing = 0;
+            function ping() {
+                if (document.visibilityState !== 'visible') return;
+                if (Date.now() - lastPing < INTERVAL_MS - 5000) return;
+                lastPing = Date.now();
+                fetch('/api/activity/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page: 'overview' }),
+                    keepalive: true,
+                }).catch(() => {});
+            }
+            ping();
+            setInterval(ping, INTERVAL_MS);
+            document.addEventListener('visibilitychange', ping);
+        })();
     </script>
 </body>
 

@@ -5211,6 +5211,29 @@
         // Per-segment free-text comment: segComments[segmentIndex] = string.
         let segComments = {};
 
+        // ---- Activity heartbeat (admin activity panel) -------------------------
+        // Pings /api/activity/ping about once a minute while this tab is visible,
+        // so the admin panel can show when and how long raters have the window
+        // open. Fire-and-forget: failures are swallowed.
+        (function () {
+            const INTERVAL_MS = 60000;
+            let lastPing = 0;
+            function ping() {
+                if (document.visibilityState !== 'visible') return;
+                if (Date.now() - lastPing < INTERVAL_MS - 5000) return;
+                lastPing = Date.now();
+                fetch('/api/activity/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page: 'subject' }),
+                    keepalive: true,
+                }).catch(() => {});
+            }
+            ping();
+            setInterval(ping, INTERVAL_MS);
+            document.addEventListener('visibilitychange', ping);
+        })();
+
         // ---- Per-step user-operation recorder (telemetry) ----------------------
         // Records the rater's operations on the inspection page — one session per
         // tab, started at the first interaction with that tab and flushed when that
