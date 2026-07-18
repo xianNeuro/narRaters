@@ -88,7 +88,7 @@ Documentation = "https://github.com/xianNeuro/narRaters/blob/main/README.md"
 Repository = "https://github.com/xianNeuro/narRaters"
 Issues = "https://github.com/xianNeuro/narRaters/issues"
 "Feedback" = "https://github.com/xianNeuro/narRaters/issues/new?template=feedback"
-Download = "https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.15.zip"
+Download = "https://github.com/xianNeuro/narRaters/archive/refs/tags/v0.3.16.zip"
 
 [build-system]
 # Pin hatchling: newer releases emit Metadata-Version 2.5, which the twine in

@@ -2185,16 +2185,18 @@ def get_corrected_text(subj_id, file_version=None):
             cands = list_corrected_recall_source_files(output_dir, subj_id)
             file_path = cands[0] if cands else canonical
     else:
-        # Auto-select: prioritize user-edit, fallback to canonical rules file, then Gemma outputs (newest)
+        # Auto-select: prefer the base (non-edit) file — canonical rules file, then
+        # method outputs (newest) — and only fall back to a user-edit file if no
+        # base version exists.
         edit_file = find_best_edit_file(output_dir, subj_id, '', '.txt')
         canonical = output_dir / f"{subj_id}.txt"
         cands = list_corrected_recall_source_files(output_dir, subj_id)
-        if edit_file:
-            file_path = edit_file
-        elif canonical.exists():
+        if canonical.exists():
             file_path = canonical
         elif cands:
             file_path = max(cands, key=lambda p: p.stat().st_mtime)
+        elif edit_file:
+            file_path = edit_file
         else:
             file_path = canonical
     
@@ -2249,14 +2251,16 @@ def get_parsed_texts(subj_id, file_version=None):
         else:
             file_path = canonical
     else:
-        # Auto-select: prioritize user-edit, fallback to canonical, then method-specific outputs (newest)
+        # Auto-select: prefer the base (non-edit) file — canonical, then
+        # method-specific outputs (newest) — falling back to a user-edit file only
+        # when no base version exists.
         edit_file = find_best_edit_file(output_dir, subj_id, '_parsed', '.xlsx')
-        if edit_file:
-            file_path = edit_file
-        elif canonical.exists():
+        if canonical.exists():
             file_path = canonical
         elif non_edit_parsed:
             file_path = non_edit_parsed[0]
+        elif edit_file:
+            file_path = edit_file
         else:
             file_path = canonical
 
@@ -2438,12 +2442,14 @@ def get_rated_texts(subj_id, file_version=None):
     elif file_version == 'original':
         rated_file = _find_rated_file(subj_id)
     else:
-        # Auto-select: prioritize user-edit, fallback to original (including method-suffixed)
-        edit_file = find_best_edit_file(output_dir, subj_id, '_rate-recall', '.xlsx')
-        if edit_file:
-            rated_file = edit_file
+        # Auto-select: prefer the base (non-edit) rated file (including
+        # method-suffixed), falling back to a user-edit file only when none exists.
+        base_rated = _find_rated_file(subj_id)
+        if base_rated.exists():
+            rated_file = base_rated
         else:
-            rated_file = _find_rated_file(subj_id)
+            edit_file = find_best_edit_file(output_dir, subj_id, '_rate-recall', '.xlsx')
+            rated_file = edit_file if edit_file else base_rated
 
     if not rated_file.exists():
         # Fallback: recognise alternative-named / csv rated files (e.g.
@@ -2921,13 +2927,17 @@ def _story_events_paths_candidate_list(base_id, file_version, min_event_count, e
         method_files.extend(_events_glob(f"{event_filename_base}_api"))
         method_files = list(dict.fromkeys(method_files))
         original_paths = _events_glob(event_filename_base)
-        if edit_file:
-            paths_to_try.append(edit_file)
-        for f in sorted(method_files, key=lambda p: p.stat().st_mtime, reverse=True):
-            paths_to_try.append(f)
+        # Prefer the base (non-edit) file: canonical ``{base}_events`` first, then
+        # method-specific outputs (newest); only fall back to a user-edit file when
+        # no base version exists.
         for f in original_paths:
             if f not in paths_to_try:
                 paths_to_try.append(f)
+        for f in sorted(method_files, key=lambda p: p.stat().st_mtime, reverse=True):
+            if f not in paths_to_try:
+                paths_to_try.append(f)
+        if edit_file and edit_file not in paths_to_try:
+            paths_to_try.append(edit_file)
 
         if min_event_count > 0 and paths_to_try:
             filtered = []
@@ -3021,10 +3031,13 @@ def resolve_rated_file_path(item_id, file_version=None):
         return output_dir / f"{item_id}_rate-recall_{file_version}.xlsx"
     if file_version == 'original':
         return _find_rated_file(item_id)
+    # Prefer the base (non-edit) rated file; fall back to a user-edit file only
+    # when no base version exists.
+    base_rated = _find_rated_file(item_id)
+    if base_rated.exists():
+        return base_rated
     edit_file = find_best_edit_file(output_dir, item_id, '_rate-recall', '.xlsx')
-    if edit_file:
-        return edit_file
-    return _find_rated_file(item_id)
+    return edit_file if edit_file else base_rated
 
 
 def list_subject_rated_recall_source_files(output_dir, subj_id):
@@ -3142,16 +3155,18 @@ def resolve_corrected_source_path(item_id, file_version=None):
             return canonical
         cands = list_corrected_recall_source_files(output_dir, item_id)
         return cands[0] if cands else canonical
-    edit_file = find_best_edit_file(output_dir, item_id, '', '.txt')
-    if edit_file:
-        return edit_file
-    cands = list_corrected_recall_source_files(output_dir, item_id)
-    if not cands:
-        return output_dir / f"{item_id}.txt"
+    # Prefer the base (non-edit) file: canonical, then method outputs (newest);
+    # only fall back to a user-edit file when no base version exists.
     canonical = output_dir / f"{item_id}.txt"
     if canonical.exists():
         return canonical
-    return max(cands, key=lambda p: p.stat().st_mtime)
+    cands = list_corrected_recall_source_files(output_dir, item_id)
+    if cands:
+        return max(cands, key=lambda p: p.stat().st_mtime)
+    edit_file = find_best_edit_file(output_dir, item_id, '', '.txt')
+    if edit_file:
+        return edit_file
+    return canonical
 
 
 def extract_step_input_version_slug(path, item_id, step_kind):
@@ -3728,8 +3743,12 @@ def get_causal_ratings(item_id, file_version=None):
         edit_files = [f for f in files if is_user_edit_file(f.name)]
         non_edit_files = [f for f in files if not is_user_edit_file(f.name)]
 
+        # Prefer the base (non-edit) file; only fall back to a user-edit file when
+        # no base version exists.
         best_file = None
-        if edit_files:
+        if non_edit_files:
+            best_file = max(non_edit_files, key=lambda p: p.stat().st_mtime)
+        if not best_file and edit_files:
             username = session.get('username', 'human')
             for ef in edit_files:
                 if f"_{username}-edit" in ef.name:
@@ -3737,8 +3756,6 @@ def get_causal_ratings(item_id, file_version=None):
                     break
             if not best_file:
                 best_file = max(edit_files, key=lambda p: p.stat().st_mtime)
-        if not best_file and non_edit_files:
-            best_file = max(non_edit_files, key=lambda p: p.stat().st_mtime)
 
     if not best_file:
         return None
@@ -4056,6 +4073,8 @@ def get_audio_transcription(item_id, is_story=False):
     for pattern in patterns:
         files = list(transcribed_dir.glob(pattern))
         if files:
+            # Prefer the base (non-edit) transcription over a rater-edited one.
+            files.sort(key=lambda p: (is_user_edit_file(p.name), p.name))
             try:
                 with open(files[0], 'r', encoding='utf-8') as f:
                     return f.read().strip()
@@ -5417,6 +5436,113 @@ def api_story(story_name):
     return jsonify(data)
 
 
+def collect_rater_segmentations(item_id):
+    """Find every rater-edited story-events segmentation file for this item.
+
+    Returns a list of dicts (newest edit per rater), each:
+        { 'rater': str, 'filename': str, 'path': Path, 'segments': [str, ...], 'mtime': float }
+    Files are matched with the same base-name expansion the rest of the app uses,
+    de-duplicated by rater name (newest wins), and read into their ordered
+    ``story_texts`` segments.
+    """
+    from helpers.flexible_io import read_story_events_file
+
+    seen_paths = set()
+    candidates = []
+    for base in expand_story_event_file_bases(item_id):
+        for events_dir in iter_story_events_search_dirs():
+            if not events_dir or not events_dir.exists():
+                continue
+            for ef in events_dir.glob(f"{base}_events*.xlsx"):
+                if not ef.is_file():
+                    continue
+                if not (is_user_edit_file(ef.name) and is_story_events_filename(ef.name)):
+                    continue
+                try:
+                    key = ef.resolve()
+                except OSError:
+                    key = ef
+                if key in seen_paths:
+                    continue
+                seen_paths.add(key)
+                candidates.append(ef)
+
+    # Newest first so "keep newest per rater" is a simple first-wins.
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    by_rater = {}
+    for ef in candidates:
+        rater = extract_edit_username(ef.name) or ef.stem
+        if rater in by_rater:
+            continue
+        try:
+            df = read_story_events_file(ef)
+        except Exception as e:
+            print(f"Audit: could not read {ef.name}: {e}")
+            continue
+        segments = [
+            str(t).strip()
+            for t in df['story_texts'].tolist()
+            if str(t).strip() and str(t).strip().lower() != 'nan'
+        ]
+        if not segments:
+            continue
+        by_rater[rater] = {
+            'rater': rater,
+            'filename': ef.name,
+            'path': ef,
+            'segments': segments,
+            'mtime': ef.stat().st_mtime,
+        }
+
+    return sorted(by_rater.values(), key=lambda r: r['mtime'], reverse=True)
+
+
+def _segmentation_audit_payload(item_id, is_story, story_events_file=None):
+    raters = collect_rater_segmentations(item_id)
+    if not raters:
+        return {'raters': [], 'primary_index': 0, 'default_export_path': None}
+
+    # Primary = the file currently selected in the dropdown (if it is one of the
+    # rater-edit files); otherwise the newest edited file.
+    primary_index = 0
+    if story_events_file:
+        sel_name = Path(story_events_file).name
+        for i, r in enumerate(raters):
+            if r['filename'] == sel_name:
+                primary_index = i
+                break
+
+    primary = raters[primary_index]
+    primary_stem = Path(primary['filename']).stem
+    other_raters = [r['rater'] for i, r in enumerate(raters) if i != primary_index]
+    stem = primary_stem + ''.join(f"_{r}-edit" for r in other_raters) + "_audit"
+    d = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
+    try:
+        default_export_path = _path_for_client(d / f"{stem}.xlsx")
+    except Exception:
+        default_export_path = str(d / f"{stem}.xlsx")
+
+    return {
+        'raters': [
+            {'rater': r['rater'], 'filename': r['filename'], 'segments': r['segments']}
+            for r in raters
+        ],
+        'primary_index': primary_index,
+        'default_export_path': default_export_path,
+    }
+
+
+@app.route('/api/story/<item_id>/segmentation-audit')
+@app.route('/api/subject/<item_id>/segmentation-audit')
+def api_segmentation_audit(item_id):
+    """Return every rater's story-segmentation boundaries for the audit overlay."""
+    story_events_file = (request.args.get('story_events_file') or '').strip() or None
+    is_story = request.path.startswith('/api/story/')
+    payload = _segmentation_audit_payload(item_id, is_story, story_events_file)
+    return jsonify(payload)
+
+
 @app.route('/api/subject/<subj_id>/versions')
 def api_subject_versions(subj_id):
     """API endpoint to get available file versions for a subject."""
@@ -5973,18 +6099,20 @@ def save_rated_events(subj_id):
                 seed_file = original_rated
                 print(f"Reading from original rated file: {original_rated.name}")
             else:
-                # Fallback: create from parsed file (prioritize user-edit, then canonical,
-                # then any method-suffixed parsed output)
+                # Fallback: create from parsed file (prefer the base version —
+                # canonical, then any method-suffixed parsed output — and only fall
+                # back to a user-edit parsed file when no base version exists)
                 parsed_dir = get_output_dir_for_step_type('textParsing') or RECALL_PARSED_DIR
-                parsed_edit = find_best_edit_file(parsed_dir, subj_id, '_parsed', '.xlsx')
                 parsed_original = parsed_dir / f"{subj_id}_parsed.xlsx"
-                if parsed_edit:
-                    parsed_file = parsed_edit
-                elif parsed_original.exists():
+                if parsed_original.exists():
                     parsed_file = parsed_original
                 else:
                     method_cands = list_subject_parsed_source_files(parsed_dir, subj_id)
-                    parsed_file = method_cands[0] if method_cands else parsed_original
+                    if method_cands:
+                        parsed_file = method_cands[0]
+                    else:
+                        parsed_edit = find_best_edit_file(parsed_dir, subj_id, '_parsed', '.xlsx')
+                        parsed_file = parsed_edit if parsed_edit else parsed_original
                 if not parsed_file.exists():
                     # Recognise alternative-named / csv parsed files (story-...-parsed.csv)
                     try:

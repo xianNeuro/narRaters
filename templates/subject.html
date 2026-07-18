@@ -1123,6 +1123,88 @@
         .ss-4 { background: #c25370 !important; }   /* 4 - rose            */
         .ss-5 { background: #ef4444 !important; }   /* 5 - red (strongest) */
         .seg-boundary.ss-none { background: var(--t3); }
+
+        /* ---- Segmentation audit overlay (multi-rater boundary review) ---- */
+        .seg-audit-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.85em;
+            color: var(--t2);
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+        .seg-audit-toggle input { cursor: pointer; margin: 0; }
+        .seg-audit-legend {
+            display: none;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 0.8em;
+            color: var(--t2);
+        }
+        .seg-audit-legend.show { display: inline-flex; }
+        .seg-audit-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+        .seg-audit-legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.35);
+            flex-shrink: 0;
+        }
+        /* When auditing, the flow no longer hides the cursor (no floating bar). */
+        .seg-flow.seg-flow-audit { cursor: default; }
+        .seg-flow.seg-flow-audit .seg-gap-audit { cursor: copy; }
+        .seg-flow.seg-flow-audit .seg-gap-audit:hover {
+            background: rgba(148, 163, 184, 0.28);
+            border-radius: 2px;
+        }
+        /* Battery boundary: a horizontal cell stack, one cell per rater. Lit
+           cells are colored by the rater who placed a boundary here; unlit
+           cells are empty. Clicking anywhere on the battery removes it. */
+        .seg-battery {
+            display: inline-flex;
+            align-items: center;
+            vertical-align: text-bottom;
+            height: 1.5em;
+            margin: 0 4px;
+            padding: 2px;
+            gap: 1px;
+            background: var(--bg1);
+            border: 1px solid var(--bdr);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+        }
+        /* Battery cap on the right, like a real battery terminal. */
+        .seg-battery::after {
+            content: "";
+            position: absolute;
+            right: -3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2px;
+            height: 0.6em;
+            background: var(--bdr);
+            border-radius: 0 2px 2px 0;
+        }
+        .seg-battery:hover {
+            box-shadow: 0 0 6px 1px rgba(239, 68, 68, 0.55);
+            border-color: #ef4444;
+        }
+        .seg-battery-cell {
+            width: 6px;
+            height: 100%;
+            min-height: 0.9em;
+            border-radius: 1px;
+            background: var(--bg3);
+        }
         /* Strength picker: same layout as the causal-rating picker. */
         .seg-strength-picker {
             display: flex;
@@ -2745,6 +2827,19 @@
         function panelVersionBarMarkup(label, role) {
             return '<div class="panel-version-bar"><span class="panel-version-label">' + escapeHtml(label) + '</span><select class="panel-version-select" data-role="' + escapeHtml(role) + '" aria-label="' + escapeHtml(label) + '"></select></div>';
         }
+
+        // Story-segmentation editing panel version bar, with the multi-rater
+        // "audit" checkbox + color legend to the right of the file dropdown.
+        function storySegAuditVersionBarMarkup() {
+            return '<div class="panel-version-bar">'
+                + '<span class="panel-version-label">Story segmentation file</span>'
+                + '<select class="panel-version-select" data-role="story-events" aria-label="Story segmentation file"></select>'
+                + '<label class="seg-audit-toggle" title="Overlay every rater-edited segmentation and reconcile their boundaries into one audited file.">'
+                +   '<input type="checkbox" id="seg-audit-checkbox" onchange="toggleSegAudit(this.checked)"> audit'
+                + '</label>'
+                + '<div class="seg-audit-legend" id="seg-audit-legend"></div>'
+                + '</div>';
+        }
         
         // Benchmark "Log out" control — ends the session and returns to the login
         // page (mirrors handleAccountLogout in the other templates). Only wired up
@@ -3632,10 +3727,10 @@
                                 </div>
                             </div>
                             <div class="rated-panel">
-                                ${panelVersionBarMarkup('Story segmentation file', 'story-events')}
+                                ${storySegAuditVersionBarMarkup()}
                                 <div id="story-events-notification" class="story-events-notification hidden">
                                     <button class="story-events-notification-close" onclick="dismissNotification('story-events-notification-dismissed')" title="Dismiss">×</button>
-                                    <strong>Editing Story Segmentation:</strong> Move the cursor through the text — a red bar follows it between words. Click to drop a segment boundary there (the following text reflows into a new box); click an existing bar to remove it. Use the toggle at the top right to switch between <strong>binary</strong> boundaries and <strong>1&ndash;5</strong> strength boundaries. In 1&ndash;5 mode, clicking a boundary opens a picker (1 = weak &rarr; 5 = strong) and the bar is colored by its strength (blue &rarr; red); the strength is written to a <strong>boundary_strength</strong> column on export.
+                                    <strong>Editing Story Segmentation:</strong> Move the cursor through the text — a red bar follows it between words. Click to drop a segment boundary there (the following text reflows into a new box); click an existing bar to remove it. Use the toggle at the top right to switch between <strong>binary</strong> boundaries and <strong>1&ndash;5</strong> strength boundaries. In 1&ndash;5 mode, clicking a boundary opens a picker (1 = weak &rarr; 5 = strong) and the bar is colored by its strength (blue &rarr; red); the strength is written to a <strong>boundary_strength</strong> column on export. Tick <strong>audit</strong> next to the file dropdown to overlay every rater's segmentation as color-coded <strong>batteries</strong> — each battery cell shows a rater who placed a boundary there. Click a battery to drop that boundary, click between words to add a full-consensus boundary, then export the reconciled <strong>_audit</strong> file.
                                 </div>
                                 <div class="seg-panel-header">
                                     <h2>Story segments</h2>
@@ -3649,7 +3744,7 @@
                                     <div class="seg-flow" data-panel="story"></div>
                                 </div>
                                 <div style="flex-shrink: 0; margin-top: 15px;">
-                                    <button id="export-story-events" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths['story-events']) || ''))}" onclick="showExportModal('story-events', (typeof currentStoryEventsFile !== 'undefined' && currentStoryEventsFile) ? currentStoryEventsFile : '', function(path){ saveStoryEvents(path); }, this)">Export Edited File</button>
+                                    <button id="export-story-events" class="export-button" disabled data-export-path="${escapeHtml(String((data.default_export_paths && data.default_export_paths['story-events']) || ''))}" onclick="exportStoryEventsClick(this)">Export Edited File</button>
                                     <div id="save-story-events-status" class="save-status"></div>
                                 </div>
                             </div>
@@ -4632,12 +4727,25 @@
             return q.length ? ('&' + q.join('&')) : '';
         }
         
-        function showExportModal(step, sourceFile, onConfirm, btn) {
+        function showExportModal(step, sourceFile, onConfirm, btn, prefillPath) {
             var overlay = document.getElementById('export-modal-overlay');
             var input = document.getElementById('export-path-input');
             var cancelBtn = document.getElementById('export-modal-cancel');
             var confirmBtn = document.getElementById('export-modal-confirm');
             if (!overlay || !input) return;
+            // Caller supplied an explicit path (e.g. the audit "_audit" filename):
+            // skip the server default-path lookup and prefill it directly.
+            if (prefillPath) {
+                overlay.classList.add('show');
+                input.disabled = false;
+                input.value = prefillPath;
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.focus(); }
+                overlay.addEventListener('click', overlayClick);
+                cancelBtn.addEventListener('click', closeModal);
+                confirmBtn.addEventListener('click', doConfirm);
+                input.addEventListener('keydown', onKeydown);
+                return;
+            }
             var apiBase = isStory ? '/api/story' : '/api/subject';
             var url = apiBase + '/' + encodeURIComponent(subjectId) + '/export-default-path?step=' + encodeURIComponent(step);
             if (sourceFile) url += '&source_file=' + encodeURIComponent(sourceFile);
@@ -4724,6 +4832,10 @@
         function enableExportStoryEvents() {
             const btn = document.getElementById('export-story-events');
             if (!btn) return;
+            if (auditState && auditState.active) {
+                btn.disabled = !(auditState.batteries && auditState.batteries.size > 0);
+                return;
+            }
             btn.disabled = !segPanelDirty('story', originalStoryEvents);
         }
         // Export is armed when the segmentation differs from what was loaded, or
@@ -4815,6 +4927,26 @@
         // fullText; mode is 'binary' or 'scale' (1-5).
         let segState = { story: null, recall: null };
         let segPickerCtx = { panel: null, offset: null, exists: false };
+
+        // ---- Multi-rater segmentation audit state ----
+        // active:   whether the audit overlay is currently shown (story panel only).
+        // raters:   [{ rater, filename, color, boundaryWords:Set<int> }] (display order).
+        // words:    canonical word list all raters are aligned against.
+        // batteries: Map<wordIndex, Set<raterIndex>> — the current, editable set of
+        //            audited boundaries; each key is a boundary "before word i".
+        // exportPath: server-suggested default filename (…_audit.xlsx).
+        let auditState = { active: false, raters: [], words: [], batteries: new Map(), exportPath: null };
+
+        // Palette for rater color-coding (distinct, legible on the dark UI).
+        const SEG_AUDIT_PALETTE = [
+            '#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa',
+            '#fb923c', '#22d3ee', '#f87171', '#a3e635', '#e879f9',
+        ];
+
+        function segCountWords(s) {
+            const m = String(s || '').trim().match(/\S+/g);
+            return m ? m.length : 0;
+        }
 
         function segSourceData(panel) {
             return panel === 'story' ? storyEventsData : parsedTextsData;
@@ -4945,6 +5077,8 @@
         // spot the floating red bar is showing — so the drop is immediate and
         // matches what the user sees, even though the native cursor is hidden.
         function onSegFlowClick(panel, e) {
+            // In audit mode the story flow has its own battery/gap handlers.
+            if (panel === 'story' && auditState.active) return;
             const st = segState[panel];
             if (!st) return;
             const container = e.currentTarget;
@@ -4963,6 +5097,7 @@
         // rAF-throttled: track the latest pointer position, then snap the red bar
         // to the nearest word gap (or existing boundary) on the next frame.
         function onSegFlowMouseMove(panel, e) {
+            if (panel === 'story' && auditState.active) return;
             const container = e.currentTarget;
             container._segLastXY = { x: e.clientX, y: e.clientY };
             if (container._segRaf) return;
@@ -5126,6 +5261,204 @@
                 if (!text) continue;
                 const strength = (i < offsets.length) ? offsets[i].strength : null;
                 out.push({ text: text, strength: strength });
+            }
+            return out;
+        }
+
+        // ========================================================================
+        //  Multi-rater segmentation AUDIT overlay (story panel only)
+        // ========================================================================
+
+        // Toggle handler for the "audit" checkbox next to the story-segmentation
+        // file dropdown. On: fetch every rater's edited segmentation and render
+        // the battery overlay. Off: restore the normal single-file segmenter.
+        async function toggleSegAudit(checked) {
+            if (!checked) {
+                auditState.active = false;
+                const legend = document.getElementById('seg-audit-legend');
+                if (legend) { legend.classList.remove('show'); legend.innerHTML = ''; }
+                const flow = document.querySelector('.seg-flow[data-panel="story"]');
+                if (flow) flow.classList.remove('seg-flow-audit');
+                setStorySegModeToggleVisible(true);
+                initSegmenter('story');
+                enableExportStoryEvents();
+                return;
+            }
+            const container = document.querySelector('.seg-flow[data-panel="story"]');
+            if (container) {
+                container.innerHTML = '<div class="text-content empty" style="padding:20px; text-align:center;">Loading rater segmentations…</div>';
+            }
+            try {
+                const apiPrefix = isStory ? '/api/story' : '/api/subject';
+                let url = `${apiPrefix}/${encodeURIComponent(subjectId)}/segmentation-audit`;
+                if (typeof currentStoryEventsFile !== 'undefined' && currentStoryEventsFile) {
+                    url += '?story_events_file=' + encodeURIComponent(currentStoryEventsFile);
+                }
+                const resp = await fetch(url);
+                const data = await resp.json();
+                buildAuditState(data);
+            } catch (err) {
+                if (container) {
+                    container.innerHTML = `<div class="text-content empty" style="padding:20px; text-align:center;">Could not load audit data: ${escapeHtml(String(err.message || err))}</div>`;
+                }
+                const cb = document.getElementById('seg-audit-checkbox');
+                if (cb) cb.checked = false;
+                auditState.active = false;
+            }
+        }
+
+        function setStorySegModeToggleVisible(visible) {
+            const toggle = document.querySelector('.seg-mode-toggle[data-panel="story"]');
+            if (toggle) toggle.style.display = visible ? '' : 'none';
+        }
+
+        // Turn the server payload into audit state: assign colors, pick a canonical
+        // word list, and map each rater's boundaries onto canonical word indices.
+        function buildAuditState(data) {
+            const rawRaters = (data && data.raters) || [];
+            if (!rawRaters.length) {
+                auditState = { active: false, raters: [], words: [], batteries: new Map(), exportPath: null };
+                const cb = document.getElementById('seg-audit-checkbox');
+                if (cb) cb.checked = false;
+                const container = document.querySelector('.seg-flow[data-panel="story"]');
+                if (container) {
+                    container.innerHTML = '<div class="text-content empty" style="padding:20px; text-align:center;">No rater-edited segmentation files were found for this story. Save at least one edited segmentation first, then re-check audit.</div>';
+                }
+                return;
+            }
+            const primaryIndex = Math.min(Math.max(data.primary_index || 0, 0), rawRaters.length - 1);
+            // Canonical text = the primary rater's concatenated segments. All raters
+            // segment the same story, so their word sequences align by index.
+            const canonicalSegs = rawRaters[primaryIndex].segments.map(s => s.trim()).filter(Boolean);
+            const canonicalText = canonicalSegs.join(' ');
+            const words = canonicalText.match(/\S+/g) || [];
+
+            const raters = rawRaters.map((r, i) => {
+                const segs = r.segments.map(s => s.trim()).filter(Boolean);
+                const boundaryWords = new Set();
+                let cum = 0;
+                for (let j = 0; j < segs.length - 1; j++) {
+                    cum += segCountWords(segs[j]);
+                    if (cum > 0 && cum < words.length) boundaryWords.add(cum);
+                }
+                return {
+                    rater: r.rater,
+                    filename: r.filename,
+                    color: SEG_AUDIT_PALETTE[i % SEG_AUDIT_PALETTE.length],
+                    boundaryWords: boundaryWords,
+                };
+            });
+
+            // Union of all rater boundaries -> initial editable battery set.
+            const batteries = new Map();
+            raters.forEach((r, ri) => {
+                r.boundaryWords.forEach(wi => {
+                    if (!batteries.has(wi)) batteries.set(wi, new Set());
+                    batteries.get(wi).add(ri);
+                });
+            });
+
+            auditState = {
+                active: true,
+                raters: raters,
+                words: words,
+                batteries: batteries,
+                exportPath: (data && data.default_export_path) || null,
+            };
+            setStorySegModeToggleVisible(false);
+            renderAuditLegend();
+            renderSegAudit();
+            enableExportStoryEvents();
+        }
+
+        function renderAuditLegend() {
+            const legend = document.getElementById('seg-audit-legend');
+            if (!legend) return;
+            legend.innerHTML = auditState.raters.map(r =>
+                `<span class="seg-audit-legend-item"><span class="seg-audit-legend-swatch" style="background:${r.color}"></span>${escapeHtml(r.rater)}</span>`
+            ).join('');
+            legend.classList.add('show');
+        }
+
+        // Render the story text as segment boxes split at the current battery
+        // positions, with a battery widget standing in for each boundary.
+        function renderSegAudit() {
+            const container = document.querySelector('.seg-flow[data-panel="story"]');
+            if (!container) return;
+            const words = auditState.words;
+            if (!words.length) {
+                container.innerHTML = '<div class="text-content empty" style="padding:20px; text-align:center;">No story text available to audit.</div>';
+                return;
+            }
+            const boundaryIdx = [...auditState.batteries.keys()].sort((a, b) => a - b);
+            const points = [0, ...boundaryIdx, words.length];
+            let html = '';
+            for (let i = 0; i < points.length - 1; i++) {
+                const start = points[i];
+                const end = points[i + 1];
+                html += '<div class="seg-block seg-block-audit">';
+                for (let w = start; w < end; w++) {
+                    if (w > start) {
+                        // Clickable gap before this word -> add a new boundary here.
+                        html += `<span class="seg-gap-audit" data-wi="${w}" onclick="auditAddBoundary(${w})"> </span>`;
+                    }
+                    html += `<span class="seg-word">${escapeHtml(words[w])}</span>`;
+                }
+                html += '</div>';
+                if (i < boundaryIdx.length) {
+                    html += renderBatteryMarkup(boundaryIdx[i]);
+                }
+            }
+            container.classList.add('seg-flow-audit');
+            container.innerHTML = html;
+        }
+
+        function renderBatteryMarkup(wi) {
+            const set = auditState.batteries.get(wi) || new Set();
+            const n = auditState.raters.length;
+            const names = [...set].map(ri => auditState.raters[ri] && auditState.raters[ri].rater).filter(Boolean);
+            let cells = '';
+            for (let ri = 0; ri < n; ri++) {
+                const on = set.has(ri);
+                const style = on ? ` style="background:${auditState.raters[ri].color}"` : '';
+                cells += `<span class="seg-battery-cell"${style}></span>`;
+            }
+            const title = names.length
+                ? `Boundary placed by: ${names.join(', ')} — click to remove`
+                : 'Boundary — click to remove';
+            return `<span class="seg-battery" data-wi="${wi}" title="${escapeHtml(title)}" onclick="auditRemoveBoundary(${wi})">${cells}</span>`;
+        }
+
+        // Click a battery -> drop that boundary from the audited segmentation.
+        function auditRemoveBoundary(wi) {
+            if (!auditState.active) return;
+            auditState.batteries.delete(wi);
+            renderSegAudit();
+            enableExportStoryEvents();
+        }
+
+        // Click between two words -> add a full-consensus boundary (every rater
+        // cell lit) at that spot.
+        function auditAddBoundary(wi) {
+            if (!auditState.active) return;
+            if (auditState.batteries.has(wi)) return;
+            const all = new Set();
+            for (let ri = 0; ri < auditState.raters.length; ri++) all.add(ri);
+            auditState.batteries.set(wi, all);
+            renderSegAudit();
+            enableExportStoryEvents();
+        }
+
+        // Slice the canonical word list at the current battery positions into the
+        // segment texts that get written to the exported _audit file.
+        function getAuditSegmentsForExport() {
+            const words = auditState.words;
+            const boundaryIdx = [...auditState.batteries.keys()].sort((a, b) => a - b);
+            const points = [0, ...boundaryIdx, words.length];
+            const out = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                const text = words.slice(points[i], points[i + 1]).join(' ').trim();
+                if (text) out.push(text);
             }
             return out;
         }
@@ -7496,6 +7829,18 @@
         }
         
         // Save functions for new steps
+        // Export button dispatcher for the story-segmentation panel. In audit mode
+        // it prefills the modal with the server-suggested "_audit" filename (all
+        // considered raters concatenated); otherwise the normal edited-file path.
+        function exportStoryEventsClick(btn) {
+            const src = (typeof currentStoryEventsFile !== 'undefined' && currentStoryEventsFile) ? currentStoryEventsFile : '';
+            if (auditState && auditState.active) {
+                showExportModal('story-events', src, function(path){ saveStoryEvents(path); }, btn, auditState.exportPath);
+            } else {
+                showExportModal('story-events', src, function(path){ saveStoryEvents(path); }, btn);
+            }
+        }
+
         async function saveStoryEvents(outputPath) {
             const btn = document.getElementById('export-story-events');
             if (btn && btn.disabled) return;
@@ -7507,15 +7852,22 @@
             statusDiv.style.display = 'block';
             
             try {
-                // Collect events from the bar-based segmenter. Each event is the
-                // text between boundaries; in 1-5 mode it also carries the strength
-                // of the boundary that ends it.
-                const scaleMode = segState.story && segState.story.mode === 'scale';
-                const events = getSegmentsForExport('story').map((seg, idx) => {
-                    const e = { event: idx + 1, text: seg.text };
-                    if (scaleMode) e.boundary_strength = (seg.strength != null) ? seg.strength : '';
-                    return e;
-                });
+                // In audit mode the exported segmentation is the reconciled
+                // battery set (binary boundaries over the canonical text).
+                let events;
+                if (auditState && auditState.active) {
+                    events = getAuditSegmentsForExport().map((text, idx) => ({ event: idx + 1, text: text }));
+                } else {
+                    // Collect events from the bar-based segmenter. Each event is the
+                    // text between boundaries; in 1-5 mode it also carries the strength
+                    // of the boundary that ends it.
+                    const scaleMode = segState.story && segState.story.mode === 'scale';
+                    events = getSegmentsForExport('story').map((seg, idx) => {
+                        const e = { event: idx + 1, text: seg.text };
+                        if (scaleMode) e.boundary_strength = (seg.strength != null) ? seg.strength : '';
+                        return e;
+                    });
+                }
 
                 const body = { events: events };
                 if (outputPath) body.output_path = outputPath;
@@ -8760,7 +9112,7 @@
             while (select.options.length > 0) select.remove(0);
             const autoOpt = document.createElement('option');
             autoOpt.value = '';
-            autoOpt.textContent = 'Auto (edited preferred)';
+            autoOpt.textContent = 'Auto (base preferred)';
             select.appendChild(autoOpt);
             (availableVersions.story_events || []).forEach(function(f) {
                 const opt = document.createElement('option');
@@ -8777,7 +9129,7 @@
             while (select.options.length > 0) select.remove(0);
             const autoOpt = document.createElement('option');
             autoOpt.value = '';
-            autoOpt.textContent = 'Auto (edited preferred)';
+            autoOpt.textContent = 'Auto (base preferred)';
             select.appendChild(autoOpt);
             (availableVersions.causal || []).forEach(function(f) {
                 const opt = document.createElement('option');
@@ -8798,7 +9150,7 @@
             while (select.options.length > 0) select.remove(0);
             const autoOpt = document.createElement('option');
             autoOpt.value = '';
-            autoOpt.textContent = 'Auto (edited preferred)';
+            autoOpt.textContent = 'Auto (base preferred)';
             select.appendChild(autoOpt);
             const editVersions = [...allVersions].filter(function(v) { return v.endsWith('-edit'); }).sort();
             if (editVersions.length > 0 || allVersions.has('original')) {
@@ -8915,6 +9267,10 @@
                 }
                 window._defaultExportPaths = data.default_export_paths || {};
                 window._currentUsername = data.username || currentUsername || 'human';
+                
+                // A fresh render rebuilds the (unchecked) audit checkbox, so drop
+                // any prior audit overlay state before re-rendering the panels.
+                auditState = { active: false, raters: [], words: [], batteries: new Map(), exportPath: null };
                 
                 renderContent(data);
                 // Reflect the loaded further-ratings state (master toggle + unlock)
