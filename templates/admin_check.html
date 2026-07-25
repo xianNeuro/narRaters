@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Training check — narRaters</title>
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/static/favicon/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/static/favicon/favicon-16x16.png"
+    />
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/favicon/apple-touch-icon.png"
+    />
+    <link rel="manifest" href="/static/favicon/site.webmanifest" />
+    <script src="/static/theme-manager.js"></script>
+    <script src="/static/zoom-controls.js"></script>
+    <style>
+      :root {
+        --bg0: #0b0d14;
+        --bg1: #111527;
+        --bg2: #1a1f36;
+        --bg3: #242b4a;
+        --t0: #f0f2f5;
+        --t1: #c4c9db;
+        --t2: #8890a8;
+        --bdr: #2a3050;
+        --bdr2: #353c60;
+        --acc: #6c63ff;
+        --acc2: #8b84ff;
+        --green: #22c55e;
+        --red: #ff6b81;
+        --orange: #f59e0b;
+        --rad: 10px;
+        --tr: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          "Segoe UI",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: var(--bg0);
+        color: var(--t0);
+        min-height: 100vh;
+        padding: 48px 24px;
+      }
+
+      /* Top-right control row, mirrored from the admin panel. */
+      .bench-controls {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 1000;
+      }
+      .bench-version {
+        font-style: italic;
+        color: var(--t2);
+        font-size: 0.85em;
+        opacity: 0.8;
+        user-select: none;
+      }
+      .back-link {
+        color: var(--t0);
+        text-decoration: none;
+        opacity: 0.9;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 14px;
+        line-height: 1;
+        background: var(--bg2);
+        border: 1px solid var(--bdr);
+        border-radius: 6px;
+        font: inherit;
+        font-size: 0.9em;
+        cursor: pointer;
+        transition: all var(--tr);
+      }
+      .back-link:hover {
+        background: var(--bg3);
+        border-color: var(--acc);
+        opacity: 1;
+        transform: translateY(-2px);
+      }
+      .page-zoom-controls {
+        display: none;
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 40px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        letter-spacing: -0.5px;
+      }
+
+      h1 .name {
+        color: var(--acc2);
+      }
+
+      /* One collapsible <details> per rater; the summary row carries the
+         overall score so raters can be scanned without expanding. */
+      details.rater {
+        margin: 0 0 12px;
+      }
+      details.rater > summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 12px 16px;
+        background: var(--bg1);
+        border: 1px solid var(--bdr);
+        border-radius: var(--rad);
+        transition: border-color var(--tr);
+      }
+      details.rater > summary:hover {
+        border-color: var(--acc);
+      }
+      details.rater > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.rater > summary::before {
+        content: "▸";
+        color: var(--t2);
+        font-size: 14px;
+      }
+      details.rater[open] > summary::before {
+        content: "▾";
+      }
+      details.rater[open] > summary {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+      }
+      details.rater > .rater-body {
+        padding: 16px 16px 0;
+        border: 1px solid var(--bdr);
+        border-top: none;
+        border-radius: 0 0 var(--rad) var(--rad);
+        background: rgba(17, 21, 39, 0.4);
+      }
+      .rater-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--acc2);
+      }
+      .rater-score {
+        font-size: 14px;
+        color: var(--t1);
+        font-weight: 600;
+      }
+      .rater-score-detail {
+        font-size: 13px;
+        color: var(--t2);
+      }
+
+      .sub {
+        color: var(--t2);
+        font-size: 15px;
+        margin-bottom: 12px;
+      }
+
+      /* Legend for the row colors. */
+      .legend {
+        color: var(--t2);
+        font-size: 13px;
+        margin-bottom: 24px;
+      }
+      .legend .swatch {
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        border-radius: 3px;
+        margin: 0 4px 0 14px;
+        vertical-align: -1px;
+      }
+      .legend .swatch:first-child {
+        margin-left: 0;
+      }
+
+      .card {
+        background: var(--bg1);
+        border: 1px solid var(--bdr);
+        border-radius: var(--rad);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        margin-bottom: 24px;
+      }
+
+      .card-head {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--t2);
+        padding: 8px 18px;
+        border-bottom: 1px solid var(--bdr);
+        background: var(--bg2);
+      }
+      .card-head b {
+        color: var(--t1);
+      }
+      .count-correct {
+        color: var(--green);
+      }
+      .count-incorrect {
+        color: var(--red);
+      }
+      .count-ambiguous {
+        color: var(--orange);
+      }
+
+      .scroll-x {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      thead th {
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--t2);
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--bdr);
+        background: var(--bg2);
+        white-space: nowrap;
+      }
+
+      tbody td {
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--bdr);
+        font-size: 0.9rem;
+        line-height: 1.45;
+        color: var(--t1);
+        vertical-align: top;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      /* Row tint by check status. */
+      tr.correct td {
+        background: rgba(34, 197, 94, 0.09);
+      }
+      tr.incorrect td {
+        background: rgba(255, 107, 129, 0.11);
+      }
+      tr.ambiguous td {
+        background: rgba(245, 158, 11, 0.11);
+      }
+      tr.pending td {
+        color: var(--t2);
+      }
+
+      td.text {
+        min-width: 220px;
+        max-width: 380px;
+        color: var(--t0);
+      }
+      td.nums {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      td.comment {
+        min-width: 200px;
+        max-width: 340px;
+        font-style: italic;
+      }
+
+      /* The rater's entry when it differs from the key. */
+      .differs {
+        color: var(--red);
+        font-weight: 700;
+      }
+      tr.ambiguous .differs {
+        color: var(--orange);
+      }
+
+      .empty {
+        padding: 40px 18px;
+        text-align: center;
+        color: var(--t2);
+        font-size: 14px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="bench-controls">
+      <span class="bench-version" title="narRaters version"
+        >v{{ version }}</span
+      >
+      <button
+        type="button"
+        class="back-link"
+        onclick="if (window.PageZoom) PageZoom.out();"
+        title="Make the page smaller"
+      >
+        -
+      </button>
+      <button
+        type="button"
+        class="back-link"
+        onclick="if (window.PageZoom) PageZoom.in();"
+        title="Make the page bigger"
+      >
+        +
+      </button>
+      <a class="back-link" href="/admin" title="Back to the admin panel"
+        >← Admin</a
+      >
+    </div>
+    <div class="wrap">
+      <h1>
+        Training check <i><span class="name">{{ username }}</span></i>
+      </h1>
+      <div class="sub">
+        Each rater's first-pass work on the training recalls, segment by
+        segment against the answer key. Rater entries that differ from the key
+        are bold; key comments explain the intended answer. Click a rater to
+        expand their tables.
+      </div>
+      <div class="legend">
+        <span class="swatch" style="background: rgba(34, 197, 94, 0.5)"></span>
+        correct — matches and tags equal the key
+        <span
+          class="swatch"
+          style="background: rgba(245, 158, 11, 0.55)"
+        ></span>
+        ambiguous — differs, but the key lists several matches: judge yourself
+        <span
+          class="swatch"
+          style="background: rgba(255, 107, 129, 0.55)"
+        ></span>
+        incorrect
+        <span class="swatch" style="background: var(--bg3)"></span>
+        grey — segment not first-pass-rated yet
+      </div>
+
+      {% if orphans %}
+      <div class="sub">
+        ⚠ Key files with no matching recall under benchmark/unrated (skipped):
+        {{ orphans | join(", ") }}
+      </div>
+      {% endif %} {% if not checks %}
+      <div class="card"><div class="empty">No rater accounts yet.</div></div>
+      {% elif checks and not checks[0]["items"] %}
+      <div class="card">
+        <div class="empty">
+          No training keys found under {{ key_dir }} — add
+          sub-&lt;id&gt;-recall-&lt;story&gt;-matched.csv files there.
+        </div>
+      </div>
+      {% endif %} {% for rater in checks %}
+      <details class="rater">
+        <summary>
+          <span class="rater-name">{{ rater.username }}</span>
+          {% if rater.score is not none %}
+          <span class="rater-score">{{ rater.score }}% correct</span>
+          <span class="rater-score-detail">
+            {{ rater.totals.correct }} correct ·
+            {{ rater.totals.ambiguous }} ambiguous ·
+            {{ rater.totals.incorrect }} incorrect{% if rater.totals.pending %}
+            · {{ rater.totals.pending }} unrated{% endif %}
+          </span>
+          {% elif not rater.has_mismatch %}
+          <span class="rater-score-detail">no rated segments yet</span>
+          {% endif %} {% if rater.has_mismatch %}
+          <span class="rater-score-detail"
+            >⚠ segmentation mismatch on some recalls</span
+          >
+          {% endif %}
+        </summary>
+        <div class="rater-body">
+          {% for it in rater["items"] %}
+      <div class="card">
+        <div class="card-head">
+          <b>{{ it.sub_id }} · {{ it.story }}</b>
+          {% if it.mismatch %} — ⚠ segmentation differs from the key {% elif
+          it.started %} — <span class="count-correct"
+            >{{ it.counts.correct }} correct</span
+          >
+          · <span class="count-ambiguous"
+            >{{ it.counts.ambiguous }} ambiguous</span
+          >
+          · <span class="count-incorrect"
+            >{{ it.counts.incorrect }} incorrect</span
+          >
+          {% if it.counts.pending %} · {{ it.counts.pending }} unrated{% endif
+          %} {% else %} — not started {% endif %}
+        </div>
+        {% if it.mismatch %}
+        <div class="empty">
+          The rater's file and the key split this recall into different
+          segments, so they cannot be compared row by row. Update the key to
+          match the current unrated file (or vice versa).
+        </div>
+        {% elif it.started %}
+        <div class="scroll-x">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Recall text</th>
+                <th>Rater matches</th>
+                <th>Key matches</th>
+                <th>Rater tags</th>
+                <th>Key tags</th>
+                <th>Rater comment</th>
+                <th>Key comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for seg in it.segments %}
+              <tr class="{{ seg.status }}">
+                <td class="nums">{{ seg.index }}</td>
+                <td class="text">{{ seg.text }}</td>
+                <td class="nums {{ 'differs' if seg.matches_differ }}">
+                  {{ seg.rater_matches | join(", ") or "—" }}
+                </td>
+                <td class="nums">{{ seg.key_matches | join(", ") or "—" }}</td>
+                <td class="{{ 'differs' if seg.tags_differ }}">
+                  {{ seg.rater_tags | join(", ") or "—" }}
+                </td>
+                <td>{{ seg.key_tags | join(", ") or "—" }}</td>
+                <td class="comment">{{ seg.rater_comment }}</td>
+                <td class="comment">{{ seg.key_comment }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </body>
+</html>

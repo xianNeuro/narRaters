@@ -807,6 +807,13 @@ BENCHMARK_DIR = Path(
 BENCHMARK_UNRATED_DIR = BENCHMARK_DIR / 'unrated'
 BENCHMARK_RATED_DIR = BENCHMARK_DIR / 'rated'
 
+# Answer keys for the training recalls (see /admin/check): rated-schema CSVs
+# whose filenames match unrated benchmark items (sub-X-recall-Y-matched.csv).
+BENCHMARK_TRAINING_KEY_DIR = Path(
+    os.environ.get('NARRATERS_TRAINING_KEY_DIR')
+    or (WORKSPACE_ROOT / 'data' / 'benchmark' / 'training_key')
+).expanduser().resolve()
+
 # Excel files to check for raw recall data
 EXCEL_FILES = [
     f for f in (WORKSPACE_ROOT / 'data').glob('summary_*.xlsx')
@@ -4273,7 +4280,7 @@ _BENCH_MATCHED_RE = re.compile(
 #                  in an early batch and {'story': 'sirens2'} in a later one.
 # Items matching no batch fall into an implicit trailing 'other' batch.
 BENCHMARK_BATCHES = [
-    {'name': 'sirens2',          'match': [{'name': 'sirens2'}]},
+    {'name': 'training',         'match': [{'name': 'training'}]},
     {'name': 'georgiou',         'match': [{'name': 'georgiou'}]},
     {'name': 'flashfiction',     'match': [{'name': 'flashfiction'}]},
     {'name': 'memsearch',        'match': [{'name': 'memsearch'}]},
@@ -4928,6 +4935,105 @@ def _benchmark_rated_status(item, username):
     return 'rated' if (st['first'] == 'complete' and st['second'] == 'complete') else 'in_progress'
 
 
+# --- Training check (admin) ------------------------------------------------
+# /admin/check compares each rater's first-pass work on the training recalls
+# against answer keys under BENCHMARK_TRAINING_KEY_DIR. A key file pairs with
+# the unrated item of the same filename and uses the same rated-CSV schema, so
+# both sides go through _benchmark_read_segments unchanged.
+
+def _check_match_set(matched_str):
+    """Parse a matched_event string ('0, 1') into a set of ints."""
+    out = set()
+    for part in str(matched_str or '').split(','):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.add(int(float(part)))
+        except ValueError:
+            pass
+    return out
+
+
+def _check_key_items():
+    """Training-key files paired with their unrated benchmark item (matched by
+    filename). Returns (pairs, orphans): pairs are (key_path, item) in filename
+    order; orphans are key filenames with no matching unrated item."""
+    if not BENCHMARK_TRAINING_KEY_DIR.is_dir():
+        return [], []
+    by_name = {it['matched_file'].name: it for it in _benchmark_scan()}
+    pairs, orphans = [], []
+    for key_path in sorted(BENCHMARK_TRAINING_KEY_DIR.iterdir()):
+        if not key_path.is_file() or not _BENCH_MATCHED_RE.match(key_path.name):
+            continue
+        item = by_name.get(key_path.name)
+        if item:
+            pairs.append((key_path, item))
+        else:
+            orphans.append(key_path.name)
+    return pairs, orphans
+
+
+def _check_user_item(username, item, key_segments):
+    """Compare one rater's first-pass file for ``item`` against the key.
+
+    Per segment: 'pending' (not first-pass-rated yet), 'correct' (matches and
+    tag set equal the key), 'ambiguous' (differs, but the key lists 2+ matches
+    so the admin must judge), or 'incorrect'. Tags compare presence only —
+    highlight span offsets are freeform and deliberately ignored."""
+    rated_path = _benchmark_rated_path(item, username, 1)
+    if not rated_path.exists():
+        return {'started': False, 'segments': [], 'counts': {}}
+    try:
+        rater_segments = _benchmark_read_segments(rated_path)
+    except Exception as e:
+        print(f"admin check: error reading {rated_path}: {e}")
+        return {'started': False, 'segments': [], 'counts': {}}
+
+    rows = []
+    counts = {'correct': 0, 'ambiguous': 0, 'incorrect': 0, 'pending': 0}
+    for i, key_seg in enumerate(key_segments):
+        text = str(key_seg.get('text', '')).strip()
+        if not text or text.lower() == 'nan':
+            continue  # blank recall rows are never rated
+        rater_seg = rater_segments[i] if i < len(rater_segments) else {}
+        # Comparison aligns rows by position, which is only meaningful while
+        # both files segment the recall identically. A text mismatch means the
+        # key or the unrated source changed after the other was written —
+        # refuse to compare rather than show garbage.
+        if str(rater_seg.get('text', '')).strip() != text:
+            return {'started': True, 'mismatch': True,
+                    'segments': [], 'counts': {}}
+        key_matches = _check_match_set(key_seg.get('matched_event'))
+        rater_matches = _check_match_set(rater_seg.get('matched_event'))
+        key_tags = [k for k in FURTHER_RATING_COLS if key_seg.get(k)]
+        rater_tags = [k for k in FURTHER_RATING_COLS if rater_seg.get(k)]
+        if not rater_seg.get('first_pass'):
+            status = 'pending'
+        elif rater_matches == key_matches and rater_tags == key_tags:
+            status = 'correct'
+        elif len(key_matches) > 1:
+            status = 'ambiguous'
+        else:
+            status = 'incorrect'
+        counts[status] += 1
+        rated = status != 'pending'
+        rows.append({
+            'index': i,
+            'text': text,
+            'status': status,
+            'rater_matches': sorted(rater_matches),
+            'key_matches': sorted(key_matches),
+            'matches_differ': rated and rater_matches != key_matches,
+            'rater_tags': rater_tags,
+            'key_tags': key_tags,
+            'tags_differ': rated and rater_tags != key_tags,
+            'rater_comment': rater_seg.get('comment', ''),
+            'key_comment': key_seg.get('comment', ''),
+        })
+    return {'started': True, 'segments': rows, 'counts': counts}
+
+
 @app.route('/benchmark')
 @login_required
 def benchmark_overview():
@@ -4983,6 +5089,49 @@ def admin_page():
         return redirect('/benchmark')
     return render_template('admin.html', username=ADMIN_USERNAME,
                            require_auth=REQUIRE_AUTH, version=__version__)
+
+
+@app.route('/admin/check')
+@login_required
+def admin_check_page():
+    """Training-check page: every rater's first-pass work on the training
+    recalls compared segment-by-segment against the answer keys (see
+    _check_user_item). Fully server-rendered; no API endpoint."""
+    if not _is_admin():
+        return redirect('/benchmark')
+    pairs, orphans = _check_key_items()
+    items = []
+    for key_path, item in pairs:
+        try:
+            key_segments = _benchmark_read_segments(key_path)
+        except Exception as e:
+            print(f"admin check: error reading key {key_path}: {e}")
+            orphans.append(key_path.name)
+            continue
+        items.append((item, key_segments))
+    checks = []
+    for username in sorted(load_users()):
+        if username == ADMIN_USERNAME:
+            continue
+        user_items = []
+        totals = {'correct': 0, 'ambiguous': 0, 'incorrect': 0, 'pending': 0}
+        for item, key_segments in items:
+            result = _check_user_item(username, item, key_segments)
+            result.update(sub_id=item['sub_id'], story=item['story'])
+            user_items.append(result)
+            for k, v in result['counts'].items():
+                totals[k] += v
+        # Overall score: % correct of the segments the rater has actually rated.
+        rated_total = totals['correct'] + totals['ambiguous'] + totals['incorrect']
+        score = round(100 * totals['correct'] / rated_total) if rated_total else None
+        checks.append({'username': username, 'items': user_items,
+                       'totals': totals, 'rated_total': rated_total,
+                       'score': score,
+                       'has_mismatch': any(it.get('mismatch') for it in user_items)})
+    return render_template('admin_check.html', username=ADMIN_USERNAME,
+                           require_auth=REQUIRE_AUTH, version=__version__,
+                           checks=checks, orphans=orphans,
+                           key_dir=_path_for_client(BENCHMARK_TRAINING_KEY_DIR))
 
 
 @app.route('/api/admin/users')
