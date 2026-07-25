@@ -811,7 +811,7 @@ BENCHMARK_RATED_DIR = BENCHMARK_DIR / 'rated'
 # whose filenames match unrated benchmark items (sub-X-recall-Y-matched.csv).
 BENCHMARK_TRAINING_KEY_DIR = Path(
     os.environ.get('NARRATERS_TRAINING_KEY_DIR')
-    or (WORKSPACE_ROOT / 'data' / 'benchmark' / 'training_key')
+    or (WORKSPACE_ROOT / 'benchmark' / 'training_key')
 ).expanduser().resolve()
 
 # Excel files to check for raw recall data
