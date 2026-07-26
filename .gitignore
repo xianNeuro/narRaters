@@ -22,6 +22,9 @@ data/**
 !data/3_story_events/the_siren_events.xlsx
 !data/5_recall_texts/the_siren_sub-01.txt
 !data/5_recall_texts/the_siren_sub-02.txt
+# Answer keys for the benchmark training recalls — versioned and shipped in the
+# wheel (see pyproject.toml force-include), unlike the rest of benchmark/.
+!data/benchmark/training_key/**
 output/**
 !output/**/
 !output/**/.gitkeep
@@ -94,4 +97,6 @@ narRaters_installer.app/
 # Per-step user operation logs (read-only telemetry)
 user_data/**
 
-benchmark
+# Per-deployment benchmark exchange dir (unrated/ in, rated/ out). Anchored to
+# the repo root so it does not also swallow data/benchmark/training_key.
+/benchmark

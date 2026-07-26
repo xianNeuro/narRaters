@@ -1,6 +1,6 @@
 [project]
 name = "narRaters"
-version = "0.4.0a12"
+version = "0.4.0a13"
 description = "AI-assisted narrative processing with human-screening — pipeline + web UI for audio/text narratives."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -126,6 +126,10 @@ packages = ["src/narraters"]
 "data/4_recall_audio/.gitkeep" = "narraters/data/4_recall_audio/.gitkeep"
 "data/5_recall_texts" = "narraters/data/5_recall_texts"
 "output" = "narraters/output"
+# Answer keys for the benchmark training recalls (/admin/check). Read-only, so
+# they are safe in site-packages; bundling them means a hosted install needs no
+# rsync to grade training work (see BENCHMARK_TRAINING_KEY_DIR in the server).
+"data/benchmark/training_key" = "narraters/data/benchmark/training_key"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -140,6 +144,7 @@ include = [
     "data/3_story_events",
     "data/4_recall_audio/.gitkeep",
     "data/5_recall_texts",
+    "data/benchmark/training_key",
     "output",
     "README.md",
     "LICENSE",

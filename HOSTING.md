@@ -203,6 +203,13 @@ rsync -a ./unrated/  you@HOST:/srv/narraters/benchmark/unrated/
 rsync -a you@HOST:/srv/narraters/benchmark/rated/  ./rated/
 ```
 
+Only `unrated/` (in) and `rated/` (out) need syncing. The **training answer keys
+behind `/admin/check` ship with the package** (as `data/benchmark/training_key/`),
+so there is nothing to copy for them. To use different keys, put a
+`training_key/` folder inside `<benchmark-dir>` — it takes precedence over the
+bundled copy — or point `NARRATERS_TRAINING_KEY_DIR` at a directory anywhere on
+the host, which overrides both. `/admin/check` shows which directory it read.
+
 ---
 
 ## Updating

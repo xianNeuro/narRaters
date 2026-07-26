@@ -809,10 +809,45 @@ BENCHMARK_RATED_DIR = BENCHMARK_DIR / 'rated'
 
 # Answer keys for the training recalls (see /admin/check): rated-schema CSVs
 # whose filenames match unrated benchmark items (sub-X-recall-Y-matched.csv).
-BENCHMARK_TRAINING_KEY_DIR = Path(
-    os.environ.get('NARRATERS_TRAINING_KEY_DIR')
-    or (WORKSPACE_ROOT / 'benchmark' / 'training_key')
-).expanduser().resolve()
+#
+# Unlike unrated/ and rated/, the keys are read-only and never change per
+# deployment, so they live in data/benchmark/training_key and ship inside the
+# package (see pyproject.toml force-include) — a hosted install needs no rsync
+# for them.
+_TRAINING_KEY_SUBPATH = ('data', 'benchmark', 'training_key')
+
+
+def _resolve_training_key_dir():
+    """(directory, using_bundled_copy) for the training answer keys.
+
+    Precedence: NARRATERS_TRAINING_KEY_DIR (authoritative even when missing, so
+    a typo surfaces instead of silently falling back) > a training_key/ folder
+    inside the benchmark dir (lets an admin override the keys alongside the
+    recalls they grade) > data/benchmark/training_key in the workspace (where
+    ``seed_workspace_examples`` copies the bundled data/) > the copy bundled
+    with the package. When nothing exists we still return the benchmark-dir
+    path, since that is where an admin should add keys.
+    """
+    bundled = PACKAGE_ROOT.joinpath(*_TRAINING_KEY_SUBPATH).resolve()
+    override = (os.environ.get('NARRATERS_TRAINING_KEY_DIR') or '').strip()
+    if override:
+        resolved = Path(override).expanduser().resolve()
+    else:
+        local = BENCHMARK_DIR / 'training_key'
+        candidates = (
+            local,
+            WORKSPACE_ROOT.joinpath(*_TRAINING_KEY_SUBPATH),
+            bundled,
+        )
+        hit = next((c for c in candidates if c.is_dir()), local)
+        resolved = hit.expanduser().resolve()
+    # Compare paths rather than trusting which candidate matched: after a plain
+    # ``pip install`` the workspace falls back to the package root, so the
+    # workspace candidate *is* the bundled dir.
+    return resolved, resolved == bundled
+
+
+BENCHMARK_TRAINING_KEY_DIR, BENCHMARK_TRAINING_KEY_BUNDLED = _resolve_training_key_dir()
 
 # Excel files to check for raw recall data
 EXCEL_FILES = [
@@ -4955,6 +4990,17 @@ def _check_match_set(matched_str):
     return out
 
 
+def _check_confidence(seg):
+    """First-pass confidence of a segment, as a display string ('' if unset).
+    Prefers `confidence_1` (the first-pass column) but falls back to
+    `confidence` so keys written during a second pass still show a value."""
+    for col in (BENCH_CONFIDENCE1_COL, BENCH_CONFIDENCE_COL):
+        val = seg.get(col, '')
+        if val != '' and val is not None:
+            return str(val)
+    return ''
+
+
 def _check_key_items():
     """Training-key files paired with their unrated benchmark item (matched by
     filename). Returns (pairs, orphans): pairs are (key_path, item) in filename
@@ -5028,6 +5074,9 @@ def _check_user_item(username, item, key_segments):
             'rater_tags': rater_tags,
             'key_tags': key_tags,
             'tags_differ': rated and rater_tags != key_tags,
+            # Shown for context only — never folded into the status/score.
+            'rater_confidence': _check_confidence(rater_seg),
+            'key_confidence': _check_confidence(key_seg),
             'rater_comment': rater_seg.get('comment', ''),
             'key_comment': key_seg.get('comment', ''),
         })
@@ -5131,7 +5180,10 @@ def admin_check_page():
     return render_template('admin_check.html', username=ADMIN_USERNAME,
                            require_auth=REQUIRE_AUTH, version=__version__,
                            checks=checks, orphans=orphans,
-                           key_dir=_path_for_client(BENCHMARK_TRAINING_KEY_DIR))
+                           key_dir=_path_for_client(BENCHMARK_TRAINING_KEY_DIR),
+                           key_dir_bundled=BENCHMARK_TRAINING_KEY_BUNDLED,
+                           key_dir_local=_path_for_client(
+                               BENCHMARK_DIR / 'training_key'))
 
 
 @app.route('/api/admin/users')

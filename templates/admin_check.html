@@ -294,6 +294,12 @@
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
       }
+      /* Confidence is context only: never tinted or flagged like the
+         match/tag columns. */
+      td.conf {
+        text-align: center;
+        color: var(--t2);
+      }
       td.comment {
         min-width: 200px;
         max-width: 340px;
@@ -380,8 +386,12 @@
       {% elif checks and not checks[0]["items"] %}
       <div class="card">
         <div class="empty">
-          No training keys found under {{ key_dir }} — add
-          sub-&lt;id&gt;-recall-&lt;story&gt;-matched.csv files there.
+          {% if key_dir_bundled %} No training keys matched. The keys bundled
+          with narRaters live in {{ key_dir }}; to use your own instead, add
+          sub-&lt;id&gt;-recall-&lt;story&gt;-matched.csv files under {{
+          key_dir_local }}. {% else %} No training keys found under {{ key_dir
+          }} — add sub-&lt;id&gt;-recall-&lt;story&gt;-matched.csv files there.
+          {% endif %}
         </div>
       </div>
       {% endif %} {% for rater in checks %}
@@ -439,6 +449,8 @@
                 <th>Key matches</th>
                 <th>Rater tags</th>
                 <th>Key tags</th>
+                <th>Rater conf.</th>
+                <th>Key conf.</th>
                 <th>Rater comment</th>
                 <th>Key comment</th>
               </tr>
@@ -456,6 +468,8 @@
                   {{ seg.rater_tags | join(", ") or "—" }}
                 </td>
                 <td>{{ seg.key_tags | join(", ") or "—" }}</td>
+                <td class="nums conf">{{ seg.rater_confidence or "—" }}</td>
+                <td class="nums conf">{{ seg.key_confidence or "—" }}</td>
                 <td class="comment">{{ seg.rater_comment }}</td>
                 <td class="comment">{{ seg.key_comment }}</td>
               </tr>
