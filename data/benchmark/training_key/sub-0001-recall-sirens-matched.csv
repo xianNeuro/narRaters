@@ -17,7 +17,7 @@ recall_segment,recall_text,story_segments,summary,meta,comment,confidence,confid
 15,"so Nico then said, let's go in,",6,,,"Matchable inaccuracy: Iris said this, not Nico",,5,TRUE,
 16,"and everybody was like, what?",,,,,,5,TRUE,
 17,"And then Nico was like, investigate.",6,,,"Matchable inaccuracy: Again, this was Iris",,5,TRUE,
-18,"So, on Monday they observe,",7,,,Matchable inaccuracy: They mapped the fence on Monday and found the spot with a treeâ may not exactly be 'observe'.,,5,TRUE,
+18,"So, on Monday they observe,",7,,,Matchable inaccuracy: They mapped the fence on Monday and found the spot with a tree may not exactly be 'observe'.,,5,TRUE,
 19,on Tuesday they observe.,7,,,Matchable inaccuracy: They distracted the camera on Tuesday,,5,TRUE,
 20,"On Wednesday they went in,",7,,,,,5,TRUE,
 21,"so they go in,",7,,,,,5,TRUE,
