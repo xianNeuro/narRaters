@@ -10,18 +10,27 @@ Then open browser to: http://127.0.0.1:5000/pipeline-config
 # Defer pandas import (saves ~15s startup). Module __getattr__ does not run for `pd` inside
 # this file's functions (LOAD_GLOBAL only sees the module dict), so we use a tiny proxy that
 # replaces itself with the real pandas module on first attribute access.
-import os
-import sys
-import re
-from pathlib import Path
-from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request, send_file, redirect, session, g
 import json
-import shutil
-import hashlib
+import os
+import re
 import secrets
+import shutil
+import sys
 import threading
+from datetime import datetime, timedelta
 from functools import wraps
+from pathlib import Path
+
+from flask import (
+    Flask,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+)
 
 
 class _LazyPandas:
@@ -55,7 +64,10 @@ WORKSPACE_ROOT = resolve_runtime_project_root(script_dir=SCRIPT_DIR)
 PROJECT_ROOT = WORKSPACE_ROOT
 SCRIPTS_DIR = PACKAGE_ROOT / "scripts"
 
-from helpers.anthropic_ids import DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL, provider_for_model
+from helpers.anthropic_ids import (
+    DEFAULT_ANTHROPIC_RECALL_MATCH_MODEL,
+    provider_for_model,
+)
 from helpers.feedback_links import (
     BUG_ISSUE_URL,
     DISCUSSIONS_URL,
@@ -64,19 +76,10 @@ from helpers.feedback_links import (
     REPO_URL,
 )
 from helpers.step_types import (
-    AUDIO_TRANSCRIBE,
-    CAUSAL_RATING,
-    EVENT_SEGMENT,
-    SENTENCE_CORRECT,
-    TEXT_MATCHING,
-    TEXT_PARSING,
-    audio_scope_for_step,
     normalize_pipeline_config,
     normalize_pipeline_step,
-    normalize_step_type,
     step_runtime_key,
 )
-
 
 # Run pipeline subprocesses from the data workspace; serve UI assets from PACKAGE_ROOT.
 os.chdir(str(WORKSPACE_ROOT))
@@ -392,6 +395,7 @@ _migrate_legacy_pipeline_config_once()
 # ``narraters.accounts`` so the CLI (``narraters users ...``) can reuse them
 # without importing this Flask server module. Imported under the historical
 # names so the rest of this file is unchanged.
+from narraters import __version__  # noqa: E402
 from narraters.accounts import (  # noqa: E402
     add_user,
     get_batch_visibility,
@@ -399,15 +403,11 @@ from narraters.accounts import (  # noqa: E402
     is_safe_username,
     load_users,
     remove_user,
-    save_users,
     set_batch_visible,
     set_benchmark_pass,
     set_password,
-    hash_password,
-    verify_password,
     verify_user,
 )
-from narraters import __version__  # noqa: E402
 
 
 def get_users():
@@ -2921,7 +2921,7 @@ def _try_read_story_events_from_paths(paths):
         if not fp.exists():
             continue
         try:
-            from helpers.flexible_io import read_tabular, normalize_story_events_df
+            from helpers.flexible_io import normalize_story_events_df, read_tabular
             df = normalize_story_events_df(read_tabular(fp))
             result = _read_story_events_dataframe(df)
             if result:
@@ -2933,7 +2933,11 @@ def _try_read_story_events_from_paths(paths):
 
 def _story_events_paths_candidate_list(base_id, file_version, min_event_count, events_dir):
     """Ordered candidate paths for story events in one directory (same order as load logic)."""
-    from helpers.flexible_io import STORY_EVENTS_EXTENSIONS, read_tabular, normalize_story_events_df
+    from helpers.flexible_io import (
+        STORY_EVENTS_EXTENSIONS,
+        normalize_story_events_df,
+        read_tabular,
+    )
 
     event_filename_base = f"{base_id}_events"
     paths_to_try = []
@@ -3256,7 +3260,10 @@ def get_story_events(item_id, file_version=None, is_story=False, min_event_count
             file_path = events_dir / fn
             if file_path.exists() and is_story_events_filename(fn):
                 try:
-                    from helpers.flexible_io import read_tabular, normalize_story_events_df
+                    from helpers.flexible_io import (
+                        normalize_story_events_df,
+                        read_tabular,
+                    )
                     df = normalize_story_events_df(read_tabular(file_path))
                     result = _read_story_events_dataframe(df)
                     if result is not None:
@@ -3291,7 +3298,10 @@ def _auto_rate_parsed_df(subj_id, parsed_df):
     story_file = _resolve_story_events_file_for_rating(subj_id)
     if not story_file:
         return None
-    from helpers.flexible_io import order_recall_rating_columns, story_events_records_from_path
+    from helpers.flexible_io import (
+        order_recall_rating_columns,
+        story_events_records_from_path,
+    )
 
     story_events = story_events_records_from_path(story_file)
     if not story_events:
@@ -4306,24 +4316,28 @@ _BENCH_MATCHED_RE = re.compile(
 # FIRST batch is visible by default). Batches also define the display order.
 #
 # Each batch lists matchers; an item belongs to the first batch with a matcher
-# it satisfies (all keys of a matcher must match). Matcher keys:
+# it satisfies (all keys of a matcher must match). Matchers are also listed in
+# display order: within a batch, items sort by the position of the matcher they
+# hit (georgiou before alice below), then by datasource/story/sub_id. Matcher
+# keys:
 #   'name'       — matches the story folder name OR the datasource name
 #   'datasource' — datasource name (`narraters-<datasource>-matching`)
 #   'story'      — story folder name
 #   'sub_ids'    — list of subject ids; lets one story's subjects be split
 #                  across batches, e.g. {'story': 'sirens2', 'sub_ids': [...]}
 #                  in an early batch and {'story': 'sirens2'} in a later one.
+#   'order'      — optional int overriding the matcher's list position for
+#                  sorting (lower first), when list order isn't the sort order.
 # Items matching no batch fall into an implicit trailing 'other' batch.
 BENCHMARK_BATCHES = [
-    {'name': 'training',         'match': [{'name': 'training'}]},
-    {'name': 'georgiou',         'match': [{'name': 'georgiou'}]},
-    {'name': 'flashfiction',     'match': [{'name': 'flashfiction'}]},
-    {'name': 'memsearch',        'match': [{'name': 'memsearch'}]},
-    {'name': 'monthiversary',    'match': [{'name': 'monthiversary'}]},
-    {'name': 'sherlock',         'match': [{'name': 'sherlock'}]},
-    {'name': 'alice',            'match': [{'name': 'alice'}]},
-    {'name': 'emomem',           'match': [{'name': 'emomem'}]},
-    {'name': 'eternal_sunshine', 'match': [{'name': 'eternal_sunshine'}]},
+    {'name': '0 - training',                    'match': [{'name': 'training'}]},
+    {'name': '1 - short & medium reading',      'match': [{'name': 'georgiou'}, {'name': 'alice'}]},
+    {'name': '2 - long movie',                  'match': [{'name': 'sherlock'}]},
+    {'name': '3 - medium listening',            'match': [{'name': 'flashfiction'}, {'name': 'pieman'}]},
+    {'name': '4 - long reading & short movies', 'match': [{'name': 'monthiversary'}, {'name': 'memsearch'}]},
+    {'name': '5 - long listening',              'match': [{'name': 'emomem'}]},
+    {'name': '6 - short listening',             'match': [{'name': 'flashrecall'}]},
+    {'name': '7 - long movie 2',                'match': [{'name': 'eternal_sunshine'}]},
 ]
 BENCHMARK_OTHER_BATCH = 'other'
 
@@ -4342,11 +4356,18 @@ def _benchmark_matcher_hits(matcher, item):
 
 
 def _benchmark_batch_for(item):
-    """Name of the first batch in BENCHMARK_BATCHES that matches ``item``."""
+    """Batch name + within-batch rank for ``item``.
+
+    The batch is the first one in BENCHMARK_BATCHES with a matcher ``item``
+    satisfies; the rank is that matcher's position in the batch's 'match' list
+    (or its explicit 'order' key), so items sort in the order their matchers are
+    listed, e.g. [{'name': 'georgiou'}, {'name': 'alice'}] puts georgiou first.
+    """
     for batch in BENCHMARK_BATCHES:
-        if any(_benchmark_matcher_hits(m, item) for m in batch['match']):
-            return batch['name']
-    return BENCHMARK_OTHER_BATCH
+        for i, matcher in enumerate(batch['match']):
+            if _benchmark_matcher_hits(matcher, item):
+                return batch['name'], matcher.get('order', i)
+    return BENCHMARK_OTHER_BATCH, 0
 
 
 def _benchmark_batch_index(batch_name):
@@ -4392,8 +4413,8 @@ def _benchmark_scan():
 
     Layout: unrated/<ds_dir>/<story>/matches/<sub>-recall-<story>-matched.csv
     Returns a list of item dicts (id, ds_dir, datasource, story, sub_id, batch,
-    matched_file, segmented_file), ordered by BENCHMARK_BATCHES, then by
-    datasource, story, sub_id.
+    matched_file, segmented_file, batch_rank), ordered by BENCHMARK_BATCHES,
+    then by matcher order within the batch, then by datasource, story, sub_id.
     """
     items = []
     if not BENCHMARK_UNRATED_DIR.is_dir():
@@ -4420,10 +4441,11 @@ def _benchmark_scan():
                     'matched_file': mf,
                     'segmented_file': segmented,
                 }
-                item['batch'] = _benchmark_batch_for(item)
+                item['batch'], item['batch_rank'] = _benchmark_batch_for(item)
                 items.append(item)
 
     items.sort(key=lambda it: (_benchmark_batch_index(it['batch']),
+                               it['batch_rank'],
                                it['datasource'], it['story'], it['sub_id']))
     return items
 
@@ -4616,7 +4638,7 @@ def _benchmark_story_events(path):
     if not path or not Path(path).exists():
         return []
     try:
-        from helpers.flexible_io import read_tabular, normalize_story_events_df
+        from helpers.flexible_io import normalize_story_events_df, read_tabular
         df = normalize_story_events_df(read_tabular(path))
         return _read_story_events_dataframe(df) or []
     except Exception as e:
@@ -4914,7 +4936,7 @@ def _benchmark_pass_col_state(rated_path, col):
     if not rated_path.exists():
         return 'none'
     try:
-        from helpers.flexible_io import read_tabular, read_parsed_recall_file
+        from helpers.flexible_io import read_parsed_recall_file, read_tabular
         raw = read_tabular(rated_path).reset_index(drop=True)
         if len(raw) == 0 or col not in raw.columns:
             return 'none'
@@ -5885,10 +5907,9 @@ def get_story_matrix_plot(story_name):
 def get_matrix_plot_impl(item_id, is_story=False):
     """Generate matrix plot visualization for recall rating step."""
     try:
-        import sys
-        import io
         import base64
-        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import io
+        import sys
         
         story_events_file, recall_fv, _story_tf, _causal_rf = _parse_file_version_query_args()
         
@@ -5974,7 +5995,6 @@ def get_matrix_plot_impl(item_id, is_story=False):
         import matplotlib
         matplotlib.use('Agg')  # Use non-interactive backend
         import matplotlib.pyplot as plt
-        import numpy as np
         
         fig, ax = plt.subplots(1, 1, figsize=(12, 8))
         
@@ -6205,7 +6225,10 @@ def _capture_tabular_schema(path):
     """
     try:
         from helpers.flexible_io import (
-            read_tabular, detect_parsed_recall_columns, _norm_name, _NON_RATING_COL_NAMES,
+            _NON_RATING_COL_NAMES,
+            _norm_name,
+            detect_parsed_recall_columns,
+            read_tabular,
         )
         raw = read_tabular(path)
         cols = [str(c) for c in raw.columns]
@@ -6685,7 +6708,7 @@ def save_parsed_segments(subj_id):
                 csv_path = file_path.with_suffix('.csv')
                 new_df.to_csv(csv_path, index=False, encoding='utf-8', na_rep='')
                 return jsonify({'error': f'Failed to save as Excel (file may be locked), saved as CSV instead: {csv_path.name}'}), 500
-            except Exception as csv_error:
+            except Exception:
                 return jsonify({'error': f'Failed to save: {error_msg}'}), 500
         
         print(f"Saved {len(new_df)} segments to {file_path}")
@@ -6812,7 +6835,7 @@ def save_story_events(subj_id):
                 csv_path = file_path.with_suffix('.csv')
                 new_df.to_csv(csv_path, index=False, encoding='utf-8', na_rep='')
                 return jsonify({'error': f'Failed to save as Excel (file may be locked), saved as CSV instead: {csv_path.name}'}), 500
-            except Exception as csv_error:
+            except Exception:
                 return jsonify({'error': f'Failed to save: {error_msg}'}), 500
         
         print(f"Saved {len(new_df)} story events to {file_path}")
@@ -6872,7 +6895,7 @@ def save_causal_matrix(story_name):
                 print(f"save_causal_matrix: REJECTED output_path={output_path_str!r}")
                 return jsonify({'error': f'Invalid output path (must be under project root): {output_path_str[:80]}'}), 400
         else:
-            print(f"save_causal_matrix: no output_path in request, using default")
+            print("save_causal_matrix: no output_path in request, using default")
         if file_path is None:
             causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
             causal_dir.mkdir(parents=True, exist_ok=True)
@@ -6933,7 +6956,7 @@ def save_causal_matrix(story_name):
                 norm.append({c: r.get(c) for c in export_cols})
             try:
                 _save_nested_combined_xlsx(file_path, norm, export_cols)
-            except Exception as e:
+            except Exception:
                 csv_path = file_path.with_suffix('.csv')
                 pd.DataFrame(norm).reindex(columns=export_cols).to_csv(csv_path, index=False, encoding='utf-8', na_rep='')
                 return jsonify({'error': f'Failed to save as Excel, saved as CSV: {csv_path.name}'}), 500
@@ -6995,7 +7018,7 @@ def save_causal_matrix(story_name):
                         _merge_event_hierarchy_coarse_cells(ws, len(hdf))
             else:
                 df.to_excel(file_path, index=False, engine='openpyxl', na_rep='')
-        except Exception as e:
+        except Exception:
             csv_path = file_path.with_suffix('.csv')
             df.to_csv(csv_path, index=False, encoding='utf-8', na_rep='')
             return jsonify({'error': f'Failed to save as Excel, saved as CSV: {csv_path.name}'}), 500
@@ -7737,9 +7760,9 @@ def process_files():
             return jsonify({'success': False, 'error': f'Script not found: {script_name}'}), 404
         
         # Run the script with proper single-file processing
+        import os
         import subprocess
         import sys
-        import os
         
         env = os.environ.copy()
         env['BATCH_STEP_TYPE'] = step_type
@@ -7916,7 +7939,7 @@ def get_input_files(item_id, step_index):
         print(f"DEBUG: get_input_files called with item_id={item_id}, step_index={step_index}")
         pipeline_config = get_pipeline_config()
         if not pipeline_config or not pipeline_config.get('steps'):
-            print(f"DEBUG: No pipeline config found")
+            print("DEBUG: No pipeline config found")
             return jsonify({'success': False, 'error': 'Pipeline configuration not found'}), 400
         
         if step_index < 0 or step_index >= len(pipeline_config['steps']):
@@ -7930,7 +7953,7 @@ def get_input_files(item_id, step_index):
         print(f"DEBUG: step_type={step_type}, input_path={input_path}")
         
         if not input_path:
-            print(f"DEBUG: No input path configured")
+            print("DEBUG: No input path configured")
             return jsonify({'success': True, 'files': []})
         
         input_path = input_path.rstrip('/')
@@ -7939,7 +7962,7 @@ def get_input_files(item_id, step_index):
         print(f"DEBUG: Resolved input_path_obj={input_path_obj}, exists={input_path_obj.exists()}")
         
         if not input_path_obj.exists():
-            print(f"DEBUG: Input path does not exist")
+            print("DEBUG: Input path does not exist")
             return jsonify({'success': True, 'files': []})
         
         # Check if input_path is a file or directory
@@ -7950,7 +7973,7 @@ def get_input_files(item_id, step_index):
             # For sentenceCorrect with Excel input, the file contains multiple subjects
             # So if the file exists, it's available for all items
             if step_type == 'sentenceCorrect' and input_path_obj.suffix.lower() in ['.xlsx', '.xls']:
-                print(f"DEBUG: Excel file input for sentenceCorrect, returning file for all items")
+                print("DEBUG: Excel file input for sentenceCorrect, returning file for all items")
                 return jsonify({
                     'success': True,
                     'files': [{
@@ -8302,7 +8325,7 @@ def get_input_files(item_id, step_index):
                                 'size': story_file.stat().st_size
                             })
                             print(f"DEBUG: Added story events file: {story_file.name}")
-                        except Exception as e:
+                        except Exception:
                             files.append({
                                 'name': story_file.name,
                                 'path': _path_for_client(story_file),
@@ -8333,7 +8356,7 @@ def get_input_files(item_id, step_index):
                                         print(f"DEBUG: Added story events file: {file_path.name}")
                                         story_file_found = True
                                         break  # Use the first matching file
-                                    except Exception as e:
+                                    except Exception:
                                         files.append({
                                             'name': file_path.name,
                                             'path': _path_for_client(file_path),
@@ -8360,7 +8383,7 @@ def get_input_files(item_id, step_index):
                 lenient_roots.append(_prev_lenient)
 
         if not files and any(d.exists() and d.is_dir() for d in lenient_roots):
-            print(f"DEBUG: No files found with patterns, trying lenient search...")
+            print("DEBUG: No files found with patterns, trying lenient search...")
             # Try to find any file that contains the item_id (case-insensitive)
             # Also try matching without underscores, and try extracting subject ID from filename
             item_id_variations = [
@@ -8771,7 +8794,7 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             })
             out_file = output_dir / f"{item_id}_parsed.xlsx"
             df.to_excel(out_file, index=False, engine='openpyxl', na_rep='')
-            return jsonify({'success': True, 'message': f'Recall text placed as single segment for manual parsing'})
+            return jsonify({'success': True, 'message': 'Recall text placed as single segment for manual parsing'})
         
         elif step_type == 'textMatching':
             # Read parsed segments and create rated file with empty event matches
@@ -8820,21 +8843,21 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
             # which keys off the {item_id}_events-*.xlsx pattern.
             out_file = output_dir / f"{item_id}_events-manual.xlsx"
             df.to_excel(out_file, index=False, engine='openpyxl')
-            return jsonify({'success': True, 'message': f'Story transcript placed as single event for manual segmentation'})
+            return jsonify({'success': True, 'message': 'Story transcript placed as single event for manual segmentation'})
         
         elif step_type == 'causalRating':
             # Create an empty causal rating scaffold file
             df = pd.DataFrame(columns=['event_A_number', 'event_B_number', 'rating', 'reasoning'])
             out_file = output_dir / f"{item_id}_causal-manual.xlsx"
             df.to_excel(out_file, index=False, engine='openpyxl', na_rep='')
-            return jsonify({'success': True, 'message': f'Empty causal rating file created for manual entry'})
+            return jsonify({'success': True, 'message': 'Empty causal rating file created for manual entry'})
         
         elif step_type in ('audioTranscribe:story', 'audioTranscribe:recall'):
             # Create an empty transcript file for the user to fill in manually
             out_file = output_dir / f"{item_id}.txt"
             with open(out_file, 'w', encoding='utf-8') as f:
                 f.write('')
-            return jsonify({'success': True, 'message': f'Empty transcript file created for manual transcription'})
+            return jsonify({'success': True, 'message': 'Empty transcript file created for manual transcription'})
         
         else:
             return jsonify({'success': False, 'error': f'Manual method not supported for step type: {step_type}'}), 400
@@ -8850,12 +8873,13 @@ def _execute_manual_step(item_id, step_type, input_path, output_path):
 @app.route('/api/item/<item_id>/step/<int:step_index>/execute', methods=['POST'])
 def execute_step(item_id, step_index):
     """Execute a single step for a specific item - works exactly like batch_process but for one item."""
-    print(f"=== EXECUTE STEP ROUTE HIT ===")
+    print("=== EXECUTE STEP ROUTE HIT ===")
     print(f"DEBUG: execute_step called with item_id='{item_id}', step_index={step_index}")
     try:
+        import os
         import subprocess
         import sys
-        import os
+
         from flask import request
         
         # Get request data (method, API key, and step options)
@@ -9183,13 +9207,13 @@ def handle_404(e):
     """Handle 404 errors and log the requested URL."""
     try:
         print(f"\n{'='*70}")
-        print(f"=== 404 ERROR ===")
+        print("=== 404 ERROR ===")
         if hasattr(request, 'url'):
             print(f"Requested URL: {request.url}")
             print(f"Request path: {request.path}")
             print(f"Request method: {request.method}")
             print(f"Request args: {dict(request.args)}")
-        print(f"\nAvailable routes containing 'execute' or 'item':")
+        print("\nAvailable routes containing 'execute' or 'item':")
         for rule in app.url_map.iter_rules():
             if 'execute' in rule.rule.lower() or 'item' in rule.rule.lower():
                 print(f"  {rule.rule} -> {rule.endpoint} {list(rule.methods)}")
@@ -9236,7 +9260,7 @@ def handle_500(e):
             error_message = 'An internal server error occurred'
         
         print(f"\n{'='*70}")
-        print(f"=== 500 ERROR ===")
+        print("=== 500 ERROR ===")
         if hasattr(request, 'url'):
             print(f"Requested URL: {request.url}")
             print(f"Request path: {request.path}")
