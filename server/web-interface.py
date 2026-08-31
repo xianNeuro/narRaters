@@ -4335,9 +4335,9 @@ BENCHMARK_BATCHES = [
     {'name': '2 - long movie',                  'match': [{'name': 'sherlock'}]},
     {'name': '3 - medium listening',            'match': [{'name': 'flashfiction'}, {'name': 'pieman'}]},
     {'name': '4 - long reading & short movies', 'match': [{'name': 'monthiversary'}, {'name': 'memsearch'}]},
-    {'name': '5 - long listening',              'match': [{'name': 'emomem'}]},
-    {'name': '6 - short listening',             'match': [{'name': 'flashrecall'}]},
-    {'name': '7 - long movie 2',                'match': [{'name': 'eternal_sunshine'}]},
+    {'name': '5 - long movie 2',                'match': [{'name': 'eternal_sunshine'}]},
+    {'name': '6 - long listening',              'match': [{'name': 'emomem'}]},
+    {'name': '7 - short listening',             'match': [{'name': 'short_librivox'}]},
 ]
 BENCHMARK_OTHER_BATCH = 'other'
 
