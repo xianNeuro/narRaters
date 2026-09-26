@@ -962,6 +962,79 @@ def expand_story_event_file_bases(item_id):
     return out
 
 
+def _split_causal_rating_stem(stem, item_id):
+    """Decompose a causal-rating filename stem for ``item_id``.
+
+    Returns ``(events_suffix, causal_rest)`` or ``None`` when the stem does not
+    belong to this item. Two layouts are accepted (``{base}`` is any alias from
+    :func:`expand_story_event_file_bases`):
+
+    * canonical  ``{base}_causal[-<method>...]``
+      -> ``('', '-<method>...')``
+    * events-prefixed export
+      ``{base}_events[-<seg-version>...][_{base}]_causal[-<method>...]``
+      -> ``('-<seg-version>...', '-<method>...')``
+
+    The second form is what :func:`get_default_export_path` writes for the causal
+    step, so human-edited ratings are only discoverable if we accept it.
+    """
+    stem = str(stem)
+    for base in expand_story_event_file_bases(item_id):
+        if not base:
+            continue
+        # canonical: {base}_causal, {base}_causal-..., {base}_causal_...
+        if stem == f"{base}_causal" or stem.startswith(f"{base}_causal-") or stem.startswith(f"{base}_causal_"):
+            return '', stem[len(base) + len('_causal'):]
+        # events-prefixed: {base}_events...  ..._causal...
+        ev_head = f"{base}_events"
+        if stem.startswith(ev_head):
+            remainder = stem[len(ev_head):]
+            if remainder and remainder[0] not in '-_':
+                continue  # e.g. "angela_eventsX" – not this item's events file
+            idx = remainder.find('_causal')
+            if idx < 0:
+                continue
+            ev_suffix, rest = remainder[:idx], remainder[idx + len('_causal'):]
+            if rest and rest[0] not in '-_':
+                continue
+            # Exports repeat the item id right before "_causal"; drop it from the events tag.
+            for b2 in expand_story_event_file_bases(item_id):
+                if b2 and ev_suffix.endswith(f"_{b2}"):
+                    ev_suffix = ev_suffix[: -(len(b2) + 1)]
+                    break
+            return ev_suffix, rest
+    return None
+
+
+def is_causal_rating_file_for_item(filename, item_id):
+    """True if ``filename`` is a causal-rating .xlsx belonging to ``item_id``."""
+    p = Path(str(filename))
+    if p.suffix.lower() != '.xlsx':
+        return False
+    return _split_causal_rating_stem(p.stem, item_id) is not None
+
+
+def list_causal_rating_files(causal_dir, item_id):
+    """All causal-rating ``.xlsx`` files for ``item_id`` in ``causal_dir``, newest first.
+
+    Accepts both the canonical ``{id}_causal*.xlsx`` names and the events-prefixed
+    names produced by the export path builder
+    (``{id}_events-..._causal-..._{rater}-edit.xlsx``).
+    """
+    if not causal_dir or not _dir_exists_cached(causal_dir):
+        return []
+    seen = set()
+    out = []
+    for f in glob_files_in_dir(causal_dir, '*.xlsx'):
+        if f.name in seen or f.name.startswith('~$'):
+            continue
+        if is_causal_rating_file_for_item(f.name, item_id):
+            seen.add(f.name)
+            out.append(f)
+    out.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return out
+
+
 # ------------------------------------------------------------------
 # Per-step input-variant enumeration (for the launcher dropdown UI).
 # ------------------------------------------------------------------
@@ -1891,15 +1964,8 @@ def check_step_status(item_id, step_config, is_story=False):
         return False
     elif step_type == 'causalRating':
         if output_dir and _dir_exists_cached(output_dir):
-            patterns = [
-                f"{item_id}_causal-*.xlsx",
-                f"{item_id}_causal.xlsx",
-                f"*{item_id}*_causal-*.xlsx",
-                f"*{item_id}*_causal.xlsx",
-            ]
-            for pattern in patterns:
-                matching_files = [f for f in cached_glob(output_dir, pattern) if not is_user_edit_file(f.name)]
-                if matching_files:
+            for f in list_causal_rating_files(output_dir, item_id):
+                if not is_user_edit_file(f.name):
                     return True
         return False
     
@@ -2427,8 +2493,7 @@ def get_available_file_versions(subj_id, is_story=False):
     # Causal ratings: list all causal rating output files
     causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
     if causal_dir and causal_dir.exists():
-        causal_files = sorted(causal_dir.glob(f"{subj_id}_causal*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
-        for cf in causal_files:
+        for cf in list_causal_rating_files(causal_dir, subj_id):
             versions['causal'].append({
                 'filename': cf.name,
                 'label': _format_causal_file_label(cf.name, subj_id),
@@ -2471,33 +2536,54 @@ def _format_event_file_label(filename, item_id):
 
 
 def _format_causal_file_label(filename, item_id):
-    """Create a human-readable label from a causal rating file name."""
+    """Create a human-readable label from a causal rating file name.
+
+    Handles both ``{id}_causal-<method>[_{user}-edit].xlsx`` and the events-prefixed
+    export names ``{id}_events-<seg>[_{id}]_causal-<method>_causal-rating[_{user}-edit].xlsx``;
+    for the latter the story-events version is appended in brackets so different
+    segmentations of the same story are distinguishable in the dropdown.
+    """
     stem = Path(filename).stem
-    suffix = stem.replace(f'{item_id}_causal', '')
-    if not suffix:
-        return 'Causal (default)'
-    suffix = suffix.lstrip('-').lstrip('_')
-    if not suffix:
-        return 'Causal (default)'
     edit_user = extract_edit_username(filename)
     if edit_user:
-        base = suffix.replace(f'_{edit_user}-edit', '').replace('_', ' ').replace('-', ' ').strip()
-        return f'{base} ({edit_user} edit)' if base else f'{edit_user} (edit)'
+        stem = re.sub(rf'_{re.escape(edit_user)}-edit$', '', stem)
+
+    split = _split_causal_rating_stem(stem, item_id)
+    if split is not None:
+        ev_suffix, suffix = split
+    else:
+        ev_suffix, suffix = '', stem.replace(f'{item_id}_causal', '')
+
+    suffix = suffix.lstrip('-').lstrip('_')
+    # "_causal-rating" is the marker the export path builder appends to human
+    # edits; it carries no method information, so drop it from the label.
+    suffix = re.sub(r'_causal-rating$', '', suffix)
+    events_tag = ev_suffix.lstrip('-').lstrip('_')
+
+    def _finish(label):
+        if edit_user:
+            label = f'{label} ({edit_user} edit)'
+        if events_tag:
+            label = f'{label} [events: {events_tag}]'
+        return label
+
+    if not suffix:
+        return _finish('Causal (default)')
     label_map = {
         'manual': 'Manual',
         'linguistic': 'Linguistic',
     }
     key = suffix.lower()
     if key in label_map:
-        return label_map[key]
+        return _finish(label_map[key])
     if key.startswith('api'):
         model_part = key.replace('api_', '').replace('api', '').strip()
-        return f'API ({model_part})' if model_part else 'API'
+        return _finish(f'API ({model_part})' if model_part else 'API')
     trial_match = re.match(r'^(.+?)_trial(\d+)$', key)
     if trial_match:
         base_label = label_map.get(trial_match.group(1), trial_match.group(1).replace('_', ' ').title())
-        return f'{base_label} (trial {trial_match.group(2)})'
-    return suffix.replace('_', ' ').replace('-', ' ').title()
+        return _finish(f'{base_label} (trial {trial_match.group(2)})')
+    return _finish(suffix.replace('_', ' ').replace('-', ' ').title())
 
 
 def _story_transcript_glob_patterns(item_id, is_story=False):
@@ -3517,11 +3603,14 @@ def _merge_event_hierarchy_coarse_cells(worksheet, n_data_rows):
         worksheet.merge_cells(start_row=block_start, start_column=2, end_row=n_data_rows + 1, end_column=2)
 
 
-def get_causal_ratings(item_id, file_version=None):
+def get_causal_ratings(item_id, file_version=None, story_events_file=None):
     """Get causal rating data for a story.
     Loads the most recent causal rating file and returns it as an N×N matrix.
     Returns dict with 'matrix' (2D array), 'event_count', and 'source_file', or None.
     file_version: specific .xlsx filename, or None (auto-select).
+    story_events_file: the story-events .xlsx selected in the UI (optional). When
+        auto-selecting, causal files whose embedded events prefix matches this
+        segmentation version are preferred over files rated against other versions.
     """
     causal_dir = get_output_dir_for_step_type('causalRating') or CAUSAL_RATED_DIR
     if not causal_dir or not causal_dir.exists():
@@ -3532,13 +3621,27 @@ def get_causal_ratings(item_id, file_version=None):
         if not best_file.exists():
             return None
     else:
-        patterns = [
-            f"{item_id}_causal-*.xlsx",
-            f"{item_id}_causal.xlsx",
-        ]
-        files = []
-        for pattern in patterns:
-            files.extend(list(causal_dir.glob(pattern)))
+        files = list_causal_rating_files(causal_dir, item_id)
+
+        # Prefer ratings made against the currently selected story-events version.
+        if files and story_events_file and str(story_events_file).endswith('.xlsx'):
+            ev_stem = re.sub(r'_\w+-edit$', '', Path(str(story_events_file)).stem)
+            ev_split = None
+            if '_events' in ev_stem:
+                _left, _right = ev_stem.split('_events', 1)
+                ev_split = _right
+            if ev_split is not None:
+                matched = []
+                for f in files:
+                    sp = _split_causal_rating_stem(f.stem, item_id)
+                    # Keep files rated against this segmentation, plus canonical
+                    # script outputs ({id}_causal-<method>.xlsx) which carry no
+                    # events tag and so cannot be ruled out.
+                    if sp is not None and sp[0] in ('', ev_split):
+                        matched.append(f)
+                if matched:
+                    files = matched
+
         edit_files = [f for f in files if is_user_edit_file(f.name)]
         non_edit_files = [f for f in files if not is_user_edit_file(f.name)]
 
@@ -4080,7 +4183,7 @@ def api_subject(subj_id):
     if not causal_rating_file and recall_fv and str(recall_fv).endswith('.xlsx') and 'causal' in str(recall_fv):
         causal_rating_file, recall_fv = recall_fv, None
 
-    cr = get_causal_ratings(subj_id, causal_rating_file)
+    cr = get_causal_ratings(subj_id, causal_rating_file, story_events_file=story_events_file)
     source_file = (cr.get('source_file', '') or '') if cr else ''
     
     story_events = get_story_events(subj_id, story_events_file, is_story=False)
@@ -4150,7 +4253,7 @@ def api_story(story_name):
         causal_rating_file, recall_fv = recall_fv, None
 
     min_events = 0
-    cr = get_causal_ratings(story_name, causal_rating_file)
+    cr = get_causal_ratings(story_name, causal_rating_file, story_events_file=story_events_file)
     if causal_rating_file and 'causal' in str(causal_rating_file) and cr and cr.get('pairs'):
         for p in cr['pairs']:
             min_events = max(min_events, p.get('event_A', 0), p.get('event_B', 0))
@@ -7087,6 +7190,10 @@ def get_output_files(item_id, step_index):
         
         for pattern in patterns:
             matching_files = list(output_dir.glob(pattern))
+            if step_type == 'causalRating':
+                # Also pick up human-edited exports, which carry the story-events
+                # prefix ("{id}_events-..._causal-...") and escape the glob above.
+                matching_files.extend(list_causal_rating_files(output_dir, item_id))
             for file_path in matching_files:
                 if file_path.is_file() and file_path.name not in found_files:
                     found_files.add(file_path.name)
