@@ -2604,6 +2604,13 @@
         .br-pill-comment { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
         .br-pen { flex-shrink: 0; }
         .br-pill-x { margin-left: 6px; font-weight: 700; opacity: .85; }
+        /* pass-2 highlight pills: underline the label (in the category color, like
+           the spans they mark) so raters see these tags need a text selection */
+        .br-pill[data-hl="1"] .br-pill-label {
+            text-decoration-line: underline; text-decoration-thickness: 2px; text-underline-offset: 3px;
+            text-decoration-color: var(--hl-hex, currentColor);
+        }
+        .br-pill[data-hl="1"].on .br-pill-label { text-decoration-color: currentColor; }
         .br-hl { text-decoration-line: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
         .br-comment-box {
@@ -3225,7 +3232,9 @@
                                     ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
                                     : r.on.includes(p.cat);
                                 const x = (hl && on) ? '<span class="br-pill-x">×</span>' : '';
-                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${hl ? 1 : 0}">${p.label}${x}</span>`;
+                                const label = hl ? `<span class="br-pill-label">${p.label}</span>` : p.label;
+                                const hex = hl ? ` style="--hl-hex:${CAT_HEX[p.cat] || '#888'}"` : '';
+                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${hl ? 1 : 0}"${hex}>${label}${x}</span>`;
                             }).join('');
                         const pills = `<div class="br-pill-row">${ratingPills}${commentPill}</div>`;
                         const commentBox = r.commentOpen ? `

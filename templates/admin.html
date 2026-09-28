@@ -305,6 +305,19 @@
         white-space: nowrap;
       }
 
+      /* keep the rater-name column pinned while the batches scroll; it needs
+         an opaque background so scrolled cells don't show through */
+      #batches-table th:first-child,
+      #batches-table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        box-shadow: inset -1px 0 0 var(--bdr);
+      }
+      #batches-table td:first-child {
+        background: var(--bg1);
+      }
+
       td.batch-cell {
         vertical-align: top;
       }
