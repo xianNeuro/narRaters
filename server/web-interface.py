@@ -1007,10 +1007,11 @@ def expand_story_event_file_bases(item_id, single_story_fallback=False):
     Order is preserved so exact ids win over fallbacks. Subject ids that contain ``_sub-`` are not
     shortened by editorial rules; only story-style stems (e.g. ``pieman_edited``) gain alternates.
 
-    single_story_fallback: for recall subjects only. When the story-events folders contain
-    exactly one story (see :func:`infer_single_story_events_bases`), its stem(s) are appended
-    as last-resort bases, so recalls named without a ``{story}_sub-NN`` prefix (e.g.
-    ``P001.txt``) still link to that story. Never enable this for story items.
+    single_story_fallback: for recall subjects only. When the id carries no ``{story}_sub-NN``
+    prefix (e.g. ``P001``) and the story-events folders contain exactly one story (see
+    :func:`infer_single_story_events_bases`), its stem(s) are appended as last-resort bases
+    so the recall still links to that story. Ids that do name a story (``alice_sub-01``)
+    are never re-pointed at a different story. Never enable this for story items.
     """
     if not item_id:
         return []
@@ -1030,7 +1031,7 @@ def expand_story_event_file_bases(item_id, single_story_fallback=False):
         alt = _editorial_story_stem_alternate(b)
         if alt:
             add(alt)
-    if single_story_fallback:
+    if single_story_fallback and not get_story_name_from_subject_id(item_id):
         for b in (infer_single_story_events_bases() or []):
             add(b)
     return out

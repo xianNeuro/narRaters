@@ -1029,15 +1029,17 @@ def resolve_story_events_xlsx(subj_id: str, story_dir_arg: str = "data/3_story_e
     """Resolve path to story events Excel for a subject (story-stem filenames, multiple dirs).
 
     Bases tried, in order: the subject id, the ``{story}`` prefix of a ``{story}_sub-NN``
-    id, editorial aliases, and finally — when the search folders contain exactly one
-    story — that story's stem, so recalls named without a story prefix still match.
+    id, editorial aliases, and finally — only for ids with no story prefix, when the
+    search folders contain exactly one story — that story's stem, so recalls named
+    e.g. ``P001`` still match. Ids that name a story are never re-pointed elsewhere.
 
     Honors ``BATCH_STORY_EVENTS_VARIANT`` (env var): when set, matches
     ``{base}_events{variant}.xlsx`` exactly, with no granularity fallback.
     """
     search_dirs = iter_story_events_search_dirs(story_dir_arg)
     bases = expand_story_event_file_bases(subj_id)
-    lone = infer_single_story_events_bases(search_dirs)
+    has_story_prefix = bool(re.match(r"^(.+?)_sub-?\d+$", subj_id))
+    lone = None if has_story_prefix else infer_single_story_events_bases(search_dirs)
     if lone:
         for b in lone:
             if b not in bases:
@@ -1064,7 +1066,9 @@ def resolve_story_events_xlsx(subj_id: str, story_dir_arg: str = "data/3_story_e
     print(f"  Warning: No story events file found for subject {subj_id!r}")
     print(f"    Searched bases: {bases}")
     print(f"    Story dir argument: {story_dir_arg!r}")
-    if not lone:
+    if has_story_prefix:
+        print("    Hint: the id names a story, so a '{story}_events*' file for that story is required.")
+    elif not lone:
         print("    Hint: name recalls '{story}_sub-NN' to match '{story}_events.xlsx', or keep a "
               "single story's events file in the folder and any recall name will link to it.")
     if explicit_variant is not None:
