@@ -335,7 +335,7 @@ After [installation](#installation), place files so the paths match what you con
 |---|---|---|
 | Story transcript (text) | `data/2_story_transcript/` | `{story}.txt` — plain UTF-8 text, one story per file |
 | Story event list (pre-segmented) | `data/3_story_events/` | `{story}_events.xlsx` — columns `event`, `story_texts` |
-| Subject recall text | `data/5_recall_texts/` | `{subj_id}.txt` — e.g. `the_siren_sub-01.txt` |
+| Subject recall text | `data/5_recall_texts/` | `{story}_sub-{NN}.txt` — e.g. `the_siren_sub-01.txt`. The `{story}` prefix is how a recall is linked to `{story}_events.xlsx`; one events file serves every subject of that story. If the events folder holds only **one** story, any recall filename (e.g. `P001.txt`) is linked to it automatically. |
 | Story audio (optional, Step 1) | `data/1_story_audio/` | `.wav` / `.mp3` / `.m4a`, named by story |
 | Recall audio (optional, Step 1) | `data/4_recall_audio/` | `.wav` / `.mp3` / `.m4a`, named by subject |
 

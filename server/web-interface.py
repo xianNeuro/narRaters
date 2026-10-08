@@ -935,11 +935,82 @@ def _editorial_story_stem_alternate(stem):
     return None
 
 
-def expand_story_event_file_bases(item_id):
+# Story stems of the sample event files shipped with the repository. When a user adds
+# their own story these are ignored by the single-story fallback below, so a fresh
+# install that still carries the samples behaves as if only the user's story existed.
+_BUNDLED_SAMPLE_STORY_STEMS = frozenset({'the_siren', 'pieman_edited'})
+_STORY_EVENTS_FILE_EXTS = ('.xlsx', '.csv', '.tsv', '.xls')
+
+
+def story_stem_from_events_filename(filename):
+    """``'pieman_events-api_x_user-edit.xlsx'`` -> ``'pieman'``; None if not an events file."""
+    name = str(filename)
+    if name.startswith('~$') or name.startswith('.'):
+        return None
+    low = name.lower()
+    if not any(low.endswith(ext) for ext in _STORY_EVENTS_FILE_EXTS):
+        return None
+    if not is_story_events_filename(name):
+        return None
+    stem = Path(name).stem
+    if '_events' not in stem:
+        return None
+    left = stem.split('_events', 1)[0]
+    return left or None
+
+
+def infer_single_story_events_bases():
+    """If the story-events folders hold exactly one story, return its stem(s), else None.
+
+    "One story" is judged by distinct ``{story}`` prefixes of ``{story}_events*`` files
+    (variants, method tags and user edits of one story count once; editorial aliases
+    such as ``pieman`` / ``pieman_edited`` are grouped). Bundled sample stories are
+    ignored when any other story is present. The returned list contains every real
+    stem in the surviving group (e.g. ``['pieman', 'pieman_edited']``) so callers can
+    glob ``{base}_events*`` directly.
+    """
+    groups = {}  # normalized key -> set of real stems
+    for events_dir in iter_story_events_search_dirs():
+        for name in _list_dir_names(events_dir):
+            stem = story_stem_from_events_filename(name)
+            if not stem:
+                continue
+            key = _editorial_story_stem_alternate(stem) or stem
+            groups.setdefault(key, set()).add(stem)
+    if not groups:
+        return None
+    if len(groups) > 1:
+        user_groups = {k: v for k, v in groups.items()
+                       if not (v <= _BUNDLED_SAMPLE_STORY_STEMS)}
+        if len(user_groups) != 1:
+            return None
+        groups = user_groups
+    (stems,) = groups.values()
+    # Within the surviving group, prefer the user's own stems over a bundled alias
+    # (e.g. user ``pieman`` alongside sample ``pieman_edited``).
+    user_stems = {s for s in stems if s not in _BUNDLED_SAMPLE_STORY_STEMS}
+    return sorted(user_stems or stems)
+
+
+def infer_story_name_for_subject(subj_id):
+    """Story name for a recall subject: ``{story}_sub-NN`` prefix, else the lone story on disk, else None."""
+    derived = get_story_name_from_subject_id(subj_id)
+    if derived:
+        return derived
+    lone = infer_single_story_events_bases()
+    return lone[0] if lone else None
+
+
+def expand_story_event_file_bases(item_id, single_story_fallback=False):
     """Basenames used to find ``{base}_events*.xlsx``: id, derived story name, editorial aliases.
 
     Order is preserved so exact ids win over fallbacks. Subject ids that contain ``_sub-`` are not
     shortened by editorial rules; only story-style stems (e.g. ``pieman_edited``) gain alternates.
+
+    single_story_fallback: for recall subjects only. When the story-events folders contain
+    exactly one story (see :func:`infer_single_story_events_bases`), its stem(s) are appended
+    as last-resort bases, so recalls named without a ``{story}_sub-NN`` prefix (e.g.
+    ``P001.txt``) still link to that story. Never enable this for story items.
     """
     if not item_id:
         return []
@@ -959,6 +1030,9 @@ def expand_story_event_file_bases(item_id):
         alt = _editorial_story_stem_alternate(b)
         if alt:
             add(alt)
+    if single_story_fallback:
+        for b in (infer_single_story_events_bases() or []):
+            add(b)
     return out
 
 
@@ -1132,7 +1206,7 @@ def _resolve_stream_dir(step_inputPath, stream_key, item_id, step=None):
     return _resolve_path_from_config(step_inputPath)
 
 
-def _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key):
+def _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key, single_story_fallback=False):
     """Return a list of variant-suffix strings present for one item in one stream.
 
     Variant semantics:
@@ -1146,8 +1220,9 @@ def _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key):
         return []
 
     if stream_key == 'story_events':
-        # Use basename expansion: try item_id, then derived story name + editorial aliases.
-        bases = expand_story_event_file_bases(item_id)
+        # Use basename expansion: try item_id, then derived story name + editorial aliases
+        # (+ the lone story on disk, for recall subjects).
+        bases = expand_story_event_file_bases(item_id, single_story_fallback=single_story_fallback)
     else:
         bases = [item_id]
 
@@ -1216,12 +1291,17 @@ def enumerate_step_input_variants(step_type, item_ids, step_inputPath, step=None
     if not stream_defs or not item_ids:
         return {'streams': []}
 
+    # Story-events lookups for recall subjects (textMatching) may fall back to the
+    # lone story on disk; story-level steps (causalRating) must not.
+    subject_level = step_type not in ('audioTranscribe:story', 'eventSegment', 'causalRating')
+
     out_streams = []
     for stream_key, stream_label, env_var, ext, tail_pat in stream_defs:
         per_item_variants = {}  # item_id -> set[str]
         for item_id in item_ids:
             stream_dir = _resolve_stream_dir(step_inputPath, stream_key, item_id, step=step)
-            found = _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key)
+            found = _scan_variants_for_item(stream_dir, item_id, ext, tail_pat, stream_key,
+                                            single_story_fallback=subject_level)
             per_item_variants[item_id] = set(found)
 
         # Intersection
@@ -2477,8 +2557,10 @@ def get_available_file_versions(subj_id, is_story=False):
     for events_dir in iter_story_events_search_dirs():
         if not events_dir or not events_dir.exists():
             continue
-        for base in expand_story_event_file_bases(subj_id):
+        for base in expand_story_event_file_bases(subj_id, single_story_fallback=not is_story):
             for ef in events_dir.glob(f"{base}_events*.xlsx"):
+                if not is_story_events_filename(ef.name):
+                    continue  # rated/causal exports that embed "{story}_events-..."
                 if ef.is_file() and ef.name not in seen_names:
                     seen_names.add(ef.name)
                     event_files.append(ef)
@@ -2710,8 +2792,9 @@ def get_story_transcript(item_id, is_story=False, transcript_file=None):
             print(f"Error reading story transcript from events: {e}")
     
     # For subjects, try again using the story name derived from the subject ID
+    # (or the lone story on disk when the id carries no story prefix)
     if not is_story:
-        story_name = get_story_name_from_subject_id(item_id)
+        story_name = infer_story_name_for_subject(item_id)
         if story_name and story_name != item_id:
             result = get_story_transcript(story_name, is_story=True)
             if result:
@@ -2864,7 +2947,6 @@ def _get_story_events_in_single_dir(base_id, file_version, min_event_count, even
 
 def get_resolved_story_events_source_path(item_id, file_version=None, is_story=False, min_event_count=0):
     """Filesystem path to the story-events .xlsx that would be loaded for this item (or None)."""
-    del is_story  # same search bases as get_story_events
     if file_version and file_version.endswith('.xlsx') and '_events' in file_version:
         fn = Path(file_version).name
         for events_dir in iter_story_events_search_dirs():
@@ -2872,7 +2954,7 @@ def get_resolved_story_events_source_path(item_id, file_version=None, is_story=F
             if p.exists():
                 return p
         return None
-    for base_id in expand_story_event_file_bases(item_id):
+    for base_id in expand_story_event_file_bases(item_id, single_story_fallback=not is_story):
         for events_dir in iter_story_events_search_dirs():
             for fp in _story_events_paths_candidate_list(base_id, file_version, min_event_count, events_dir):
                 if _try_read_story_events_from_paths([fp]):
@@ -3108,7 +3190,7 @@ def get_story_events(item_id, file_version=None, is_story=False, min_event_count
                     print(f"Error reading story events: {e}")
         return None
     
-    for base_id in expand_story_event_file_bases(item_id):
+    for base_id in expand_story_event_file_bases(item_id, single_story_fallback=not is_story):
         ev = _get_story_events_for_event_base(base_id, file_version, min_event_count)
         if ev:
             return ev
@@ -3120,12 +3202,10 @@ def _resolve_story_events_file_for_rating(subj_id):
     from helpers.flexible_io import pick_story_events_file
 
     events_dir = get_output_dir_for_step_type('eventSegment') or STORY_EVENTS_DIR
-    story_file = pick_story_events_file(events_dir, subj_id)
-    if story_file:
-        return story_file
-    story_name = get_story_name_from_subject_id(subj_id)
-    if story_name and story_name != subj_id:
-        return pick_story_events_file(events_dir, story_name)
+    for base in expand_story_event_file_bases(subj_id, single_story_fallback=True):
+        story_file = pick_story_events_file(events_dir, base)
+        if story_file:
+            return story_file
     return None
 
 
@@ -4190,7 +4270,8 @@ def api_subject(subj_id):
     story_transcript = get_story_transcript(subj_id, is_story=False, transcript_file=story_transcript_file)
     
     # Fallback transcript: try the story name derived from the subject ID
-    story_name = get_story_name_from_subject_id(subj_id)
+    # (or the lone story on disk when the id carries no story prefix)
+    story_name = infer_story_name_for_subject(subj_id)
     if story_name and story_name != subj_id and not story_transcript:
         story_transcript = get_story_transcript(story_name, is_story=True)
     
@@ -4307,7 +4388,7 @@ def api_story(story_name):
     return jsonify(data)
 
 
-def collect_rater_segmentations(item_id):
+def collect_rater_segmentations(item_id, is_story=False):
     """Find every rater-edited story-events segmentation file for this item.
 
     Returns a list of dicts (newest edit per rater), each:
@@ -4320,7 +4401,7 @@ def collect_rater_segmentations(item_id):
 
     seen_paths = set()
     candidates = []
-    for base in expand_story_event_file_bases(item_id):
+    for base in expand_story_event_file_bases(item_id, single_story_fallback=not is_story):
         for events_dir in iter_story_events_search_dirs():
             if not events_dir or not events_dir.exists():
                 continue
@@ -4370,7 +4451,7 @@ def collect_rater_segmentations(item_id):
 
 
 def _segmentation_audit_payload(item_id, is_story, story_events_file=None):
-    raters = collect_rater_segmentations(item_id)
+    raters = collect_rater_segmentations(item_id, is_story=is_story)
     if not raters:
         return {'raters': [], 'primary_index': 0, 'default_export_path': None}
 

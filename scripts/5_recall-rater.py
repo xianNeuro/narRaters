@@ -968,15 +968,82 @@ def iter_story_events_search_dirs(story_dir_arg: str) -> list[Path]:
     return roots
 
 
+# Sample stories shipped with the repo; ignored by the single-story fallback once a
+# user story is present. Keep in sync with server/web-interface._BUNDLED_SAMPLE_STORY_STEMS.
+_BUNDLED_SAMPLE_STORY_STEMS = frozenset({"the_siren", "pieman_edited"})
+_NON_STORY_EVENTS_MARKERS = (
+    "rate-recall", "recall-version", "recall-match", "causal-rating", "causal-linguistic", "textparsing",
+)
+
+
+def _story_stem_from_events_filename(name: str) -> Optional[str]:
+    """``'pieman_events-api_x.xlsx'`` -> ``'pieman'``; None when not a story-events file."""
+    if name.startswith("~$") or name.startswith("."):
+        return None
+    low = name.lower()
+    if not any(low.endswith(ext) for ext in (".xlsx", ".csv", ".tsv", ".xls")):
+        return None
+    if any(m in low for m in _NON_STORY_EVENTS_MARKERS):
+        return None
+    stem = Path(name).stem
+    if "_events" not in stem:
+        return None
+    return stem.split("_events", 1)[0] or None
+
+
+def infer_single_story_events_bases(search_dirs: list[Path]) -> Optional[list[str]]:
+    """Stem(s) of the one story present across ``search_dirs``, or None if 0 or >1 stories.
+
+    Mirrors server/web-interface.infer_single_story_events_bases: variants/edits of a
+    story count once, editorial aliases (``pieman`` / ``pieman_edited``) are grouped, and
+    bundled sample stories are ignored when any other story exists.
+    """
+    groups: dict[str, set[str]] = {}
+    for d in search_dirs:
+        try:
+            names = [e.name for e in os.scandir(d) if e.is_file()]
+        except OSError:
+            continue
+        for name in names:
+            stem = _story_stem_from_events_filename(name)
+            if not stem:
+                continue
+            key = stem
+            for suf in _EDITORIAL_STORY_SUFFIXES:
+                if stem.endswith(suf) and len(stem) > len(suf):
+                    key = stem[: -len(suf)]
+                    break
+            groups.setdefault(key, set()).add(stem)
+    if not groups:
+        return None
+    if len(groups) > 1:
+        groups = {k: v for k, v in groups.items() if not (v <= _BUNDLED_SAMPLE_STORY_STEMS)}
+        if len(groups) != 1:
+            return None
+    (stems,) = groups.values()
+    user_stems = {s for s in stems if s not in _BUNDLED_SAMPLE_STORY_STEMS}
+    return sorted(user_stems or stems)
+
+
 def resolve_story_events_xlsx(subj_id: str, story_dir_arg: str = "data/3_story_events") -> Optional[Path]:
     """Resolve path to story events Excel for a subject (story-stem filenames, multiple dirs).
+
+    Bases tried, in order: the subject id, the ``{story}`` prefix of a ``{story}_sub-NN``
+    id, editorial aliases, and finally — when the search folders contain exactly one
+    story — that story's stem, so recalls named without a story prefix still match.
 
     Honors ``BATCH_STORY_EVENTS_VARIANT`` (env var): when set, matches
     ``{base}_events{variant}.xlsx`` exactly, with no granularity fallback.
     """
+    search_dirs = iter_story_events_search_dirs(story_dir_arg)
     bases = expand_story_event_file_bases(subj_id)
+    lone = infer_single_story_events_bases(search_dirs)
+    if lone:
+        for b in lone:
+            if b not in bases:
+                bases.append(b)
     explicit_variant = os.environ.get("BATCH_STORY_EVENTS_VARIANT")
-    for events_dir in iter_story_events_search_dirs(story_dir_arg):
+    for events_dir in search_dirs:
         if not events_dir.is_dir():
             continue
         for base in bases:
@@ -997,6 +1064,9 @@ def resolve_story_events_xlsx(subj_id: str, story_dir_arg: str = "data/3_story_e
     print(f"  Warning: No story events file found for subject {subj_id!r}")
     print(f"    Searched bases: {bases}")
     print(f"    Story dir argument: {story_dir_arg!r}")
+    if not lone:
+        print("    Hint: name recalls '{story}_sub-NN' to match '{story}_events.xlsx', or keep a "
+              "single story's events file in the folder and any recall name will link to it.")
     if explicit_variant is not None:
         print(f"    Required variant: {explicit_variant!r} (BATCH_STORY_EVENTS_VARIANT)")
     return None
