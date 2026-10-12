@@ -2880,7 +2880,8 @@
         //        active = bg lift + accent inset left bar + radius; number kept
         //        in pass accent colour (indigo/purple).
         //     R4 active stack order: 1 text, 2 matches, 3 pills, 4 confidence.
-        //        p1 pills: Broad summary + Meta (plain) + Comment; p2: full set.
+        //        p1 pills: Broad summary + Meta (plain) + Comment; p2: full set
+        //        (Broad summary + Meta stay plain tags in both passes).
         //        non-active card: text (+ rating recap badge once rated).
         //   STORY box:
         //     S1 .matched (orange number + orange inset left bar) shown ONLY for
@@ -3219,8 +3220,8 @@
                                 <input class="br-match-input ${matchesValid(r) ? '' : 'invalid'}" value="${escapeHtml(r.matches)}" placeholder="e.g. 1, 2, 3">
                             </div>`;
                         // Comment pill + box and the confidence scale appear in BOTH passes.
-                        // Pass 1 shows only Broad summary + Meta, as plain toggles; pass 2
-                        // shows the full rating/highlight pill set.
+                        // Pass 1 shows only Broad summary + Meta; pass 2 adds the highlight
+                        // pills. Broad summary + Meta are plain toggles in both passes.
                         // Confidence is bound to the pass-appropriate field: conf1 (p1) / conf (p2).
                         const commentPill = `<span class="br-pill br-pill-comment ${r.commentOpen ? 'on' : ''}" data-cat="comment"><svg class="br-pen" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M11.5 1.5a1.414 1.414 0 0 1 2 2L5.5 11.5l-3 1 1-3 8-8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>Add comment</span>`;
                         const P1_CATS = ['summary', 'meta'];
@@ -3389,7 +3390,7 @@
                     });
                 });
 
-                // pills: Comment toggles its box; plain tags (Summary; Meta in pass 1)
+                // pills: Comment toggles its box; plain tags (Summary, Meta)
                 // toggle on/off; highlight pills arm/disarm or drop their span (the ×
                 // is a child of the pill, so clicking it lands here too).
                 recallList.querySelectorAll('.br-pill').forEach(p => p.addEventListener('click', e => {
@@ -3411,8 +3412,8 @@
                             r.highlights = r.highlights.filter(h => h.cat !== cat);
                         else armedCat = cat;                                   // arm (replaces other)
                     } else {
-                        // effective "on" includes spans made while the pill was a
-                        // highlight pill (Meta in pass 2) — toggling off clears those too
+                        // effective "on" includes legacy spans from when Meta was a
+                        // highlight pill in pass 2 — toggling off clears those too
                         const r = recall[i];
                         const wasOn = r.on.includes(cat) || r.highlights.some(h => h.cat === cat);
                         r.on = r.on.filter(c => c !== cat);
@@ -5690,7 +5691,7 @@
             { cat: 'confabulation', label: 'Confabulation', hl: true  },
             { cat: 'inference',     label: 'Inference',     hl: true  },
             { cat: 'opinion',       label: 'Opinion',       hl: true  },
-            { cat: 'meta',          label: 'Meta',          hl: true  },
+            { cat: 'meta',          label: 'Meta',          hl: false },
         ] : [
             { cat: 'summary',       label: 'Summary',       hl: false },
             { cat: 'error',         label: 'Factual error', hl: true  },
