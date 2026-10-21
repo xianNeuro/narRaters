@@ -2596,7 +2596,8 @@
         .br-pill[data-cat="summary"].on       { background: var(--acc); }
         .br-pill[data-cat="error"].on         { background: var(--red); }
         .br-pill[data-cat="confabulation"].on { background: var(--ylw); color: var(--bg0); }
-        .br-pill[data-cat="opinion"].on       { background: var(--grn); }
+        .br-pill[data-cat="opinion"].on       { background: #ff00ff; }
+        .br-pill[data-cat="imprecision"].on   { background: var(--grn); }
         .br-pill[data-cat="inference"].on     { background: var(--blu); }
         .br-pill[data-cat="meta"].on          { background: var(--t2); }
         .br-pill[data-cat="comment"].on       { background: var(--t2); }
@@ -2892,7 +2893,7 @@
         //        events listed by the CURRENTLY SELECTED recall segment;
         //        recomputed on active change + match edits. Not permanent.
         //     S2 hover = subtle background only (no orange glow/link highlight).
-        // App wiring: pills = RATING_KEYS (6 cats) + a 7th "Comment" pill that
+        // App wiring: pills = RATING_KEYS (7 cats) + an 8th "Comment" pill that
         //   opens a per-segment comment box. Confidence = 7-pt scale, in-memory
         //   only (no benchmark CSV column, no Save this pass).
         // ============================================================
@@ -5706,11 +5707,11 @@
             } catch (e) { /* telemetry must never break an export */ }
         }
         // Further-rating columns, in display order. Rows of three in the UI grid:
-        // [summary, error, confabulation] then [opinion, inference, meta].
-        const RATING_KEYS = ['summary', 'error', 'confabulation', 'opinion', 'inference', 'meta'];
+        // [summary, error, confabulation] then [opinion, imprecision, inference, meta].
+        const RATING_KEYS = ['summary', 'error', 'confabulation', 'opinion', 'imprecision', 'inference', 'meta'];
         const RATING_LABELS = {
             summary: 'Summary', error: 'Error', confabulation: 'Confabulation',
-            opinion: 'Opinion', inference: 'Inference', meta: 'Meta'
+            opinion: 'Opinion', imprecision: 'Imprecision', inference: 'Inference', meta: 'Meta'
         };
         function ratingLabel(k) { return RATING_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1)); }
         // Benchmark rating pills: own order + labels (decoupled from RATING_KEYS so
@@ -5718,6 +5719,7 @@
         const BENCH_MODE = {{ 'true' if benchmark else 'false' }};
         const BENCH_PILLS = BENCH_MODE ? [
             { cat: 'summary',       label: 'Broad summary', hl: false },
+            { cat: 'imprecision',   label: 'Imprecision',   hl: true  },
             { cat: 'error',         label: 'Factual error', hl: true  },
             { cat: 'confabulation', label: 'Confabulation', hl: true  },
             { cat: 'inference',     label: 'Inference',     hl: true  },
@@ -5725,6 +5727,7 @@
             { cat: 'meta',          label: 'Meta',          hl: false },
         ] : [
             { cat: 'summary',       label: 'Summary',       hl: false },
+            { cat: 'imprecision',   label: 'Imprecision',   hl: true  },
             { cat: 'error',         label: 'Factual error', hl: true  },
             { cat: 'confabulation', label: 'Confabulation', hl: true  },
             { cat: 'inference',     label: 'Inference',     hl: true  },
@@ -5734,7 +5737,8 @@
         // Hex (not var()) so the same value drives the inline underline color AND the
         // SVG data-URI cursor, which can't read CSS variables.
         const CAT_HEX = { summary:'#6c63ff', error:'#ef4444', confabulation:'#f59e0b',
-                          inference:'#3b82f6', opinion:'#22c55e', meta:'#8890a8' };
+                          inference:'#3b82f6', opinion:'#ff00ff', imprecision:'#22c55e',
+                          meta:'#8890a8' };
         // What each rating means (HTML; shown one-per-step in the further-ratings tutorial
         // and, stripped to plain text, as each checkbox's hover tooltip).
         const RATING_MEANINGS = {
@@ -5743,6 +5747,7 @@
             confabulation: '<strong>Fabricated information</strong> not present in the original story.<br><em>E.g. &ldquo;…the ghost was screaming boo&rdquo; — but no screaming was mentioned in the story.</em>',
             inference: '<strong>Plausible but unmentioned details</strong> drawn from prior knowledge or reasonable interpretation.<br><em>E.g. recall says &ldquo;she opened the door and walked up the stairs&rdquo; when the story only said &ldquo;from the garden she walked up to the first floor&rdquo;.</em>',
             opinion: 'The segment <strong>evaluates actions or the story from the participant&rsquo;s own perspective</strong>.<br><em>E.g. &ldquo;I do not like this character&rdquo;, &ldquo;that was so nice of her to do&rdquo;.</em>',
+            imprecision: 'The segment describes a story event <strong>vaguely or imprecisely</strong> without contradicting it.<br><em>E.g. &ldquo;something happened at school&rdquo; when the story described a specific fight in the cafeteria.</em>',
             meta: 'The segment <strong>refers to something outside the story</strong>.<br><em>E.g. &ldquo;I&rsquo;m done&rdquo;, &ldquo;Should I start now?&rdquo;.</em>'
         };
         function ratingMeaningPlain(k) {
