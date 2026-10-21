@@ -77,7 +77,7 @@ _NON_RATING_COL_NAMES = frozenset({
     "recall_segment", "recall segment", "recall_segment_number", "segment_number",
     "segment_num", "segment_index", "seg", "seg_num", "index", "idx", "#", "row", "n", "no",
     "comment", "comments", "note", "notes",
-    "summary", "error", "confabulation", "inference", "opinion", "imprecision", "meta",
+    "summary", "error", "confabulation", "inference", "opinion", "distortion", "meta",
 })
 
 

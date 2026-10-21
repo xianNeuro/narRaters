@@ -2346,7 +2346,7 @@ def get_parsed_texts(subj_id, file_version=None):
 
 # Per-segment "further ratings" columns, in display/export order. Must match the
 # frontend RATING_KEYS list in templates/subject.html.
-FURTHER_RATING_COLS = ('summary', 'error', 'confabulation', 'opinion', 'imprecision', 'inference', 'meta')
+FURTHER_RATING_COLS = ('summary', 'error', 'confabulation', 'opinion', 'distortion', 'inference', 'meta')
 
 # Benchmark CSV column names. The unrated benchmark files carry a richer schema
 # than the canonical two-column rated files: confidence (per pass) + (when the
@@ -6239,7 +6239,7 @@ def _capture_tabular_schema(path):
         index_col = None
         _comment_rating = {"comment", "comments", "note", "notes",
                            "summary", "error", "confabulation", "inference", "opinion",
-                           "imprecision", "meta"}
+                           "distortion", "meta"}
         for c in cols:
             if c in (recall_col, matches_col):
                 continue
