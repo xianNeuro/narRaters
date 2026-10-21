@@ -2603,7 +2603,6 @@
         /* "Add comment" pill: pinned to the right of the row, with a pen icon. */
         .br-pill-comment { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
         .br-pen { flex-shrink: 0; }
-        .br-pill-x { margin-left: 6px; font-weight: 700; opacity: .85; }
         /* pass-2 highlight pills: underline the label (in the category color, like
            the spans they mark) so raters see these tags need a text selection */
         .br-pill[data-hl="1"] .br-pill-label {
@@ -2612,6 +2611,11 @@
         }
         .br-pill[data-hl="1"].on .br-pill-label { text-decoration-color: currentColor; }
         .br-hl { text-decoration-line: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+        /* per-span delete × (empty element; glyph via ::before so it isn't text) */
+        .br-hl-x { cursor: pointer; user-select: none; -webkit-user-select: none; margin: 0 2px 0 1px;
+                   font-size: .8em; font-weight: 700; opacity: .7; vertical-align: super; }
+        .br-hl-x::before { content: "×"; }
+        .br-hl-x:hover { opacity: 1; }
 
         .br-comment-box {
             width: 100%; padding: 8px 12px; background: var(--bg3); border: 1.5px solid var(--bdr);
@@ -3120,6 +3124,7 @@
             function renderRecallText(r, isActive) {
                 const text = r.text || '';
                 const hls = r.highlights || [];
+                const canDelete = isActive && currentPass === 'p2';
                 let inner;
                 if (!hls.length) {
                     inner = escapeHtml(text);
@@ -3154,6 +3159,12 @@
                                piece = `<span class="br-hl" style="text-decoration-color:${hex};text-underline-offset:${off}px">${piece}</span>`;
                            });
                         out += piece;
+                        // per-span delete ×: empty element (glyph via CSS ::before) so
+                        // Range.toString() skips it and selection offsets stay exact
+                        if (canDelete) hls.forEach((h, idx) => {
+                            if (h.end === b && BENCH_PILLS.some(p => p.hl && p.cat === h.cat))
+                                out += `<span class="br-hl-x" data-hl="${idx}" style="color:${CAT_HEX[h.cat] || '#888'}" title="Remove this span"></span>`;
+                        });
                     }
                     inner = out;
                 }
@@ -3180,13 +3191,19 @@
                 return { start, end: start + len };
             }
 
-            // Record a span for cat on the active segment (one span per pill), and
-            // drop the live selection.
+            // Add a span for cat on the active segment (a pill may hold several),
+            // merging it with any same-cat span it overlaps or touches, and drop
+            // the live selection.
             function addHighlight(cat, span) {
                 const r = recall[activeIdx];
                 if (!r) return;
-                r.highlights = r.highlights.filter(h => h.cat !== cat);
-                r.highlights.push({ cat, start: span.start, end: span.end });
+                let start = span.start, end = span.end;
+                r.highlights = r.highlights.filter(h => {
+                    if (h.cat !== cat || h.end < start || h.start > end) return true;
+                    start = Math.min(start, h.start); end = Math.max(end, h.end);
+                    return false;
+                });
+                r.highlights.push({ cat, start, end });
                 const sel = window.getSelection();
                 if (sel) sel.removeAllRanges();
             }
@@ -3229,13 +3246,15 @@
                             .filter(p => currentPass === 'p2' || P1_CATS.includes(p.cat))
                             .map(p => {
                                 const hl = p.hl && currentPass === 'p2';
-                                const on = p.hl
-                                    ? (armedCat === p.cat || r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
+                                // highlight pills only color while armed; their spans
+                                // are shown (and deleted via ×) in the text itself
+                                const on = hl ? armedCat === p.cat
+                                    : p.hl
+                                    ? (r.highlights.some(h => h.cat === p.cat) || r.on.includes(p.cat))
                                     : r.on.includes(p.cat);
-                                const x = (hl && on) ? '<span class="br-pill-x">×</span>' : '';
                                 const label = hl ? `<span class="br-pill-label">${p.label}</span>` : p.label;
                                 const hex = hl ? ` style="--hl-hex:${CAT_HEX[p.cat] || '#888'}"` : '';
-                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${hl ? 1 : 0}"${hex}>${label}${x}</span>`;
+                                return `<span class="br-pill ${on ? 'on' : ''}" data-cat="${p.cat}" data-hl="${hl ? 1 : 0}"${hex}>${label}</span>`;
                             }).join('');
                         const pills = `<div class="br-pill-row">${ratingPills}${commentPill}</div>`;
                         const commentBox = r.commentOpen ? `
@@ -3391,8 +3410,8 @@
                 });
 
                 // pills: Comment toggles its box; plain tags (Summary, Meta)
-                // toggle on/off; highlight pills arm/disarm or drop their span (the ×
-                // is a child of the pill, so clicking it lands here too).
+                // toggle on/off; highlight pills mark the live selection or arm/disarm
+                // (spans are removed via the × after each span in the text).
                 recallList.querySelectorAll('.br-pill').forEach(p => p.addEventListener('click', e => {
                     e.stopPropagation();
                     const i = +p.closest('.br-recall-card').dataset.idx;
@@ -3408,9 +3427,7 @@
                             addHighlight(cat, span);
                             armedCat = null;
                         } else if (armedCat === cat) armedCat = null;          // cancel arming
-                        else if (r.highlights.some(h => h.cat === cat))        // remove span
-                            r.highlights = r.highlights.filter(h => h.cat !== cat);
-                        else armedCat = cat;                                   // arm (replaces other)
+                        else armedCat = cat;                                   // arm another span (replaces other)
                     } else {
                         // effective "on" includes legacy spans from when Meta was a
                         // highlight pill in pass 2 — toggling off clears those too
@@ -3423,6 +3440,20 @@
                     renderRecall();
                     scheduleSave();
                 }));
+
+                // per-span × — drop just that span (mousedown suppressed so it
+                // doesn't start a text selection)
+                recallList.querySelectorAll('.br-hl-x').forEach(x => {
+                    x.addEventListener('mousedown', e => e.preventDefault());
+                    x.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const r = recall[activeIdx];
+                        if (!r) return;
+                        r.highlights.splice(+x.dataset.hl, 1);
+                        renderRecall();
+                        scheduleSave();
+                    });
+                });
 
                 // Keep a live text selection alive when a highlight pill is pressed
                 // (pills are user-select:none, so preventDefault stops the selection
