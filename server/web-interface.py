@@ -194,7 +194,7 @@ def _safe_next(target):
 # logged-in rater can only do the task. (The dev branch left the pipeline
 # routes reachable; this closes that gap.)
 _TASK_ALLOWED_PATHS = re.compile(
-    r"^/(?:$|login$|logout$|tasks$|task/[^/]+/(?:segment|causal)$|admin$"
+    r"^/(?:$|login$|logout$|tasks$|task/[^/]+/[^/]+/(?:segment|causal)$|admin$"
     r"|static/|favicon\.ico$"
     r"|api/(?:logout|verify-auth|set-rater|tasks|userlog/save)$"
     r"|api/task/[^/]+/submit$"
@@ -8555,32 +8555,42 @@ def save_user_log():
 #
 # In the local app the rater had to install narRaters, copy files into data/,
 # pick the steps and the right file versions, run "Manual", export, and upload
-# three folders by hand. Here the server does all of that:
+# three folders by hand. Here the server does all of that.
 #
-#   <TASK_DIR>/unrated/<story>/<story>.txt              story transcript (in)
-#   <TASK_DIR>/unrated/<story>/<story>_events*.xlsx     original segmentation (in)
-#   <TASK_DIR>/assignments.json                         optional {user: [story, ...]}
-#   <TASK_DIR>/rated/<user>/<user>-segcausal/<story>/   everything the rater produces:
-#       <events stem>_<user>-edit.xlsx                  Part 1 (segmentation)
-#       <story>_causal-manual_<user>-edit.xlsx          Part 2 (causal ratings)
-#       status.json                                     saves / submit times
-#       userlogs/<file stem>_<time>_userlog.txt         operation logs (read-only)
-#       history/<file>.<time>.xlsx                      every earlier saved version
-#       source/<original events file>                   copy of what Part 2 rated
+# Files follow the dev branch's benchmark/ layout exactly, and by default live in
+# the SAME benchmark/ folder (NARRATERS_TASK_DIR, else NARRATERS_BENCHMARK_DIR,
+# else <workspace>/benchmark), so one rsync of unrated/ and rated/ covers both the
+# recall-matching task and this one. The two never touch each other's files:
 #
-# Same in/out shape as the dev branch's benchmark/ folder (unrated/ in,
-# rated/<user>/ out), but in its own TASK_DIR so the two never share files.
-# The rater's identity and every path are decided on the server; the client
-# cannot name a file.
+#   unrated/narraters-<datasource>-matching/<story>/matches/...      matching (dev branch)
+#   unrated/narraters-<datasource>-segcausal/<story>/<story>.txt     transcript (in)
+#   unrated/narraters-<datasource>-segcausal/<story>/<story>_events*.xlsx   original segmentation (in)
+#
+#   rated/<user>/<user>-<datasource>-matching/<story>/matches/...    matching (dev branch)
+#   rated/<user>/<user>-<datasource>-segcausal/<story>/              this task:
+#       <same filename as the unrated events file>     Part 1 (the rater's segmentation)
+#       <story>_causal-manual.xlsx                     Part 2 (causal ratings)
+#       status.json                                    saves / submit times
+#       userlogs/<file stem>_<time>_userlog.txt        operation logs (read-only)
+#       history/<file>.<time>.xlsx                     every earlier saved version
+#       source/<original events file>                  copy of what Part 2 rated
+#
+#   segcausal_assignments.json   optional {user: ["<story>" or "<datasource>/<story>", ...]}
+#
+# The matching app only reads datasource folders that contain <story>/matches/,
+# and this task only reads folders named *-segcausal. The rater's identity and
+# every path are decided on the server; the client cannot name a file.
 
 import threading as _threading  # noqa: E402
 
 TASK_DIR = Path(
-    os.environ.get('NARRATERS_TASK_DIR') or (WORKSPACE_ROOT / 'task_segcausal')
+    os.environ.get('NARRATERS_TASK_DIR') or os.environ.get('NARRATERS_BENCHMARK_DIR')
+    or (WORKSPACE_ROOT / 'benchmark')
 ).expanduser().resolve()
 TASK_UNRATED_DIR = TASK_DIR / 'unrated'
 TASK_RATED_DIR = TASK_DIR / 'rated'
 TASK_SUFFIX = 'segcausal'
+TASK_ASSIGNMENTS_FILE = TASK_DIR / 'segcausal_assignments.json'
 _TASK_STORY_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$')
 _TASK_PARTS = ('segment', 'causal')
 
@@ -8608,6 +8618,17 @@ def _task_username():
     return clean
 
 
+def _task_datasource_name(ds_dir_name):
+    """`narraters-dfrn-segcausal` -> `dfrn` (same rule as the dev branch's
+    `narraters-<datasource>-matching`)."""
+    name = ds_dir_name
+    if name.startswith('narraters-'):
+        name = name[len('narraters-'):]
+    if name.endswith('-' + TASK_SUFFIX):
+        name = name[:-len('-' + TASK_SUFFIX)]
+    return name or ds_dir_name
+
+
 def _task_story_files(story_dir):
     """(transcript, original events file) for one unrated story folder."""
     txts = sorted(p for p in story_dir.glob('*.txt') if p.is_file())
@@ -8619,7 +8640,7 @@ def _task_story_files(story_dir):
 
 
 def _task_load_assignments():
-    path = TASK_DIR / 'assignments.json'
+    path = TASK_ASSIGNMENTS_FILE
     if not path.exists():
         return {}
     try:
@@ -8631,20 +8652,42 @@ def _task_load_assignments():
 
 
 def _task_scan():
-    """All stories under unrated/ that have both a transcript and an events file."""
+    """All stories under unrated/narraters-*-segcausal/ that have an events file."""
     stories = []
     if not TASK_UNRATED_DIR.is_dir():
         return stories
-    for d in sorted(p for p in TASK_UNRATED_DIR.iterdir() if p.is_dir()):
-        if not _TASK_STORY_RE.match(d.name):
-            print(f"task: skipping folder with unsafe name: {d.name!r}")
+    for ds in sorted(p for p in TASK_UNRATED_DIR.iterdir()
+                     if p.is_dir() and p.name.endswith('-' + TASK_SUFFIX)):
+        if not _TASK_STORY_RE.match(ds.name) or '__' in ds.name:
+            print(f"task: skipping folder with unsafe name: {ds.name!r}")
             continue
-        transcript, events = _task_story_files(d)
-        if events is None:
-            print(f"task: {d.name}: no *_events*.xlsx, skipped")
-            continue
-        stories.append({'story': d.name, 'dir': d, 'transcript': transcript, 'events': events})
+        datasource = _task_datasource_name(ds.name)
+        for d in sorted(p for p in ds.iterdir() if p.is_dir()):
+            if not _TASK_STORY_RE.match(d.name):
+                print(f"task: skipping folder with unsafe name: {ds.name}/{d.name!r}")
+                continue
+            transcript, events = _task_story_files(d)
+            if events is None:
+                print(f"task: {ds.name}/{d.name}: no *_events*.xlsx, skipped")
+                continue
+            stories.append({'key': f"{ds.name}/{d.name}", 'ds_dir': ds.name, 'datasource': datasource,
+                            'story': d.name, 'dir': d, 'transcript': transcript, 'events': events})
     return stories
+
+
+def _task_assigned(stories, assigned):
+    """Keep and order the stories listed for a rater ("<story>" or "<datasource>/<story>")."""
+    order = {}
+    for i, name in enumerate(assigned):
+        order.setdefault(str(name), i)
+    def rank(s):
+        for k in (s['key'], f"{s['datasource']}/{s['story']}", s['story']):
+            if k in order:
+                return order[k]
+        return None
+    picked = [s for s in stories if rank(s) is not None]
+    picked.sort(key=rank)
+    return picked
 
 
 def _task_visible_stories(username):
@@ -8653,16 +8696,18 @@ def _task_visible_stories(username):
         return stories
     assigned = _task_load_assignments().get(username)
     if isinstance(assigned, list):
-        order = {name: i for i, name in enumerate(assigned)}
-        stories = [s for s in stories if s['story'] in order]
-        stories.sort(key=lambda s: order[s['story']])
+        stories = _task_assigned(stories, assigned)
     return stories
 
 
+def _task_item_id(part, st):
+    return ('seg__' if part == 'segment' else 'causal__') + st['ds_dir'] + '__' + st['story']
+
+
 def _task_resolve(item_id):
-    """'seg__<story>' / 'causal__<story>' -> (part, story dict) for the current
-    rater, or (None, None) if unknown or not assigned to them."""
-    m = re.match(r'^(seg|causal)__(.+)$', str(item_id or ''))
+    """'seg__<datasource dir>__<story>' / 'causal__…' -> (part, story dict) for the
+    current rater, or (None, None) if unknown or not assigned to them."""
+    m = re.match(r'^(seg|causal)__(.+?)__(.+)$', str(item_id or ''))
     if not m:
         return None, None
     part = 'segment' if m.group(1) == 'seg' else 'causal'
@@ -8670,29 +8715,31 @@ def _task_resolve(item_id):
     if not username:
         return None, None
     for st in _task_visible_stories(username):
-        if st['story'] == m.group(2):
+        if st['ds_dir'] == m.group(2) and st['story'] == m.group(3):
             return part, st
     return None, None
 
 
-def _task_out_dir(username, story):
-    return TASK_RATED_DIR / username / f"{username}-{TASK_SUFFIX}" / story
+def _task_out_dir(username, st):
+    """rated/<user>/<user>-<datasource>-segcausal/<story>/ (dev-branch naming)."""
+    return TASK_RATED_DIR / username / f"{username}-{st['datasource']}-{TASK_SUFFIX}" / st['story']
 
 
 def _task_seg_path(username, st):
-    return _task_out_dir(username, st['story']) / f"{st['events'].stem}_{username}-edit.xlsx"
+    # Same filename as the unrated events file, like the dev branch's rated matches.
+    return _task_out_dir(username, st) / st['events'].name
 
 
 def _task_causal_path(username, st):
-    return _task_out_dir(username, st['story']) / f"{st['story']}_causal-manual_{username}-edit.xlsx"
+    return _task_out_dir(username, st) / f"{st['story']}_causal-manual.xlsx"
 
 
-def _task_status_path(username, story):
-    return _task_out_dir(username, story) / 'status.json'
+def _task_status_path(username, st):
+    return _task_out_dir(username, st) / 'status.json'
 
 
-def _task_read_status(username, story):
-    path = _task_status_path(username, story)
+def _task_read_status(username, st):
+    path = _task_status_path(username, st)
     if path.exists():
         try:
             data = json.loads(path.read_text(encoding='utf-8'))
@@ -8703,8 +8750,8 @@ def _task_read_status(username, story):
     return {}
 
 
-def _task_write_status(username, story, status):
-    path = _task_status_path(username, story)
+def _task_write_status(username, st, status):
+    path = _task_status_path(username, st)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + '.tmp')
     tmp.write_text(json.dumps(status, indent=2), encoding='utf-8')
@@ -8734,14 +8781,14 @@ def _task_read_events(path):
         return []
 
 
-def _task_atomic_excel_write(df, path, username, story):
+def _task_atomic_excel_write(df, path, username, st):
     """Write ``df`` to ``path`` atomically; the previous version (if any) is
-    moved to history/ first, so no saved state is ever lost."""
+    copied to history/ first, so no saved state is ever lost."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.stem + '.tmp' + path.suffix)
     df.to_excel(tmp, index=False, engine='openpyxl')
     if path.exists():
-        hist = _task_out_dir(username, story) / 'history'
+        hist = _task_out_dir(username, st) / 'history'
         hist.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
         shutil.copy2(path, hist / f"{path.stem}.{stamp}{path.suffix}")
@@ -8751,7 +8798,7 @@ def _task_atomic_excel_write(df, path, username, story):
 def _task_copy_source(username, st):
     """Keep a copy of the original events file next to the rater's output, so
     each rated folder says exactly which segmentation was rated."""
-    dest = _task_out_dir(username, st['story']) / 'source' / st['events'].name
+    dest = _task_out_dir(username, st) / 'source' / st['events'].name
     if not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(st['events'], dest)
@@ -8771,7 +8818,7 @@ def _task_story_payload(part, st, username):
     if part == 'segment':
         # Start from the rater's own saved segmentation if there is one.
         events = _task_read_events(seg_path) if seg_path.exists() else original_events
-        source_name = seg_path.name if seg_path.exists() else st['events'].name
+        source_name = st['events'].name
     else:
         # Causal ratings are ALWAYS made on the original segmentation.
         events = original_events
@@ -8782,8 +8829,8 @@ def _task_story_payload(part, st, username):
                 causal = {'pairs': _parse_causal_pairs_dataframe(df), 'source_file': causal_path.name}
             except Exception as e:
                 print(f"task: could not read causal file {causal_path}: {e}")
-    status = _task_read_status(username, st['story'])
-    item_id = ('seg__' if part == 'segment' else 'causal__') + st['story']
+    status = _task_read_status(username, st)
+    item_id = _task_item_id(part, st)
     return {
         'subject_id': item_id,
         'story_name': st['story'],
@@ -8791,6 +8838,7 @@ def _task_story_payload(part, st, username):
         'task': {
             'part': part,
             'story': st['story'],
+            'datasource': st['datasource'],
             'events_source': source_name,
             'state': _task_part_state(status, part, seg_path if part == 'segment' else causal_path),
             'n_events': len(events),
@@ -8829,14 +8877,14 @@ def _task_check_seq(key, data):
     return False, seq
 
 
-def _task_mark_saved(username, story, part, extra):
-    status = _task_read_status(username, story)
+def _task_mark_saved(username, st, part, extra):
+    status = _task_read_status(username, st)
     rec = status.get(part) or {}
     rec['last_saved'] = _task_now()
     rec['n_saves'] = int(rec.get('n_saves') or 0) + 1
     rec.update(extra)
     status[part] = rec
-    _task_write_status(username, story, status)
+    _task_write_status(username, st, status)
 
 
 def _task_save_segmentation(item_id):
@@ -8868,12 +8916,12 @@ def _task_save_segmentation(item_id):
         if any('boundary_strength' in e for e in events):
             df['boundary_strength'] = ['' if e.get('boundary_strength') is None
                                        else str(e.get('boundary_strength')) for e in events]
-        _task_atomic_excel_write(df, out_path, username, st['story'])
+        _task_atomic_excel_write(df, out_path, username, st)
         if seq is not None:
             _TASK_SAVE_SEQ[str(out_path)] = seq
     _task_copy_source(username, st)
     n_orig = len(_task_read_events(st['events']))
-    _task_mark_saved(username, st['story'], 'segment', {'n_events': len(rows), 'n_events_original': n_orig})
+    _task_mark_saved(username, st, 'segment', {'n_events': len(rows), 'n_events_original': n_orig})
     log_user_edit(username, 'save-story-events', item_id, out_path.name)
     return jsonify({'success': True, 'message': f'Saved {len(rows)} segments', 'file': out_path.name,
                     'path_used': out_path.name, 'events': events})
@@ -8884,7 +8932,7 @@ def _task_save_causal(item_id):
     if not st or part != 'causal':
         return jsonify({'error': 'Unknown story, or this is not the causal-rating part.'}), 404
     username = _task_username()
-    status = _task_read_status(username, st['story'])
+    status = _task_read_status(username, st)
     if not (status.get('segment') or {}).get('submitted_at'):
         return jsonify({'error': 'Please submit Part 1 (segmentation) first.'}), 409
     data = request.get_json(force=True, silent=True) or {}
@@ -8909,12 +8957,12 @@ def _task_save_causal(item_id):
         skip, seq = _task_check_seq(str(out_path), data)
         if skip:
             return jsonify({'success': True, 'skipped': 'stale'})
-        _task_atomic_excel_write(df, out_path, username, st['story'])
+        _task_atomic_excel_write(df, out_path, username, st)
         if seq is not None:
             _TASK_SAVE_SEQ[str(out_path)] = seq
     _task_copy_source(username, st)
-    _task_mark_saved(username, st['story'], 'causal', {'n_pairs': len(rows), 'n_events': n_events,
-                                                      'rated_on': st['events'].name})
+    _task_mark_saved(username, st, 'causal', {'n_pairs': len(rows), 'n_events': n_events,
+                                              'rated_on': st['events'].name})
     log_user_edit(username, 'save-causal-matrix', item_id, out_path.name)
     return jsonify({'success': True, 'message': f'Saved {len(rows)} causal pairs',
                     'file': out_path.name, 'path_used': out_path.name})
@@ -8930,7 +8978,7 @@ def _task_save_userlog():
         return jsonify({'success': False, 'error': 'Unknown story.'}), 200
     username = _task_username()
     stem = (_task_seg_path if part == 'segment' else _task_causal_path)(username, st).stem
-    out_dir = _task_out_dir(username, st['story']) / 'userlogs'
+    out_dir = _task_out_dir(username, st) / 'userlogs'
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{stem}_{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}_userlog.txt"
     out_path.write_text(_render_userlog_text(data, events), encoding='utf-8')
@@ -8941,19 +8989,27 @@ def _task_save_userlog():
     return jsonify({'success': True, 'n_events': len(events)})
 
 
+def _task_story_row(username, st):
+    status = _task_read_status(username, st)
+    return {
+        'story': st['story'],
+        'datasource': st['datasource'],
+        'url_segment': f"/task/{st['ds_dir']}/{st['story']}/segment",
+        'url_causal': f"/task/{st['ds_dir']}/{st['story']}/causal",
+        'segment': {'state': _task_part_state(status, 'segment', _task_seg_path(username, st)),
+                    **(status.get('segment') or {})},
+        'causal': {'state': _task_part_state(status, 'causal', _task_causal_path(username, st)),
+                   'locked': not (status.get('segment') or {}).get('submitted_at'),
+                   **(status.get('causal') or {})},
+    }
+
+
 def _task_overview(username):
     out = []
     for st in _task_visible_stories(username):
-        status = _task_read_status(username, st['story'])
-        seg_state = _task_part_state(status, 'segment', _task_seg_path(username, st))
-        causal_state = _task_part_state(status, 'causal', _task_causal_path(username, st))
-        out.append({
-            'story': st['story'],
-            'n_events': len(_task_read_events(st['events'])),
-            'segment': {'state': seg_state, **(status.get('segment') or {})},
-            'causal': {'state': causal_state, 'locked': not (status.get('segment') or {}).get('submitted_at'),
-                       **(status.get('causal') or {})},
-        })
+        row = _task_story_row(username, st)
+        row['n_events'] = len(_task_read_events(st['events']))
+        out.append(row)
     return out
 
 
@@ -8983,16 +9039,16 @@ def api_tasks():
     return jsonify({'username': username, 'stories': _task_overview(username)})
 
 
-@app.route('/task/<story>/<part>')
-def task_page(story, part):
+@app.route('/task/<ds_dir>/<story>/<part>')
+def task_page(ds_dir, story, part):
     if not TASK_MODE or part not in _TASK_PARTS:
         return redirect('/')
-    item_id = ('seg__' if part == 'segment' else 'causal__') + story
+    item_id = ('seg__' if part == 'segment' else 'causal__') + ds_dir + '__' + story
     p, st = _task_resolve(item_id)
     if not st:
         return redirect('/tasks')
     username = _task_username()
-    if part == 'causal' and not (_task_read_status(username, story).get('segment') or {}).get('submitted_at'):
+    if part == 'causal' and not (_task_read_status(username, st).get('segment') or {}).get('submitted_at'):
         return redirect('/tasks')
     return render_template('subject.html', subject_id=item_id, is_story=True,
                            step='step0' if part == 'segment' else 'step0_causal',
@@ -9008,14 +9064,14 @@ def api_task_submit(item_id):
     path = (_task_seg_path if part == 'segment' else _task_causal_path)(username, st)
     if not path.exists():
         return jsonify({'error': 'Nothing has been saved yet; please save before submitting.'}), 409
-    status = _task_read_status(username, st['story'])
+    status = _task_read_status(username, st)
     if part == 'causal' and not (status.get('segment') or {}).get('submitted_at'):
         return jsonify({'error': 'Please submit Part 1 (segmentation) first.'}), 409
     rec = status.get(part) or {}
     rec['submitted_at'] = _task_now()
     rec['n_submits'] = int(rec.get('n_submits') or 0) + 1
     status[part] = rec
-    _task_write_status(username, st['story'], status)
+    _task_write_status(username, st, status)
     log_user_edit(username, f'submit-{part}', item_id, path.name)
     return jsonify({'success': True, 'submitted_at': rec['submitted_at']})
 
@@ -9044,26 +9100,26 @@ def api_admin_progress():
         return err
     users = [u for u in _accounts.list_users() if u != ADMIN_USERNAME]
     if TASK_RATED_DIR.is_dir():
+        # rated/ is shared with the matching task: only count folders that hold
+        # this task's output (<user>-*-segcausal), e.g. raters whose account was removed.
         for d in TASK_RATED_DIR.iterdir():
-            if d.is_dir() and d.name not in users and d.name != ADMIN_USERNAME:
-                users.append(d.name)  # rater folders whose account was removed
+            if (d.is_dir() and d.name not in users and d.name != ADMIN_USERNAME
+                    and any(d.glob(f"{d.name}-*-{TASK_SUFFIX}"))):
+                users.append(d.name)
     assignments = _task_load_assignments()
+    all_stories = _task_scan()
     rows = []
     for u in sorted(users):
-        stories = _task_scan()
+        stories = all_stories
         if isinstance(assignments.get(u), list):
-            stories = [s for s in stories if s['story'] in assignments[u]]
+            stories = _task_assigned(stories, assignments[u])
         for st in stories:
-            status = _task_read_status(u, st['story'])
-            rows.append({
-                'username': u, 'has_account': _accounts.user_exists(u), 'story': st['story'],
-                'segment': {'state': _task_part_state(status, 'segment', _task_seg_path(u, st)),
-                            **(status.get('segment') or {})},
-                'causal': {'state': _task_part_state(status, 'causal', _task_causal_path(u, st)),
-                           **(status.get('causal') or {})},
-            })
+            row = _task_story_row(u, st)
+            row.update({'username': u, 'has_account': _accounts.user_exists(u),
+                        'story': f"{st['datasource']}/{st['story']}"})
+            rows.append(row)
     return jsonify({'success': True, 'rows': rows,
-                    'stories': [s['story'] for s in _task_scan()],
+                    'stories': [f"{s['datasource']}/{s['story']}" for s in all_stories],
                     'task_dir': str(TASK_DIR)})
 
 

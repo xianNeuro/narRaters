@@ -95,3 +95,4 @@ user_data/**
 
 # Local task data for the segment-causal rater task (stories in, ratings out)
 /task_segcausal
+/benchmark

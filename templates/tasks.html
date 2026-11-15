@@ -59,9 +59,8 @@
     const LABEL = { not_started: 'Not started', in_progress: 'In progress', submitted: 'Submitted',
                     submitted_edited: 'Submitted · edited since', locked: 'Do Part 1 first' };
     function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-    function cell(story, part, info) {
+    function cell(href, part, info) {
         const state = (part === 'causal' && info.locked) ? 'locked' : info.state;
-        const href = '/task/' + encodeURIComponent(story) + '/' + part;
         const verb = state === 'not_started' ? 'Start' : (state.startsWith('submitted') ? 'Review' : 'Continue');
         const extra = part === 'causal' && info.n_pairs != null ? ` <span class="muted">${info.n_pairs} pairs</span>` : '';
         const btn = state === 'locked'
@@ -75,10 +74,11 @@
             rows.innerHTML = '<tr><td colspan="4" class="empty">No stories have been assigned to you yet.</td></tr>';
             return;
         }
+        const manySources = new Set(data.stories.map(s => s.datasource)).size > 1;
         rows.innerHTML = data.stories.map(s => `
-            <tr><td class="story">${esc(s.story)}</td><td>${s.n_events}</td>
-                <td>${cell(s.story, 'segment', s.segment)}</td>
-                <td>${cell(s.story, 'causal', s.causal)}</td></tr>`).join('');
+            <tr><td class="story">${esc(s.story)}${manySources ? ` <span class="muted">(${esc(s.datasource)})</span>` : ''}</td><td>${s.n_events}</td>
+                <td>${cell(s.url_segment, 'segment', s.segment)}</td>
+                <td>${cell(s.url_causal, 'causal', s.causal)}</td></tr>`).join('');
     }).catch(() => {
         document.getElementById('rows').innerHTML = '<tr><td colspan="4" class="empty">Could not load your stories. Please reload.</td></tr>';
     });

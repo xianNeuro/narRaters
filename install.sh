@@ -93,20 +93,22 @@ echo ""
 # (On main, this script opens /pipeline-config. This branch exists only for the
 # hosted story-segmentation + causal-rating task, so the launchers start
 # `narraters serve --task segment-causal`.)
-#   stories   $PROJECT_ROOT/task_segcausal/unrated/<story>/  (<story>.txt + <story>_events*.xlsx)
-#   results   $PROJECT_ROOT/task_segcausal/rated/<rater>/
+#   stories   $PROJECT_ROOT/benchmark/unrated/narraters-<datasource>-segcausal/<story>/
+#             (<story>.txt + <story>_events*.xlsx; same layout as the dev branch's benchmark/)
+#   results   $PROJECT_ROOT/benchmark/rated/<rater>/<rater>-<datasource>-segcausal/<story>/
 #   state     ~/.narraters-segcausal  (never ~/.narraters, which the main app uses)
 #   port      first free from 5001    (5000 is the main app's default)
 # ---------------------------------------------------------------------------
-TASK_DIR="$PROJECT_ROOT/task_segcausal"
+TASK_DIR="$PROJECT_ROOT/benchmark"
 mkdir -p "$TASK_DIR/unrated" "$TASK_DIR/rated"
-if [[ -z "$(find "$TASK_DIR/unrated" -mindepth 2 -name '*_events*.xlsx' -print -quit)" ]]; then
+if [[ -z "$(find "$TASK_DIR/unrated" -mindepth 3 -path '*-segcausal/*' -name '*_events*.xlsx' -print -quit)" ]]; then
   # No stories yet: add the bundled example so the task list is not empty.
   if [[ -f "$PROJECT_ROOT/data/2_story_transcript/the_siren.txt" && -f "$PROJECT_ROOT/data/3_story_events/the_siren_events.xlsx" ]]; then
-    mkdir -p "$TASK_DIR/unrated/the_siren"
-    cp "$PROJECT_ROOT/data/2_story_transcript/the_siren.txt" "$TASK_DIR/unrated/the_siren/"
-    cp "$PROJECT_ROOT/data/3_story_events/the_siren_events.xlsx" "$TASK_DIR/unrated/the_siren/"
-    echo "Added the example story 'the_siren' to $TASK_DIR/unrated/ (put your own stories there)."
+    EX="$TASK_DIR/unrated/narraters-example-segcausal/the_siren"
+    mkdir -p "$EX"
+    cp "$PROJECT_ROOT/data/2_story_transcript/the_siren.txt" "$EX/"
+    cp "$PROJECT_ROOT/data/3_story_events/the_siren_events.xlsx" "$EX/"
+    echo "Added the example story 'the_siren' to $EX (put your own stories next to it)."
   fi
 fi
 
@@ -121,7 +123,7 @@ done
 
 URL="http://127.0.0.1:${PORT}/tasks"
 echo "Rater task (story segmentation + causal rating):  $URL"
-echo "Stories: $TASK_DIR/unrated/    Results: $TASK_DIR/rated/"
+echo "Stories: $TASK_DIR/unrated/narraters-<datasource>-segcausal/<story>/    Results: $TASK_DIR/rated/<rater>/"
 echo "No login in this local mode (rater = local_rater). For hosting with login see HOSTING_SEGCAUSAL.md."
 echo "(Press Ctrl+C in this Terminal window to stop the server.)"
 echo ""

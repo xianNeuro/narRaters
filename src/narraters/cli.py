@@ -380,7 +380,9 @@ def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
 
     workdir = Path(args.workdir).expanduser().resolve() if args.workdir else Path.cwd().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else workdir
-    task_dir = Path(args.task_dir).expanduser().resolve() if args.task_dir else workdir / "task_segcausal"
+    # Default: the same benchmark/ folder the dev-branch matching service uses, so
+    # one rsync of unrated/ and rated/ covers both tasks.
+    task_dir = Path(args.task_dir).expanduser().resolve() if args.task_dir else workdir / "benchmark"
     user = args.user or getpass.getuser()
     if args.data_dir:
         data_dir = Path(args.data_dir).expanduser().resolve()
@@ -612,7 +614,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--port", type=int, default=5001, help="Loopback port (default: 5001; the dev-branch matching service uses 5000).")
     p_init.add_argument("--service-name", default="narraters-segcausal", help="systemd unit name (default: narraters-segcausal).")
     p_init.add_argument("--task", default="segment-causal", choices=["segment-causal"], help="Hosted task to serve.")
-    p_init.add_argument("--task-dir", default=None, help="Task folder with unrated/ and rated/ (default: <workdir>/task_segcausal).")
+    p_init.add_argument("--benchmark-dir", "--task-dir", dest="task_dir", default=None,
+                        help="Folder with unrated/ and rated/, shared with the dev-branch matching service "
+                        "(default: <workdir>/benchmark). Written into the unit as NARRATERS_TASK_DIR.")
     p_init.add_argument("--data-dir", default=None, help="Accounts/state folder, set as NARRATERS_DATA_DIR "
                         "(default: <--user's home>/.narraters-segcausal, where 'sudo -u <user> narraters users add' writes).")
     p_init.add_argument("--narraters-bin", default=None, help="Path to the 'narraters' executable (default: auto-detected).")
