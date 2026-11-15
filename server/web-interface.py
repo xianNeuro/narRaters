@@ -101,14 +101,17 @@ def _load_or_create_session_secret() -> bytes:
     Stored as a 0600 file under ~/.narraters/. If the directory isn't writable
     (rare — readonly $HOME), fall back to a process-lifetime random key.
     """
-    secret_dir = Path.home() / ".narraters"
+    # Honour NARRATERS_DATA_DIR so two deployments run by the same OS user can
+    # keep separate secrets (the dev branch always used ~/.narraters here).
+    _override = (os.environ.get("NARRATERS_DATA_DIR") or "").strip()
+    secret_dir = Path(_override).expanduser() if _override else Path.home() / ".narraters"
     secret_path = secret_dir / "session_secret"
     try:
         if secret_path.exists():
             data = secret_path.read_bytes().strip()
             if len(data) >= 32:
                 return data
-        secret_dir.mkdir(mode=0o700, exist_ok=True)
+        secret_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         token = secrets.token_hex(32).encode("ascii")
         secret_path.write_bytes(token)
         try:
@@ -128,6 +131,98 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
+
+
+# --- Hosted task mode + login (segcausal branch) -----------------
+#
+# Adapted from the `dev` branch's hosted recall-matching benchmark. Two
+# environment flags, both set by `narraters serve` before this module loads:
+#
+#   NARRATERS_REQUIRE_AUTH=1  (serve --production) password login on every route
+#   NARRATERS_TASK=segment-causal  (serve --task segment-causal) raters see only
+#       their task list and the two task pages; every other route is closed.
+#
+# Accounts are shared with `narraters users ...` through narraters.accounts.
+from flask_login import (  # noqa: E402
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_user,
+    logout_user,
+)
+from narraters import accounts as _accounts  # noqa: E402
+
+REQUIRE_AUTH = os.environ.get("NARRATERS_REQUIRE_AUTH") == "1"
+TASK_MODE = (os.environ.get("NARRATERS_TASK") or "").strip()
+if TASK_MODE and TASK_MODE != "segment-causal":
+    raise SystemExit(f"Unknown NARRATERS_TASK={TASK_MODE!r} (expected 'segment-causal')")
+ADMIN_USERNAME = "admin"
+
+if REQUIRE_AUTH:
+    # Production sits behind a TLS-terminating proxy: send the cookie over HTTPS only.
+    app.config["SESSION_COOKIE_SECURE"] = True
+if TASK_MODE:
+    # Distinct cookie name so this app never clobbers another narRaters
+    # deployment's session if both are ever served from the same host.
+    app.config["SESSION_COOKIE_NAME"] = "narraters_segcausal_session"
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login_page"
+
+
+class _LoginUser(UserMixin):
+    def __init__(self, username):
+        self.id = username
+
+
+@login_manager.user_loader
+def _load_login_user(user_id):
+    if user_id and user_id in _accounts.load_users():
+        return _LoginUser(user_id)
+    return None
+
+
+def _safe_next(target):
+    """Only allow local redirect targets (blocks open redirects)."""
+    if target and target.startswith("/") and not target.startswith("//"):
+        return target
+    return None
+
+
+# Routes a rater can reach in task mode. Everything else (pipeline builder,
+# dashboards, script runners, arbitrary file reads/writes) answers 404, so a
+# logged-in rater can only do the task. (The dev branch left the pipeline
+# routes reachable; this closes that gap.)
+_TASK_ALLOWED_PATHS = re.compile(
+    r"^/(?:$|login$|logout$|tasks$|task/[^/]+/(?:segment|causal)$|admin$"
+    r"|static/|favicon\.ico$"
+    r"|api/(?:logout|verify-auth|set-rater|tasks|userlog/save)$"
+    r"|api/task/[^/]+/submit$"
+    r"|api/admin/"
+    r"|api/story/(?:seg|causal)__[^/]+(?:/save-causal-matrix)?$"
+    r"|api/subject/(?:seg|causal)__[^/]+/(?:save-story-events|save-causal-matrix)$)"
+)
+
+
+@app.before_request
+def _hosted_gate():
+    path = request.path
+    if TASK_MODE and not _TASK_ALLOWED_PATHS.match(path):
+        return jsonify({"success": False, "error": "Not available in this task."}), 404
+    if not REQUIRE_AUTH or current_user.is_authenticated:
+        return None
+    if request.endpoint in ("login_page", "static") or path.startswith("/static/") or path == "/favicon.ico":
+        return None
+    if path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Authentication required"}), 401
+    from urllib.parse import quote
+    return redirect("/login?next=" + quote(request.full_path))
+
+
+def _is_admin():
+    if REQUIRE_AUTH:
+        return current_user.is_authenticated and current_user.get_id() == ADMIN_USERNAME
+    return session.get("username") == ADMIN_USERNAME
 
 
 def _apply_recall_rmatch_api_key(env, step_options, api_key):
@@ -4093,6 +4188,8 @@ def inject_template_globals():
     """Rater name and public feedback links for all templates."""
     return {
         'logged_in_username': session.get('username', ''),
+        'require_auth': REQUIRE_AUTH,
+        'task_mode': TASK_MODE,
         'narraters_repo_url': REPO_URL,
         'narraters_feedback_url': FEEDBACK_ISSUE_URL,
         'narraters_bug_url': BUG_ISSUE_URL,
@@ -4131,15 +4228,55 @@ def sanitize_rater_name(raw):
     return token[:32]
 
 
-@app.route('/login')
+@app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    """Legacy path — login was removed; send users to pipeline config."""
-    return redirect('/pipeline-config')
+    """Password login when REQUIRE_AUTH is on (serve --production). Otherwise
+    there is nothing to log into: go to the task list or the pipeline config."""
+    if not REQUIRE_AUTH:
+        return redirect('/tasks' if TASK_MODE else '/pipeline-config')
+    if current_user.is_authenticated:
+        return redirect(_safe_next(request.args.get('next')) or '/')
+    error = None
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or request.form
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
+        nxt = _safe_next(data.get('next') or request.args.get('next'))
+        if username and _accounts.verify_user(username, password):
+            login_user(_LoginUser(username))
+            session['username'] = username
+            try:
+                log_user_login(username)
+            except Exception as e:
+                print(f"login: log_user_login failed (non-fatal): {e}")
+            if request.is_json:
+                return jsonify({'success': True, 'redirect': nxt or '/'})
+            return redirect(nxt or '/')
+        error = 'Invalid username or password.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': error}), 401
+    return render_template('login.html', error=error,
+                           next=_safe_next(request.args.get('next')) or '')
+
+
+@app.route('/logout')
+def logout_page():
+    """Log out and return to the login page (or the task list without auth)."""
+    if REQUIRE_AUTH:
+        logout_user()
+    session.clear()
+    return redirect('/login' if REQUIRE_AUTH else '/')
 
 
 @app.route('/api/set-rater', methods=['POST'])
 def api_set_rater():
-    """Store the rater name for this session (used only to label edit files)."""
+    """Store the rater name for this session (used only to label edit files).
+    Under login (REQUIRE_AUTH) the rater is pinned to the account name."""
+    if REQUIRE_AUTH:
+        if current_user.is_authenticated:
+            session['username'] = current_user.get_id()
+            return jsonify({'success': True, 'rater_name': current_user.get_id()})
+        return jsonify({'success': False, 'error': 'Authentication required'}), 401
     try:
         data = request.get_json(silent=True) or {}
         raw = str(data.get('rater_name', ''))
@@ -4174,6 +4311,8 @@ def api_random_name():
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
     """Clear the current rater (used by the 'change rater' control)."""
+    if REQUIRE_AUTH:
+        logout_user()
     session.clear()
     return jsonify({'success': True, 'message': 'Rater cleared'})
 
@@ -4191,6 +4330,8 @@ def api_verify_auth():
 def index():
     """Main dashboard. Requires a configured pipeline; rater name is optional
     here (it is collected on the pipeline-config page)."""
+    if TASK_MODE:
+        return redirect('/admin' if _is_admin() else '/tasks')
     pipeline_file = _pipeline_config_path()
     if not pipeline_file.exists():
         print("No pipeline config found, redirecting to pipeline configuration page")
@@ -4330,6 +4471,8 @@ def api_subject(subj_id):
 @app.route('/api/story/<story_name>')
 def api_story(story_name):
     """API endpoint to get all data for a story."""
+    if TASK_MODE:
+        return _task_story_payload_response(story_name)
     story_events_file, recall_fv, story_transcript_file, causal_rating_file = _parse_file_version_query_args()
     if not causal_rating_file and recall_fv and str(recall_fv).endswith('.xlsx') and 'causal' in str(recall_fv):
         causal_rating_file, recall_fv = recall_fv, None
@@ -5441,6 +5584,8 @@ def save_parsed_segments(subj_id):
 @app.route('/api/subject/<subj_id>/save-story-events', methods=['POST'])
 def save_story_events(subj_id):
     """Save edited story events segmentation."""
+    if TASK_MODE:
+        return _task_save_segmentation(subj_id)
     try:
         data = request.json
         events = data.get('events', [])
@@ -5536,6 +5681,8 @@ def save_story_events(subj_id):
 @app.route('/api/subject/<story_name>/save-causal-matrix', methods=['POST'])
 def save_causal_matrix(story_name):
     """Save causal rating matrix data from the manual entry UI."""
+    if TASK_MODE:
+        return _task_save_causal(story_name)
     try:
         data = request.get_json(force=True, silent=True) or {}
         pairs = data.get('pairs', [])
@@ -8356,6 +8503,8 @@ def save_user_log():
     time from the start of editing, the interface (tab) and panel, and the total
     duration — directly openable, no decryption needed.
     """
+    if TASK_MODE:
+        return _task_save_userlog()
     try:
         data = request.get_json(silent=True) or {}
         events = data.get('events') or []
@@ -8392,6 +8541,576 @@ def save_user_log():
         traceback.print_exc()
         # Telemetry must never block the user's export — report but don't 500 hard.
         return jsonify({'success': False, 'error': str(e)}), 200
+
+
+# =============================================================================
+# Hosted task: story segmentation check + causal rating  (NARRATERS_TASK=segment-causal)
+# =============================================================================
+#
+# What a rater does (from the "DFRN Story Causal Rating" instructions):
+#   Part 1  read the story and check its event segmentation: remove boundaries
+#           they disagree with, add missing ones, then submit.
+#   Part 2  rate how strongly each earlier event causes each later event
+#           (0-3) on the ORIGINAL segmentation, never on their own edited one.
+#
+# In the local app the rater had to install narRaters, copy files into data/,
+# pick the steps and the right file versions, run "Manual", export, and upload
+# three folders by hand. Here the server does all of that:
+#
+#   <TASK_DIR>/unrated/<story>/<story>.txt              story transcript (in)
+#   <TASK_DIR>/unrated/<story>/<story>_events*.xlsx     original segmentation (in)
+#   <TASK_DIR>/assignments.json                         optional {user: [story, ...]}
+#   <TASK_DIR>/rated/<user>/<user>-segcausal/<story>/   everything the rater produces:
+#       <events stem>_<user>-edit.xlsx                  Part 1 (segmentation)
+#       <story>_causal-manual_<user>-edit.xlsx          Part 2 (causal ratings)
+#       status.json                                     saves / submit times
+#       userlogs/<file stem>_<time>_userlog.txt         operation logs (read-only)
+#       history/<file>.<time>.xlsx                      every earlier saved version
+#       source/<original events file>                   copy of what Part 2 rated
+#
+# Same in/out shape as the dev branch's benchmark/ folder (unrated/ in,
+# rated/<user>/ out), but in its own TASK_DIR so the two never share files.
+# The rater's identity and every path are decided on the server; the client
+# cannot name a file.
+
+import threading as _threading  # noqa: E402
+
+TASK_DIR = Path(
+    os.environ.get('NARRATERS_TASK_DIR') or (WORKSPACE_ROOT / 'task_segcausal')
+).expanduser().resolve()
+TASK_UNRATED_DIR = TASK_DIR / 'unrated'
+TASK_RATED_DIR = TASK_DIR / 'rated'
+TASK_SUFFIX = 'segcausal'
+_TASK_STORY_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$')
+_TASK_PARTS = ('segment', 'causal')
+
+_TASK_LOCKS = {}
+_TASK_LOCKS_GUARD = _threading.Lock()
+_TASK_SAVE_SEQ = {}
+
+
+def _task_lock(key):
+    with _TASK_LOCKS_GUARD:
+        lock = _TASK_LOCKS.get(key)
+        if lock is None:
+            lock = _TASK_LOCKS[key] = _threading.Lock()
+        return lock
+
+
+def _task_username():
+    """The rater: the logged-in account under --production; locally (no login)
+    the session name, or 'local_rater'."""
+    if REQUIRE_AUTH:
+        return current_user.get_id() if current_user.is_authenticated else None
+    name = session.get('username') or 'local_rater'
+    clean = _accounts.sanitize_username(name) or 'local_rater'
+    session['username'] = clean
+    return clean
+
+
+def _task_story_files(story_dir):
+    """(transcript, original events file) for one unrated story folder."""
+    txts = sorted(p for p in story_dir.glob('*.txt') if p.is_file())
+    events = sorted(
+        p for p in story_dir.glob('*_events*.xlsx')
+        if p.is_file() and not p.name.startswith('~$') and not is_user_edit_file(p.name)
+    )
+    return (txts[0] if txts else None), (events[0] if events else None)
+
+
+def _task_load_assignments():
+    path = TASK_DIR / 'assignments.json'
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"task: could not read {path}: {e}")
+        return {}
+
+
+def _task_scan():
+    """All stories under unrated/ that have both a transcript and an events file."""
+    stories = []
+    if not TASK_UNRATED_DIR.is_dir():
+        return stories
+    for d in sorted(p for p in TASK_UNRATED_DIR.iterdir() if p.is_dir()):
+        if not _TASK_STORY_RE.match(d.name):
+            print(f"task: skipping folder with unsafe name: {d.name!r}")
+            continue
+        transcript, events = _task_story_files(d)
+        if events is None:
+            print(f"task: {d.name}: no *_events*.xlsx, skipped")
+            continue
+        stories.append({'story': d.name, 'dir': d, 'transcript': transcript, 'events': events})
+    return stories
+
+
+def _task_visible_stories(username):
+    stories = _task_scan()
+    if _is_admin():
+        return stories
+    assigned = _task_load_assignments().get(username)
+    if isinstance(assigned, list):
+        order = {name: i for i, name in enumerate(assigned)}
+        stories = [s for s in stories if s['story'] in order]
+        stories.sort(key=lambda s: order[s['story']])
+    return stories
+
+
+def _task_resolve(item_id):
+    """'seg__<story>' / 'causal__<story>' -> (part, story dict) for the current
+    rater, or (None, None) if unknown or not assigned to them."""
+    m = re.match(r'^(seg|causal)__(.+)$', str(item_id or ''))
+    if not m:
+        return None, None
+    part = 'segment' if m.group(1) == 'seg' else 'causal'
+    username = _task_username()
+    if not username:
+        return None, None
+    for st in _task_visible_stories(username):
+        if st['story'] == m.group(2):
+            return part, st
+    return None, None
+
+
+def _task_out_dir(username, story):
+    return TASK_RATED_DIR / username / f"{username}-{TASK_SUFFIX}" / story
+
+
+def _task_seg_path(username, st):
+    return _task_out_dir(username, st['story']) / f"{st['events'].stem}_{username}-edit.xlsx"
+
+
+def _task_causal_path(username, st):
+    return _task_out_dir(username, st['story']) / f"{st['story']}_causal-manual_{username}-edit.xlsx"
+
+
+def _task_status_path(username, story):
+    return _task_out_dir(username, story) / 'status.json'
+
+
+def _task_read_status(username, story):
+    path = _task_status_path(username, story)
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if isinstance(data, dict):
+                return data
+        except Exception as e:
+            print(f"task: unreadable {path}: {e}")
+    return {}
+
+
+def _task_write_status(username, story, status):
+    path = _task_status_path(username, story)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.tmp')
+    tmp.write_text(json.dumps(status, indent=2), encoding='utf-8')
+    os.replace(tmp, path)
+
+
+def _task_now():
+    return datetime.now().isoformat(timespec='seconds')
+
+
+def _task_part_state(status, part, file_path):
+    rec = status.get(part) or {}
+    if rec.get('submitted_at'):
+        edited_after = (rec.get('last_saved') or '') > rec['submitted_at']
+        return 'submitted_edited' if edited_after else 'submitted'
+    if file_path.exists():
+        return 'in_progress'
+    return 'not_started'
+
+
+def _task_read_events(path):
+    """[{event, text}] from a story-events workbook (event + story_texts columns)."""
+    try:
+        return _read_story_events_dataframe(pd.read_excel(path)) or []
+    except Exception as e:
+        print(f"task: could not read events {path}: {e}")
+        return []
+
+
+def _task_atomic_excel_write(df, path, username, story):
+    """Write ``df`` to ``path`` atomically; the previous version (if any) is
+    moved to history/ first, so no saved state is ever lost."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.stem + '.tmp' + path.suffix)
+    df.to_excel(tmp, index=False, engine='openpyxl')
+    if path.exists():
+        hist = _task_out_dir(username, story) / 'history'
+        hist.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+        shutil.copy2(path, hist / f"{path.stem}.{stamp}{path.suffix}")
+    os.replace(tmp, path)
+
+
+def _task_copy_source(username, st):
+    """Keep a copy of the original events file next to the rater's output, so
+    each rated folder says exactly which segmentation was rated."""
+    dest = _task_out_dir(username, st['story']) / 'source' / st['events'].name
+    if not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(st['events'], dest)
+
+
+def _task_story_payload(part, st, username):
+    seg_path = _task_seg_path(username, st)
+    causal_path = _task_causal_path(username, st)
+    original_events = _task_read_events(st['events'])
+    transcript = ''
+    if st['transcript'] is not None:
+        try:
+            transcript = st['transcript'].read_text(encoding='utf-8', errors='replace')
+        except Exception as e:
+            print(f"task: could not read transcript {st['transcript']}: {e}")
+    causal = None
+    if part == 'segment':
+        # Start from the rater's own saved segmentation if there is one.
+        events = _task_read_events(seg_path) if seg_path.exists() else original_events
+        source_name = seg_path.name if seg_path.exists() else st['events'].name
+    else:
+        # Causal ratings are ALWAYS made on the original segmentation.
+        events = original_events
+        source_name = st['events'].name
+        if causal_path.exists():
+            try:
+                df = pd.read_excel(causal_path)
+                causal = {'pairs': _parse_causal_pairs_dataframe(df), 'source_file': causal_path.name}
+            except Exception as e:
+                print(f"task: could not read causal file {causal_path}: {e}")
+    status = _task_read_status(username, st['story'])
+    item_id = ('seg__' if part == 'segment' else 'causal__') + st['story']
+    return {
+        'subject_id': item_id,
+        'story_name': st['story'],
+        'username': username,
+        'task': {
+            'part': part,
+            'story': st['story'],
+            'events_source': source_name,
+            'state': _task_part_state(status, part, seg_path if part == 'segment' else causal_path),
+            'n_events': len(events),
+        },
+        'story_events': events,
+        'story_transcript': transcript,
+        'audio_file': None,
+        'audio_transcription': None,
+        'causal_ratings': causal,
+        'available_versions': {'step1': [], 'step2': [], 'step3': [], 'story_events': [],
+                               'causal': [], 'story_transcript': []},
+        'event_granularities': None,
+        'default_export_paths': {'corrected': '', 'parsed': '', 'rated': '', 'audio': '',
+                                 'story-events': '', 'causal': ''},
+        'raw_recall': '', 'corrected_text': None, 'parsed_texts': [], 'rated_texts': [],
+    }
+
+
+def _task_story_payload_response(item_id):
+    part, st = _task_resolve(item_id)
+    if not st:
+        return jsonify({'error': 'Unknown or unassigned story.'}), 404
+    return jsonify(_task_story_payload(part, st, _task_username()))
+
+
+def _task_check_seq(key, data):
+    """Drop a save that is older than one already written (autosave racing a
+    manual save). Returns True if this save should be skipped."""
+    seq = data.get('client_seq')
+    try:
+        seq = float(seq) if seq is not None else None
+    except (TypeError, ValueError):
+        seq = None
+    if seq is not None and seq <= _TASK_SAVE_SEQ.get(key, float('-inf')):
+        return True, seq
+    return False, seq
+
+
+def _task_mark_saved(username, story, part, extra):
+    status = _task_read_status(username, story)
+    rec = status.get(part) or {}
+    rec['last_saved'] = _task_now()
+    rec['n_saves'] = int(rec.get('n_saves') or 0) + 1
+    rec.update(extra)
+    status[part] = rec
+    _task_write_status(username, story, status)
+
+
+def _task_save_segmentation(item_id):
+    part, st = _task_resolve(item_id)
+    if not st or part != 'segment':
+        return jsonify({'error': 'Unknown story, or this is not the segmentation part.'}), 404
+    username = _task_username()
+    data = request.get_json(silent=True) or {}
+    events = data.get('events') or []
+    texts = [str(e.get('text', '')).strip() for e in events]
+    if not events or not any(texts):
+        return jsonify({'error': 'No segments received; nothing was saved.'}), 400
+    out_path = _task_seg_path(username, st)
+    with _task_lock(str(out_path)):
+        skip, seq = _task_check_seq(str(out_path), data)
+        if skip:
+            return jsonify({'success': True, 'skipped': 'stale'})
+        rows = [{'event': i + 1, 'story_texts': str(e.get('text', ''))} for i, e in enumerate(events)]
+        df = pd.DataFrame(rows)
+        # Keep the original file's column layout (same rule as the local app).
+        try:
+            orig_cols = list(pd.read_excel(st['events'], nrows=0).columns)
+            for c in orig_cols:
+                if c not in df.columns:
+                    df[c] = ''
+            df = df.reindex(columns=orig_cols + [c for c in df.columns if c not in orig_cols])
+        except Exception as e:
+            print(f"task: could not read original columns: {e}")
+        if any('boundary_strength' in e for e in events):
+            df['boundary_strength'] = ['' if e.get('boundary_strength') is None
+                                       else str(e.get('boundary_strength')) for e in events]
+        _task_atomic_excel_write(df, out_path, username, st['story'])
+        if seq is not None:
+            _TASK_SAVE_SEQ[str(out_path)] = seq
+    _task_copy_source(username, st)
+    n_orig = len(_task_read_events(st['events']))
+    _task_mark_saved(username, st['story'], 'segment', {'n_events': len(rows), 'n_events_original': n_orig})
+    log_user_edit(username, 'save-story-events', item_id, out_path.name)
+    return jsonify({'success': True, 'message': f'Saved {len(rows)} segments', 'file': out_path.name,
+                    'path_used': out_path.name, 'events': events})
+
+
+def _task_save_causal(item_id):
+    part, st = _task_resolve(item_id)
+    if not st or part != 'causal':
+        return jsonify({'error': 'Unknown story, or this is not the causal-rating part.'}), 404
+    username = _task_username()
+    status = _task_read_status(username, st['story'])
+    if not (status.get('segment') or {}).get('submitted_at'):
+        return jsonify({'error': 'Please submit Part 1 (segmentation) first.'}), 409
+    data = request.get_json(force=True, silent=True) or {}
+    n_events = len(_task_read_events(st['events']))
+    valid = set(range(1, n_events + 1))
+    rows = []
+    for pair in data.get('pairs') or []:
+        try:
+            a, b, r = int(pair['event_A']), int(pair['event_B']), int(pair.get('rating', 0))
+        except (KeyError, TypeError, ValueError):
+            return jsonify({'error': 'Malformed rating received; nothing was saved.'}), 400
+        if a not in valid or b not in valid or a == b or not (0 <= r <= 3):
+            return jsonify({'error': f'Rating out of range (cause {a}, effect {b}, rating {r}); '
+                                     'nothing was saved. Please reload the page.'}), 400
+        if r > 0:
+            rows.append({'event_A_number': a, 'event_B_number': b, 'rating': r,
+                         'reasoning': str(pair.get('reasoning') or '') or 'manual entry'})
+    rows.sort(key=lambda x: (x['event_A_number'], x['event_B_number']))
+    df = pd.DataFrame(rows, columns=['event_A_number', 'event_B_number', 'rating', 'reasoning'])
+    out_path = _task_causal_path(username, st)
+    with _task_lock(str(out_path)):
+        skip, seq = _task_check_seq(str(out_path), data)
+        if skip:
+            return jsonify({'success': True, 'skipped': 'stale'})
+        _task_atomic_excel_write(df, out_path, username, st['story'])
+        if seq is not None:
+            _TASK_SAVE_SEQ[str(out_path)] = seq
+    _task_copy_source(username, st)
+    _task_mark_saved(username, st['story'], 'causal', {'n_pairs': len(rows), 'n_events': n_events,
+                                                      'rated_on': st['events'].name})
+    log_user_edit(username, 'save-causal-matrix', item_id, out_path.name)
+    return jsonify({'success': True, 'message': f'Saved {len(rows)} causal pairs',
+                    'file': out_path.name, 'path_used': out_path.name})
+
+
+def _task_save_userlog():
+    """Store the page's operation log next to the rater's files (never overwritten)."""
+    data = request.get_json(silent=True) or {}
+    events = data.get('events') or []
+    # A 0-operation log is kept too: it records that the rater opened the page and for how long.
+    part, st = _task_resolve(data.get('subject_id'))
+    if not st:
+        return jsonify({'success': False, 'error': 'Unknown story.'}), 200
+    username = _task_username()
+    stem = (_task_seg_path if part == 'segment' else _task_causal_path)(username, st).stem
+    out_dir = _task_out_dir(username, st['story']) / 'userlogs'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{stem}_{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}_userlog.txt"
+    out_path.write_text(_render_userlog_text(data, events), encoding='utf-8')
+    try:
+        os.chmod(out_path, 0o444)
+    except OSError:
+        pass
+    return jsonify({'success': True, 'n_events': len(events)})
+
+
+def _task_overview(username):
+    out = []
+    for st in _task_visible_stories(username):
+        status = _task_read_status(username, st['story'])
+        seg_state = _task_part_state(status, 'segment', _task_seg_path(username, st))
+        causal_state = _task_part_state(status, 'causal', _task_causal_path(username, st))
+        out.append({
+            'story': st['story'],
+            'n_events': len(_task_read_events(st['events'])),
+            'segment': {'state': seg_state, **(status.get('segment') or {})},
+            'causal': {'state': causal_state, 'locked': not (status.get('segment') or {}).get('submitted_at'),
+                       **(status.get('causal') or {})},
+        })
+    return out
+
+
+@app.route('/favicon.ico')
+def favicon_ico():
+    """Browsers request /favicon.ico on every page; serve the bundled icon."""
+    icon = PACKAGE_ROOT / 'static' / 'favicon' / 'favicon.ico'
+    if icon.exists():
+        return send_file(str(icon), mimetype='image/x-icon')
+    return ('', 204)
+
+
+@app.route('/tasks')
+def tasks_page():
+    if not TASK_MODE:
+        return redirect('/')
+    if _is_admin():
+        return redirect('/admin')
+    return render_template('tasks.html', username=_task_username())
+
+
+@app.route('/api/tasks')
+def api_tasks():
+    if not TASK_MODE:
+        return jsonify({'error': 'Not in task mode'}), 404
+    username = _task_username()
+    return jsonify({'username': username, 'stories': _task_overview(username)})
+
+
+@app.route('/task/<story>/<part>')
+def task_page(story, part):
+    if not TASK_MODE or part not in _TASK_PARTS:
+        return redirect('/')
+    item_id = ('seg__' if part == 'segment' else 'causal__') + story
+    p, st = _task_resolve(item_id)
+    if not st:
+        return redirect('/tasks')
+    username = _task_username()
+    if part == 'causal' and not (_task_read_status(username, story).get('segment') or {}).get('submitted_at'):
+        return redirect('/tasks')
+    return render_template('subject.html', subject_id=item_id, is_story=True,
+                           step='step0' if part == 'segment' else 'step0_causal',
+                           hosted_part=part, hosted_story=story)
+
+
+@app.route('/api/task/<item_id>/submit', methods=['POST'])
+def api_task_submit(item_id):
+    part, st = _task_resolve(item_id)
+    if not st:
+        return jsonify({'error': 'Unknown story.'}), 404
+    username = _task_username()
+    path = (_task_seg_path if part == 'segment' else _task_causal_path)(username, st)
+    if not path.exists():
+        return jsonify({'error': 'Nothing has been saved yet; please save before submitting.'}), 409
+    status = _task_read_status(username, st['story'])
+    if part == 'causal' and not (status.get('segment') or {}).get('submitted_at'):
+        return jsonify({'error': 'Please submit Part 1 (segmentation) first.'}), 409
+    rec = status.get(part) or {}
+    rec['submitted_at'] = _task_now()
+    rec['n_submits'] = int(rec.get('n_submits') or 0) + 1
+    status[part] = rec
+    _task_write_status(username, st['story'], status)
+    log_user_edit(username, f'submit-{part}', item_id, path.name)
+    return jsonify({'success': True, 'submitted_at': rec['submitted_at']})
+
+
+# --- Admin (account "admin"): progress of every rater + account management ---
+
+def _task_admin_required():
+    if not _is_admin():
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    return None
+
+
+@app.route('/admin')
+def task_admin_page():
+    if not TASK_MODE:
+        return redirect('/')
+    if not _is_admin():
+        return redirect('/tasks')
+    return render_template('tasks_admin.html', username=ADMIN_USERNAME, task_dir=str(TASK_DIR))
+
+
+@app.route('/api/admin/progress')
+def api_admin_progress():
+    err = _task_admin_required()
+    if err:
+        return err
+    users = [u for u in _accounts.list_users() if u != ADMIN_USERNAME]
+    if TASK_RATED_DIR.is_dir():
+        for d in TASK_RATED_DIR.iterdir():
+            if d.is_dir() and d.name not in users and d.name != ADMIN_USERNAME:
+                users.append(d.name)  # rater folders whose account was removed
+    assignments = _task_load_assignments()
+    rows = []
+    for u in sorted(users):
+        stories = _task_scan()
+        if isinstance(assignments.get(u), list):
+            stories = [s for s in stories if s['story'] in assignments[u]]
+        for st in stories:
+            status = _task_read_status(u, st['story'])
+            rows.append({
+                'username': u, 'has_account': _accounts.user_exists(u), 'story': st['story'],
+                'segment': {'state': _task_part_state(status, 'segment', _task_seg_path(u, st)),
+                            **(status.get('segment') or {})},
+                'causal': {'state': _task_part_state(status, 'causal', _task_causal_path(u, st)),
+                           **(status.get('causal') or {})},
+            })
+    return jsonify({'success': True, 'rows': rows,
+                    'stories': [s['story'] for s in _task_scan()],
+                    'task_dir': str(TASK_DIR)})
+
+
+@app.route('/api/admin/users', methods=['GET', 'POST'])
+def api_admin_users():
+    err = _task_admin_required()
+    if err:
+        return err
+    if request.method == 'GET':
+        return jsonify({'success': True, 'users': _accounts.list_users()})
+    data = request.get_json(silent=True) or {}
+    username = str(data.get('username') or '').strip()
+    password = str(data.get('password') or '')
+    if not _accounts.is_safe_username(username):
+        return jsonify({'success': False, 'error': 'Use only letters, numbers or underscore.'}), 400
+    if not password.strip():
+        return jsonify({'success': False, 'error': 'Password must not be empty.'}), 400
+    if _accounts.user_exists(username):
+        return jsonify({'success': False, 'error': 'That user already exists.'}), 409
+    if not _accounts.add_user(username, password):
+        return jsonify({'success': False, 'error': 'Could not write the users file.'}), 500
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/users/<username>/password', methods=['POST'])
+def api_admin_user_password(username):
+    err = _task_admin_required()
+    if err:
+        return err
+    password = str((request.get_json(silent=True) or {}).get('password') or '')
+    if not password.strip():
+        return jsonify({'success': False, 'error': 'Password must not be empty.'}), 400
+    if not _accounts.set_password(username, password):
+        return jsonify({'success': False, 'error': 'No such user.'}), 404
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/users/<username>/remove', methods=['POST'])
+def api_admin_user_remove(username):
+    err = _task_admin_required()
+    if err:
+        return err
+    if username == ADMIN_USERNAME:
+        return jsonify({'success': False, 'error': 'The admin account cannot be removed here.'}), 400
+    if not _accounts.remove_user(username):
+        return jsonify({'success': False, 'error': 'No such user.'}), 404
+    return jsonify({'success': True, 'note': 'Account removed; saved files were kept.'})
 
 
 if __name__ == '__main__':

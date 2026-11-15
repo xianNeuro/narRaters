@@ -217,6 +217,20 @@ def cmd_rate(args: argparse.Namespace, extra: list[str]) -> int:
     return _run_legacy_script("rate", forwarded, env_overrides=env or None)
 
 
+# Defaults that keep a hosted-task app from sharing anything with another
+# narRaters app on the same computer (the main app, or the dev-branch
+# matching app, both use port 5000 and ~/.narraters).
+TASK_DEFAULT_PORT = {"segment-causal": 5001}
+TASK_DEFAULT_DATA_DIR = {"segment-causal": "~/.narraters-segcausal"}
+
+
+def _apply_task_data_dir(task: str | None) -> None:
+    """Point accounts/session secret/logs at the task's own folder unless the
+    user already chose one with NARRATERS_DATA_DIR."""
+    if task and not (os.environ.get("NARRATERS_DATA_DIR") or "").strip():
+        os.environ["NARRATERS_DATA_DIR"] = str(Path(TASK_DEFAULT_DATA_DIR[task]).expanduser())
+
+
 def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
     """Launch the Flask web UI in-process."""
     import importlib.util
@@ -229,6 +243,25 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
     if not server_script.exists():
         print(f"narraters: server script not found: {server_script}", file=sys.stderr)
         return 2
+
+    # Hosted-task mode (segment-causal branch). The server module reads these
+    # environment variables at import time, so they are set before exec below.
+    task = None if getattr(args, "pipeline", False) else getattr(args, "task", None)
+    args.task = task
+    production = getattr(args, "production", False)
+    if task:
+        os.environ["NARRATERS_TASK"] = task
+        _apply_task_data_dir(task)
+    if production:
+        # Enforce password login (Flask-Login) on every route.
+        os.environ["NARRATERS_REQUIRE_AUTH"] = "1"
+    if task and not production:
+        _RED, _RESET = "\033[1;31m", "\033[0m"
+        print(
+            f"{_RED}WARNING: running the rater task without --production has no login. Every "
+            f"browser is treated as the same local rater, so this is for local testing only.{_RESET}",
+            file=sys.stderr,
+        )
 
     # Load server/web-interface.py as a module (its filename has a hyphen so
     # we can't use a regular import statement).
@@ -248,7 +281,7 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
     # expose those to anyone on the local network. Users who genuinely need
     # LAN access can pass --host 0.0.0.0 (warning is printed below).
     host = args.host or "127.0.0.1"
-    port = args.port or 5000
+    port = args.port or TASK_DEFAULT_PORT.get(getattr(args, "task", None) or "", 5000)
     debug = args.debug or (os.environ.get("FLASK_DEBUG", "0") == "1")
 
     if host not in ("127.0.0.1", "localhost"):
@@ -258,11 +291,22 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
             file=sys.stderr,
         )
 
-    if not args.no_browser:
-        _open_browser_when_ready(host, port)
+    if production and not module.load_users():
+        print(
+            "⚠️  Production login is on but no accounts exist yet. Create one with:\n"
+            "       narraters users add <name>",
+            file=sys.stderr,
+        )
+
+    landing_path = "/tasks" if task else "/pipeline-config"
+    if not args.no_browser and not production:
+        _open_browser_when_ready(host, port, landing_path)
 
     browse_host = _loopback_browser_host(host)
-    print(f"narRaters web UI starting on http://{browse_host}:{port}/pipeline-config")
+    print(f"narRaters web UI starting on http://{browse_host}:{port}{landing_path}")
+    if task:
+        print(f"Hosted task: {task}; task folder: {module.TASK_DIR}; "
+              f"accounts/state: {os.environ.get('NARRATERS_DATA_DIR')}")
     print(f"Project root for data/ and output/ paths: {module.WORKSPACE_ROOT}")
     if not (module.WORKSPACE_ROOT / "data").is_dir() and not (module.WORKSPACE_ROOT / "output").is_dir():
         print(
@@ -270,6 +314,21 @@ def cmd_serve(args: argparse.Namespace, extra: list[str]) -> int:
             "'narraters serve', or set NARRATERS_PROJECT_ROOT to that folder.",
             file=sys.stderr,
         )
+    if production:
+        # Production hosting: Waitress (a real WSGI server) behind a TLS proxy.
+        try:
+            from waitress import serve as waitress_serve
+        except ImportError:
+            print(
+                "narraters: --production needs waitress. Install it with "
+                "'pip install \"narraters[deploy]\"'.",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"narRaters (waitress) serving on http://{host}:{port} — proxy TLS in front of this.")
+        waitress_serve(module.app, host=host, port=port, threads=8)
+        return 0
+
     module.app.run(host=host, port=port, debug=debug, use_reloader=False)
     return 0
 
@@ -281,7 +340,7 @@ def _loopback_browser_host(host: str) -> str:
     return host
 
 
-def _open_browser_when_ready(host: str, port: int) -> None:
+def _open_browser_when_ready(host: str, port: int, path: str = "/pipeline-config") -> None:
     """Open the default browser to the local server, in a background thread."""
     import threading
     import time
@@ -289,13 +348,135 @@ def _open_browser_when_ready(host: str, port: int) -> None:
 
     def opener() -> None:
         time.sleep(1.0)
-        url = f"http://{_loopback_browser_host(host)}:{port}/pipeline-config"
+        url = f"http://{_loopback_browser_host(host)}:{port}{path}"
         try:
             webbrowser.open(url)
         except Exception:
             pass
 
     threading.Thread(target=opener, daemon=True).start()
+
+
+def _detect_narraters_bin() -> str:
+    """Best guess for the installed `narraters` console script (for ExecStart)."""
+    candidate = Path(sys.executable).with_name("narraters")
+    if candidate.exists():
+        return str(candidate)
+    import shutil
+
+    return shutil.which("narraters") or "narraters"
+
+
+def cmd_init_service(args: argparse.Namespace, extra: list[str]) -> int:
+    """Generate a systemd unit + Caddy site block for one hosted task.
+
+    Unlike the dev-branch version, every name is parameterised so this
+    deployment can live next to others on the same server without replacing
+    their unit file, port, Caddy config, accounts or data.
+    """
+    import getpass
+
+    from narraters.deploy import DeployConfig, write_configs
+
+    workdir = Path(args.workdir).expanduser().resolve() if args.workdir else Path.cwd().resolve()
+    output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else workdir
+    task_dir = Path(args.task_dir).expanduser().resolve() if args.task_dir else workdir / "task_segcausal"
+    user = args.user or getpass.getuser()
+    if args.data_dir:
+        data_dir = Path(args.data_dir).expanduser().resolve()
+    else:
+        # The service user's own ~/.narraters-segcausal: the same folder that
+        # `sudo -u <user> narraters users add <name>` writes to, so accounts made
+        # that way are the ones the service reads.
+        import pwd
+        try:
+            home = Path(pwd.getpwnam(user).pw_dir)
+        except KeyError:
+            # User not created yet (or generating on another machine): assume the
+            # setup from HOSTING_SEGCAUSAL.md, where the user's home is the workdir.
+            home = workdir
+        data_dir = (home / TASK_DEFAULT_DATA_DIR[args.task].replace("~/", "")).resolve()
+    for d in (task_dir / "unrated", task_dir / "rated", data_dir):
+        d.mkdir(parents=True, exist_ok=True)
+
+    config = DeployConfig(
+        domain=args.domain,
+        workdir=str(workdir),
+        user=user,
+        host=args.host,
+        port=args.port,
+        narraters_bin=args.narraters_bin or _detect_narraters_bin(),
+        task_dir=str(task_dir),
+        data_dir=str(data_dir),
+        service_name=args.service_name,
+        task=args.task,
+    )
+    service_path, caddy_path = write_configs(config, output_dir)
+    name = args.service_name
+    print(f"Wrote {service_path}")
+    print(f"Wrote {caddy_path}")
+    print(f"Task folder: {task_dir}  (rsync stories into unrated/, pull results from rated/)")
+    print(f"Accounts/state: {data_dir}")
+    print()
+    print("Next steps (see HOSTING_SEGCAUSAL.md; nothing here touches other deployments):")
+    print(f"  1. sudo cp {service_path} /etc/systemd/system/{name}.service")
+    print("     sudo systemctl daemon-reload")
+    print(f"     sudo systemctl enable --now {name}")
+    print(f"  2. APPEND the site block (do not overwrite the file):")
+    print(f"     sudo sh -c 'cat {caddy_path} >> /etc/caddy/Caddyfile' && sudo systemctl reload caddy")
+    print(f"  3. Point a DNS A record for {args.domain} at this server.")
+    print(f"  4. Create accounts: sudo -u {user} {config.narraters_bin} users add admin")
+    print(f"                      sudo -u {user} {config.narraters_bin} users add <rater>")
+    return 0
+
+
+def cmd_users(args: argparse.Namespace, extra: list[str]) -> int:
+    """Manage login accounts (enforced by `narraters serve --production`).
+
+    Accounts live in $NARRATERS_DATA_DIR/users.json (default ~/.narraters).
+    The account named "admin" gets the progress/admin page instead of tasks.
+    """
+    import getpass
+
+    _apply_task_data_dir(getattr(args, "task", None))
+    from narraters import accounts
+
+    action = args.users_action
+    if action == "list":
+        names = accounts.list_users()
+        print("\n".join(names) if names else "No accounts yet. Create one with: narraters users add <name>")
+        return 0
+    if action == "remove":
+        if not accounts.remove_user(args.username):
+            print(f"narraters: no such user: {args.username}", file=sys.stderr)
+            return 1
+        print(f"Removed user '{args.username}' ({accounts.users_file()}); their saved files are kept.")
+        return 0
+    if action == "add" and not accounts.is_safe_username(args.username):
+        print(f"narraters: invalid username {args.username!r}. Use only letters, numbers or underscore.",
+              file=sys.stderr)
+        return 1
+    if action == "add" and accounts.user_exists(args.username):
+        print(f"narraters: user '{args.username}' already exists.", file=sys.stderr)
+        return 1
+    if action == "passwd" and not accounts.user_exists(args.username):
+        print(f"narraters: no such user: {args.username}", file=sys.stderr)
+        return 1
+    password = os.environ.get("NARRATERS_NEW_PASSWORD") or getpass.getpass("Password: ")
+    if not password.strip():
+        print("narraters: password cannot be empty.", file=sys.stderr)
+        return 1
+    if not os.environ.get("NARRATERS_NEW_PASSWORD") and getpass.getpass("Confirm password: ") != password:
+        print("narraters: passwords did not match.", file=sys.stderr)
+        return 1
+    ok = (accounts.add_user(args.username, password) if action == "add"
+          else accounts.set_password(args.username, password))
+    if not ok:
+        print("narraters: failed to write users file.", file=sys.stderr)
+        return 1
+    print(f"{'Created' if action == 'add' else 'Updated password for'} user '{args.username}' "
+          f"({accounts.users_file()})")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -395,10 +576,59 @@ def build_parser() -> argparse.ArgumentParser:
     # serve
     p_serve = sub.add_parser("serve", help="Launch the web UI (Flask) for interactive review and editing.")
     p_serve.add_argument("--host", default=None, help="Bind address (default: 127.0.0.1, loopback only). Pass 0.0.0.0 to allow LAN access — only on a trusted network.")
-    p_serve.add_argument("--port", type=int, default=None, help="Bind port (default: 5000).")
+    p_serve.add_argument("--port", type=int, default=None, help="Bind port (default: 5000; 5001 with --task segment-causal).")
     p_serve.add_argument("--debug", action="store_true", help="Enable Flask debug mode.")
     p_serve.add_argument("--no-browser", action="store_true", help="Do not auto-open the browser on startup.")
+    p_serve.add_argument(
+        "--task",
+        choices=["segment-causal"],
+        default="segment-causal",
+        help="Hosted rater task (default on this branch: segment-causal). Raters check the "
+        "story segmentation and rate causal links between events; files are saved under "
+        "$NARRATERS_TASK_DIR/rated/<username>/. Port 5001, accounts in ~/.narraters-segcausal.",
+    )
+    p_serve.add_argument(
+        "--pipeline",
+        action="store_true",
+        help="Start the plain narRaters pipeline app instead of the rater task "
+        "(port 5000, ~/.narraters).",
+    )
+    p_serve.add_argument(
+        "--production",
+        action="store_true",
+        help="Require login and serve via Waitress (install 'narraters[deploy]'). "
+        "Run behind a TLS reverse proxy; see HOSTING_SEGCAUSAL.md.",
+    )
     p_serve.set_defaults(func=cmd_serve)
+
+    p_init = sub.add_parser(
+        "init-service",
+        help="Generate a systemd unit + Caddy site block for one hosted task (see HOSTING_SEGCAUSAL.md).",
+    )
+    p_init.add_argument("--domain", required=True, help="Public domain for this task, e.g. causal.example.org.")
+    p_init.add_argument("--workdir", default=None, help="Workspace for this deployment (default: current directory).")
+    p_init.add_argument("--user", default=None, help="System user the service runs as (default: current user).")
+    p_init.add_argument("--host", default="127.0.0.1", help="Loopback bind address (default: 127.0.0.1).")
+    p_init.add_argument("--port", type=int, default=5001, help="Loopback port (default: 5001; the dev-branch matching service uses 5000).")
+    p_init.add_argument("--service-name", default="narraters-segcausal", help="systemd unit name (default: narraters-segcausal).")
+    p_init.add_argument("--task", default="segment-causal", choices=["segment-causal"], help="Hosted task to serve.")
+    p_init.add_argument("--task-dir", default=None, help="Task folder with unrated/ and rated/ (default: <workdir>/task_segcausal).")
+    p_init.add_argument("--data-dir", default=None, help="Accounts/state folder, set as NARRATERS_DATA_DIR "
+                        "(default: <--user's home>/.narraters-segcausal, where 'sudo -u <user> narraters users add' writes).")
+    p_init.add_argument("--narraters-bin", default=None, help="Path to the 'narraters' executable (default: auto-detected).")
+    p_init.add_argument("--output-dir", default=None, help="Where to write the .service and .caddy files (default: --workdir).")
+    p_init.set_defaults(func=cmd_init_service)
+
+    p_users = sub.add_parser("users", help="Manage login accounts (enforced by 'narraters serve --production').")
+    p_users.add_argument("--task", choices=["segment-causal"], default="segment-causal",
+                         help="Whose accounts to manage (default on this branch: the segment-causal "
+                              "task, stored in ~/.narraters-segcausal unless NARRATERS_DATA_DIR is set).")
+    users_sub = p_users.add_subparsers(dest="users_action", metavar="<action>", required=True)
+    users_sub.add_parser("add", help="Create an account (prompts for a password).").add_argument("username")
+    users_sub.add_parser("passwd", help="Change an account's password.").add_argument("username")
+    users_sub.add_parser("remove", help="Delete an account (saved files are kept).").add_argument("username")
+    users_sub.add_parser("list", help="List accounts.")
+    p_users.set_defaults(func=cmd_users)
 
     return parser
 

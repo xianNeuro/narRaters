@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — narRaters causal task</title>
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico">
+    <style>
+        :root { --bg0:#0b0d14; --bg1:#111527; --t0:#f0f2f5; --t1:#c4c9db; --t2:#8890a8; --bdr:#2a3050;
+                --acc:#6c63ff; --grn:#22c55e; --ylw:#f59e0b; --red:#ef4444; --rad:10px; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg0); color: var(--t0); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--bdr); background: var(--bg1); }
+        header h1 { font-size: 1.1em; margin: 0; }
+        header a { color: var(--t2); text-decoration: none; }
+        main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+        h2 { font-size: 1em; margin: 26px 0 8px; color: var(--t1); }
+        .muted { color: var(--t2); }
+        .wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; background: var(--bg1); }
+        th, td { padding: 8px 10px; border-bottom: 1px solid var(--bdr); text-align: left; white-space: nowrap; }
+        th { color: var(--t2); font-size: .8em; text-transform: uppercase; }
+        .s-not_started { color: var(--t2); } .s-in_progress { color: var(--ylw); }
+        .s-submitted, .s-submitted_edited { color: var(--grn); font-weight: 600; }
+        form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        input { background: var(--bg1); color: var(--t0); border: 1px solid var(--bdr); border-radius: 6px; padding: 6px 8px; }
+        button { background: var(--acc); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+        button.ghost { background: transparent; border: 1px solid var(--bdr); color: var(--t1); }
+        #msg { margin-left: 8px; }
+    </style>
+</head>
+<body>
+<header><h1>Causal-rating task · admin</h1><a href="/logout">Log out</a></header>
+<main>
+    <p class="muted">Task folder on the server: <code>{{ task_dir }}</code>. Put stories in <code>unrated/&lt;story&gt;/</code>; raters' files appear in <code>rated/&lt;user&gt;/</code>.</p>
+    <h2>Progress</h2>
+    <div class="wrap"><table>
+        <thead><tr><th>Rater</th><th>Story</th><th>Part 1</th><th>segments (orig.)</th><th>Part 1 submitted</th><th>Part 2</th><th>pairs</th><th>Part 2 submitted</th><th>last saved</th></tr></thead>
+        <tbody id="progress"><tr><td colspan="9" class="muted">Loading…</td></tr></tbody>
+    </table></div>
+    <h2>Accounts</h2>
+    <form onsubmit="addUser(event)">
+        <input id="nu" placeholder="new username" autocomplete="off">
+        <input id="np" placeholder="password" type="password" autocomplete="new-password">
+        <button>Add rater</button><span id="msg" class="muted"></span>
+    </form>
+    <div class="wrap" style="margin-top:10px"><table><tbody id="users"></tbody></table></div>
+</main>
+<script>
+    const label = { not_started: 'not started', in_progress: 'in progress', submitted: 'submitted', submitted_edited: 'submitted (edited since)' };
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function t(s) { return s ? esc(s.replace('T', ' ')) : ''; }
+    async function loadProgress() {
+        const d = await (await fetch('/api/admin/progress')).json();
+        const rows = d.rows || [];
+        document.getElementById('progress').innerHTML = rows.length ? rows.map(r => `<tr>
+            <td>${esc(r.username)}${r.has_account ? '' : ' <span class="muted">(no account)</span>'}</td>
+            <td>${esc(r.story)}</td>
+            <td class="s-${r.segment.state}">${label[r.segment.state]}</td>
+            <td>${r.segment.n_events != null ? r.segment.n_events + ' (' + r.segment.n_events_original + ')' : ''}</td>
+            <td>${t(r.segment.submitted_at)}</td>
+            <td class="s-${r.causal.state}">${label[r.causal.state]}</td>
+            <td>${r.causal.n_pairs != null ? r.causal.n_pairs : ''}</td>
+            <td>${t(r.causal.submitted_at)}</td>
+            <td>${t([r.segment.last_saved, r.causal.last_saved].filter(Boolean).sort().pop())}</td></tr>`).join('')
+            : '<tr><td colspan="9" class="muted">No raters yet.</td></tr>';
+    }
+    async function loadUsers() {
+        const d = await (await fetch('/api/admin/users')).json();
+        document.getElementById('users').innerHTML = (d.users || []).map(u => `<tr><td>${esc(u)}</td><td>
+            <button class="ghost" onclick="pw('${esc(u)}')">Reset password</button>
+            ${u === 'admin' ? '' : `<button class="ghost" onclick="rm('${esc(u)}')">Remove</button>`}</td></tr>`).join('');
+    }
+    async function post(url, body) {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+        return [r.ok, await r.json().catch(() => ({}))];
+    }
+    async function addUser(e) {
+        e.preventDefault();
+        const [ok, d] = await post('/api/admin/users', { username: document.getElementById('nu').value.trim(), password: document.getElementById('np').value });
+        document.getElementById('msg').textContent = ok ? 'Added.' : (d.error || 'Failed');
+        if (ok) { document.getElementById('nu').value = ''; document.getElementById('np').value = ''; loadUsers(); loadProgress(); }
+    }
+    async function pw(u) {
+        const p = prompt('New password for ' + u); if (!p) return;
+        const [ok, d] = await post('/api/admin/users/' + encodeURIComponent(u) + '/password', { password: p });
+        alert(ok ? 'Password changed.' : (d.error || 'Failed'));
+    }
+    async function rm(u) {
+        if (!confirm('Remove account ' + u + '? Their saved files are kept.')) return;
+        const [ok, d] = await post('/api/admin/users/' + encodeURIComponent(u) + '/remove');
+        alert(ok ? 'Removed.' : (d.error || 'Failed')); loadUsers(); loadProgress();
+    }
+    loadProgress(); loadUsers(); setInterval(loadProgress, 30000);
+</script>
+</body>
+</html>

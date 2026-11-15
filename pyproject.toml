@@ -1,6 +1,6 @@
 [project]
 name = "narRaters"
-version = "0.3.19"
+version = "0.3.19+segcausal"
 description = "AI-assisted narrative processing with human-screening — pipeline + web UI for audio/text narratives."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,6 +34,7 @@ classifiers = [
 
 dependencies = [
     "flask>=2.3.0",
+    "flask-login>=0.6.3",
     "pandas>=1.5.0",
     "openpyxl>=3.0.0",
     "pyspellchecker>=0.7.0",
@@ -65,6 +66,11 @@ local-llm = [
 ]
 match = [
     "rmatch>=0.3.2",
+]
+# Hosting a rater task on a server: a production WSGI server for
+# `narraters serve --production`. See HOSTING_SEGCAUSAL.md.
+deploy = [
+    "waitress>=3.0.0",
 ]
 all = [
     "anthropic>=0.34.0",

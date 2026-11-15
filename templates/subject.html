@@ -2376,7 +2376,27 @@
             border-color: var(--acc);
             color: var(--t0);
         }
-    </style>
+    
+        /* ---- Hosted task mode (segcausal branch) ---- */
+        body.hosted .panel-version-bar,
+        body.hosted .causal-flags-bar,
+        body.hosted .causal-lines-toggle-bar,
+        body.hosted #story-events-notification,
+        body.hosted .tabs { display: none !important; }
+        .hosted-actions { display: flex; align-items: center; gap: 12px; }
+        .hosted-submit { background: var(--grn); color: #04210f; border: none; border-radius: 8px;
+            padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 0.95em; }
+        .hosted-submit:disabled { opacity: 0.5; cursor: wait; }
+        .hosted-save-state { color: var(--t2); font-size: 0.88em; }
+        .hosted-save-state.unsaved { color: var(--ylw); }
+        .hosted-save-state.error { color: var(--red); font-weight: 600; }
+        .hosted-instructions { margin: 0 20px 12px; padding: 12px 16px; border: 1px solid var(--bdr2);
+            border-radius: var(--rad); background: var(--bg1); color: var(--t1); font-size: 0.92em; line-height: 1.5; }
+        .hosted-instructions p { margin: 0 0 8px; }
+        .hosted-instructions.collapsed .hosted-instr-body { display: none; }
+        .hosted-instr-toggle { float: right; background: none; border: 1px solid var(--bdr2); color: var(--t2);
+            border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 0.8em; }
+</style>
     <script>
     (function(){
         var KEY='narrative-processor-theme';
@@ -2439,12 +2459,39 @@
         </div>
     </div>
     
+    {% if hosted_part %}
+    <div class="header hosted-header">
+        <h1>Story: {{ hosted_story }} &nbsp;·&nbsp; {% if hosted_part == 'segment' %}Part 1 of 2: check the segmentation{% else %}Part 2 of 2: rate causal links{% endif %}</h1>
+        <div class="header-actions hosted-actions">
+            <span id="hosted-save-state" class="hosted-save-state"></span>
+            <button type="button" id="hosted-submit" class="hosted-submit" onclick="hostedSubmit()">Submit Part {{ 1 if hosted_part == 'segment' else 2 }}</button>
+            <a href="/tasks" class="back-link">← My tasks</a>
+            {% if require_auth %}<a href="/logout" class="back-link">Log out</a>{% endif %}
+        </div>
+    </div>
+    <div class="hosted-instructions" id="hosted-instructions">
+        <button type="button" class="hosted-instr-toggle" onclick="document.getElementById('hosted-instructions').classList.toggle('collapsed')">Show / hide instructions</button>
+        <div class="hosted-instr-body">
+        {% if hosted_part == 'segment' %}
+            <p><strong>Read the story</strong> on the left to get a general idea of what happens. Then go through its segmentation on the right and decide whether you agree with each boundary.</p>
+            <p>Event boundaries are breaks in the flow: scene changes, or shifts of topic, location, time, action, emotion or anything else that makes you feel one event has ended and a new one is starting.</p>
+            <p><strong>To remove</strong> a boundary you disagree with, click its red bar. <strong>To add</strong> a boundary, click between two words where a new event starts. Your work is saved to the server automatically every 30 seconds and when you click <em>Save progress</em>. When you are done, click <strong>Submit Part 1</strong> (also if you made no changes).</p>
+        {% else %}
+            <p>Rate the causal relationships between pairs of events. The events on the left are the <strong>original</strong> segmentation of the story (not your edited version) — this is intended.</p>
+            <p>Any earlier event could in a broad sense be partly responsible for a later one, so mark only the pairs that are more strongly related, using your own best judgment. Example: <em>Event 1: Jane orders a crab cake at a restaurant. Event 2: Jane finds a dead fly in her crab cake. Event 3: Jane complains to the manager.</em> There is a causal relationship between Events 2 and 3, but not between Events 1 and 3. Keep your criteria as consistent as you can.</p>
+            <p>Neighbouring events are often causally linked, but distant events can be too, and these long-range links matter for the causal skeleton of the story (e.g. at the end of the day Jane sees a cake at home and feels gross remembering the fly: Event 2 causes that event). An event can cause several events or none, and several events can cause one event or none.</p>
+            <p><strong>How:</strong> click an event on the left to anchor it as the <span style="color:#93c5fd">cause</span>, then click another event to be the <span style="color:#fca5a5">effect</span> and choose a rating: 0 = not at all, 1 = slightly, 2 = causally related, 3 = extremely. While a cause is anchored you can pick as many effects as it causes. You can also click cells in the matrix directly (column = cause, row = effect). Your work is saved automatically every 30 seconds and when you click <em>Save progress</em>. When you have rated across the whole story, click <strong>Submit Part 2</strong>.</p>
+        {% endif %}
+        </div>
+    </div>
+    {% else %}
     <div class="header">
         <h1>File: {{ subject_id }}</h1>
         <div class="header-actions">
             <a href="/" class="back-link">← Back to Subjects</a>
         </div>
     </div>
+    {% endif %}
     
     <div id="content" class="loading">
         Loading subject data...
@@ -2466,6 +2513,9 @@
         const subjectId = '{{ subject_id }}';
         const stepParam = '{{ step|default("") }}'.trim();
         const isStory = {{ 'true' if is_story else 'false' }};
+        // Hosted task mode: '' in the normal app, 'segment' or 'causal' on /task/<story>/<part>.
+        const HOSTED_PART = {{ (hosted_part or '')|tojson }};
+        if (HOSTED_PART) document.body.classList.add('hosted');
         const currentUsername = {{ (logged_in_username or "human")|tojson }};
         let rawText = '';
         let correctedText = '';
@@ -2549,22 +2599,29 @@
             const hasStoryReference = !!(data.story_transcript || (data.story_events && data.story_events.length > 0));
             // Story Segments tab: full story text (left) + segmented events (right). Show whenever the
             // pipeline includes story or recall-parse / recall-match, even if step0 is not in the panel.
-            const showStoryEvents = stepInPanel(['step0', 'step1', 'step2', 'step3']) && (
+            let showStoryEvents = stepInPanel(['step0', 'step1', 'step2', 'step3']) && (
                 hasStoryReference ||
                 stepParam === 'step0' ||
                 stepParam === 'step2' ||
                 stepParam === 'step3'
             );
-            const showAudio = data.audio_file && stepInPanel(['step0_audio', 'step0_story_audio']);
+            let showAudio = data.audio_file && stepInPanel(['step0_audio', 'step0_story_audio']);
             // Recall-only tabs (correct / parse / match) are per-subject concepts; never show them
             // in story context, where they render as empty/confusing dead-ends.
-            const showRawProcessed = !isStory && stepInPanel(['step1']);
+            let showRawProcessed = !isStory && stepInPanel(['step1']);
             // parsed_texts can be null if the file is missing from the API search path while the
             // dashboard still shows complete — still show the tab when inspecting this step.
-            const showSegmented = !isStory && stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
-            const showMatched = !isStory && stepInPanel(['step3']);
-            const showCausalMatrix = data.story_events && data.story_events.length > 0 && stepInPanel(['step0_causal']);
-            const showCausalMatrixMissing = stepInPanel(['step0_causal']) && !(data.story_events && data.story_events.length > 0);
+            let showSegmented = !isStory && stepInPanel(['step2']) && (data.parsed_texts != null || stepParam === 'step2');
+            let showMatched = !isStory && stepInPanel(['step3']);
+            let showCausalMatrix = data.story_events && data.story_events.length > 0 && stepInPanel(['step0_causal']);
+            let showCausalMatrixMissing = stepInPanel(['step0_causal']) && !(data.story_events && data.story_events.length > 0);
+            if (HOSTED_PART) {
+                // One task part per page: never show other tabs or version pickers.
+                showStoryEvents = HOSTED_PART === 'segment';
+                showAudio = false; showRawProcessed = false; showSegmented = false; showMatched = false;
+                showCausalMatrix = HOSTED_PART === 'causal' && !!(data.story_events && data.story_events.length);
+                showCausalMatrixMissing = HOSTED_PART === 'causal' && !showCausalMatrix;
+            }
             let initialTab = getInitialTab();
             if (stepParam === 'step0_causal') {
                 if (showCausalMatrix) initialTab = 'causal-matrix';
@@ -3758,6 +3815,8 @@
         }
         
         function showExportModal(step, sourceFile, onConfirm, btn, prefillPath) {
+            // Hosted task: the server decides where files go; save straight away.
+            if (HOSTED_PART) { onConfirm(''); return; }
             var overlay = document.getElementById('export-modal-overlay');
             var input = document.getElementById('export-path-input');
             var cancelBtn = document.getElementById('export-modal-cancel');
@@ -4642,12 +4701,21 @@
 
         // Flush the active tab's recorded operations to an encrypted file next to the
         // export. Called from each step's save/export handler on success.
-        function flushUserLog(exportPath) {
+        const _userLogPageOpenedAt = Date.now();
+        let _userLogSent = 0;           // logs sent from this page so far
+        window._userLogPending = null;  // last log upload (hosted submit waits for it)
+        function flushUserLog(exportPath, force) {
             try {
                 const tab = document.querySelector('.tab-content.active');
                 const tabId = tab ? tab.id : 'unknown';
-                const sess = userOps[tabId];
-                if (!sess || !sess.events.length) return;
+                let sess = userOps[tabId];
+                if (!sess || !sess.events.length) {
+                    // Hosted submit with nothing recorded yet: still leave a log of the visit
+                    // (open time, duration, 0 operations) so every submission has one.
+                    if (!(force && typeof HOSTED_PART !== 'undefined' && HOSTED_PART && !_userLogSent)) return;
+                    sess = { startedAt: _userLogPageOpenedAt,
+                             startedAtISO: new Date(_userLogPageOpenedAt).toISOString(), events: [] };
+                }
                 const body = {
                     subject_id: (typeof subjectId !== 'undefined') ? subjectId : null,
                     step: tabId,
@@ -4659,9 +4727,11 @@
                     events: sess.events
                 };
                 userOps[tabId] = null;  // reset so the next edit-to-export cycle is its own log
-                fetch('/api/userlog/save', {
+                _userLogSent += 1;
+                // keepalive: the upload survives the page navigating away (e.g. right after Submit)
+                window._userLogPending = fetch('/api/userlog/save', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(body), keepalive: true
                 }).catch(() => {});
             } catch (e) { /* telemetry must never break an export */ }
         }
@@ -6036,6 +6106,7 @@
                 const sourceFile = (window._causalRatingsData && window._causalRatingsData.source_file) || '';
                 const apiBase = isStory ? '/api/story' : '/api/subject';
                 const body = { pairs: pairs, flags: flags, source_file: sourceFile };
+                if (HOSTED_PART) body.client_seq = Date.now();
                 if (outputPath) {
                     body.output_path = String(outputPath).trim();
                     console.log('saveCausalMatrix: output_path =', body.output_path);
@@ -6853,6 +6924,7 @@
 
                 const body = { events: events };
                 if (outputPath) body.output_path = outputPath;
+                if (HOSTED_PART) body.client_seq = Date.now();
                 const response = await fetch(`/api/subject/${subjectId}/save-story-events`, {
                     method: 'POST',
                     headers: {
@@ -8650,7 +8722,7 @@
         // the user hasn't already completed it. Re-invoking is safe — installToggle
         // replaces the old icon and start() teardown+rebuild keeps state clean.
         function setupSubjectTutorial() {
-            if (!window.Tutorial) return;
+            if (!window.Tutorial || HOSTED_PART) return;
             var tabKey = _currentSubjectTabKey();
             var pageKey = 'subject:' + tabKey;
             var steps = _currentSubjectTabSteps();
@@ -8680,6 +8752,106 @@
                     return result;
                 };
             }
+        })();
+
+
+        // ---- Hosted task controller: autosave, unsaved-changes guard, submit ----
+        (function () {
+            if (!HOSTED_PART) return;
+            const SAVE_BTN_ID = HOSTED_PART === 'segment' ? 'export-story-events' : 'export-causal-matrix';
+            const STATUS_ID = HOSTED_PART === 'segment' ? 'save-story-events-status' : 'save-causal-matrix-status';
+            let saving = false;
+            function saveBtn() { return document.getElementById(SAVE_BTN_ID); }
+            function hasUnsaved() { const b = saveBtn(); return !!(b && !b.disabled); }
+            function setState(text, cls) {
+                const el = document.getElementById('hosted-save-state');
+                if (el) { el.textContent = text; el.className = 'hosted-save-state' + (cls ? ' ' + cls : ''); }
+            }
+            async function doSave(force) {
+                const b = saveBtn();
+                if (!b || saving) return true;
+                if (!force && b.disabled) return true;
+                saving = true;
+                b.disabled = false;  // the save functions skip when the button is disabled
+                try {
+                    if (HOSTED_PART === 'segment') await saveStoryEvents('');
+                    else await saveCausalMatrix('');
+                } finally { saving = false; }
+                const st = document.getElementById(STATUS_ID);
+                if (st && st.classList.contains('error')) {
+                    setState('Not saved: ' + st.textContent.replace(/^Error:\s*/, ''), 'error');
+                    return false;
+                }
+                setState('All changes saved ' + new Date().toLocaleTimeString(), '');
+                return true;
+            }
+            window.hostedSaveNow = doSave;
+            // Update the header as soon as any save finishes (button, autosave or submit),
+            // instead of relying only on the once-a-second check below, which can miss an
+            // edit and its save that both happen between two checks.
+            const SAVE_FN = HOSTED_PART === 'segment' ? 'saveStoryEvents' : 'saveCausalMatrix';
+            const origSave = window[SAVE_FN];
+            if (typeof origSave === 'function') {
+                window[SAVE_FN] = async function () {
+                    const r = await origSave.apply(this, arguments);
+                    const st = document.getElementById(STATUS_ID);
+                    if (st && st.classList.contains('error')) {
+                        setState('Not saved: ' + st.textContent.replace(/^Error:\s*/, ''), 'error');
+                    } else {
+                        setState('All changes saved ' + new Date().toLocaleTimeString(), '');
+                    }
+                    return r;
+                };
+            }
+            // Relabel the save buttons: they write to the server, not a local export.
+            const relabel = setInterval(function () {
+                const b = saveBtn();
+                if (b) { b.textContent = 'Save progress'; clearInterval(relabel); }
+            }, 200);
+            setInterval(function () {
+                if (hasUnsaved()) { setState('Unsaved changes…', 'unsaved'); doSave(false); }
+            }, 30000);
+            let wasUnsaved = false;
+            setInterval(function () {
+                const el = document.getElementById('hosted-save-state');
+                if (!el || saving) return;
+                const unsaved = hasUnsaved();
+                if (unsaved && !el.classList.contains('error')) setState('Unsaved changes…', 'unsaved');
+                else if (!unsaved && wasUnsaved) {
+                    // Saved through the "Save progress" button: confirm unless that save failed.
+                    const st = document.getElementById(STATUS_ID);
+                    if (!(st && st.classList.contains('error'))) setState('All changes saved ' + new Date().toLocaleTimeString(), '');
+                }
+                wasUnsaved = unsaved;
+            }, 1000);
+            window.addEventListener('beforeunload', function (e) {
+                if (hasUnsaved()) { e.preventDefault(); e.returnValue = ''; }
+            });
+            window.hostedSubmit = async function () {
+                const btn = document.getElementById('hosted-submit');
+                if (HOSTED_PART === 'causal') {
+                    const n = document.querySelectorAll('.causal-matrix-cell:not(.diagonal)[data-rating]:not([data-rating="0"])').length;
+                    if (n === 0 && !confirm('You have not rated any event pairs. Submit anyway?')) return;
+                    if (!confirm('Submit your causal ratings for this story? (' + n + ' rated pairs)')) return;
+                } else if (!confirm('Submit your segmentation for this story?')) return;
+                btn.disabled = true;
+                setState('Saving…', 'unsaved');
+                const ok = await doSave(true);
+                if (!ok) { btn.disabled = false; return; }
+                const res = await fetch('/api/task/' + encodeURIComponent(subjectId) + '/submit', { method: 'POST' });
+                const out = await res.json().catch(function () { return {}; });
+                if (!res.ok) {
+                    setState('Not submitted: ' + (out.error || res.status), 'error');
+                    btn.disabled = false;
+                    return;
+                }
+                flushUserLog('submit', true);  // remaining operations, or a 0-operation visit log
+                // Let the operation log finish uploading before leaving the page (max 5 s).
+                if (window._userLogPending) {
+                    await Promise.race([window._userLogPending, new Promise(function (r) { setTimeout(r, 5000); })]);
+                }
+                window.location.href = '/tasks';
+            };
         })();
 
         let selectedTheme = null;

@@ -92,3 +92,6 @@ narRaters_installer.app/
 
 # Per-step user operation logs (read-only telemetry)
 user_data/**
+
+# Local task data for the segment-causal rater task (stories in, ratings out)
+/task_segcausal
