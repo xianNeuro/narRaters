@@ -30,9 +30,9 @@
     </style>
 </head>
 <body>
-<header><h1>Causal-rating task · admin</h1><a href="/logout">Log out</a></header>
+<header><h1>Causal-rating task · admin</h1><div><a href="/logout">Log out</a><span class="muted" style="margin-left:12px;font-size:.85em">{{ narraters_version }}</span></div></header>
 <main>
-    <p class="muted">Task folder on the server: <code>{{ task_dir }}</code>. Put stories in <code>unrated/narraters-&lt;datasource&gt;-segcausal/&lt;story&gt;/</code>; raters' files appear in <code>rated/&lt;user&gt;/&lt;user&gt;-&lt;datasource&gt;-segcausal/&lt;story&gt;/</code>.</p>
+    <p class="muted">Task folder on the server: <code>{{ task_dir }}</code>. Put stories in <code>unrated/narraters_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code> (<code>story-&lt;story&gt;.txt</code> and <code>story-&lt;story&gt;-segmented.csv</code>); raters' files appear in <code>rated/&lt;user&gt;/&lt;user&gt;_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code>.</p>
     <h2>Progress</h2>
     <div class="wrap"><table>
         <thead><tr><th>Rater</th><th>Story</th><th>Part 1</th><th>segments (orig.)</th><th>Part 1 submitted</th><th>Part 2</th><th>pairs</th><th>Part 2 submitted</th><th>last saved</th></tr></thead>
@@ -45,6 +45,10 @@
         <button>Add rater</button><span id="msg" class="muted"></span>
     </form>
     <div class="wrap" style="margin-top:10px"><table><tbody id="users"></tbody></table></div>
+    <h2>Program</h2>
+    <p class="muted">Installed commit: <code>{{ installed_commit or 'not installed from git' }}</code>. Updating installs the latest commit of the <code>segcausal</code> branch and restarts the service.</p>
+    <button onclick="updateProgram(this)">Update and restart</button><span id="upmsg" class="muted" style="margin-left:8px"></span>
+    <pre id="uperr" class="muted" style="white-space:pre-wrap"></pre>
 </main>
 <script>
     const label = { not_started: 'not started', in_progress: 'in progress', submitted: 'submitted', submitted_edited: 'submitted (edited since)' };
@@ -90,6 +94,19 @@
         if (!confirm('Remove account ' + u + '? Their saved files are kept.')) return;
         const [ok, d] = await post('/api/admin/users/' + encodeURIComponent(u) + '/remove');
         alert(ok ? 'Removed.' : (d.error || 'Failed')); loadUsers(); loadProgress();
+    }
+    async function updateProgram(btn) {
+        if (!confirm('Install the latest version and restart? Raters lose the connection for a few seconds; a save made in that moment can fail.')) return;
+        const msg = document.getElementById('upmsg');
+        btn.disabled = true; msg.textContent = 'Installing… (can take a minute)';
+        const [ok, d] = await post('/api/admin/update');
+        if (!ok) { btn.disabled = false; msg.textContent = 'Update failed, nothing was restarted.'; document.getElementById('uperr').textContent = d.error || ''; return; }
+        msg.textContent = 'Installed. Restarting…';
+        // The service is down for a few seconds: reload once it answers again.
+        const timer = setInterval(async () => {
+            const r = await fetch('/login', { cache: 'no-store' }).catch(() => null);
+            if (r && r.ok) { clearInterval(timer); location.reload(); }
+        }, 3000);
     }
     loadProgress(); loadUsers(); setInterval(loadProgress, 30000);
 </script>

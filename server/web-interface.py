@@ -4190,6 +4190,7 @@ def inject_template_globals():
         'logged_in_username': session.get('username', ''),
         'require_auth': REQUIRE_AUTH,
         'task_mode': TASK_MODE,
+        'narraters_version': narraters_version(),
         'narraters_repo_url': REPO_URL,
         'narraters_feedback_url': FEEDBACK_ISSUE_URL,
         'narraters_bug_url': BUG_ISSUE_URL,
@@ -8557,29 +8558,27 @@ def save_user_log():
 # pick the steps and the right file versions, run "Manual", export, and upload
 # three folders by hand. Here the server does all of that.
 #
-# Files follow the dev branch's benchmark/ layout exactly, and by default live in
-# the SAME benchmark/ folder (NARRATERS_TASK_DIR, else NARRATERS_BENCHMARK_DIR,
-# else <workspace>/benchmark), so one rsync of unrated/ and rated/ covers both the
-# recall-matching task and this one. The two never touch each other's files:
+# Files live in the task folder (NARRATERS_TASK_DIR, else NARRATERS_BENCHMARK_DIR,
+# else <workspace>/benchmark), all as csv:
 #
-#   unrated/narraters-<datasource>-matching/<story>/matches/...      matching (dev branch)
-#   unrated/narraters-<datasource>-segcausal/<story>/<story>.txt     transcript (in)
-#   unrated/narraters-<datasource>-segcausal/<story>/<story>_events*.xlsx   original segmentation (in)
+#   unrated/narraters_rcause-<datasource>-matching/<story>/
+#       story-<story>.txt              transcript (in)
+#       story-<story>-segmented.csv    original segmentation (in): story_segment (0-based), text
 #
-#   rated/<user>/<user>-<datasource>-matching/<story>/matches/...    matching (dev branch)
-#   rated/<user>/<user>-<datasource>-segcausal/<story>/              this task:
-#       <same filename as the unrated events file>     Part 1 (the rater's segmentation)
-#       <story>_causal-manual.xlsx                     Part 2 (causal ratings)
-#       status.json                                    saves / submit times
+#   rated/<user>/<user>_rcause-<datasource>-matching/<story>/
+#       story-<story>-segmented.csv    Part 1 (the rater's segmentation, same columns)
+#       story-<story>-causal.csv       Part 2: cause_story_segment, effect_story_segment
+#                                      (story_segment ids of the ORIGINAL file), rating 1-3, reasoning
+#       status.json                    saves / submit times
 #       userlogs/<file stem>_<time>_userlog.txt        operation logs (read-only)
-#       history/<file>.<time>.xlsx                     every earlier saved version
-#       source/<original events file>                  copy of what Part 2 rated
+#       history/<file>.<time>.csv      every earlier saved version
+#       source/<original segmentation file>            copy of what Part 2 rated
 #
 #   segcausal_assignments.json   optional {user: ["<story>" or "<datasource>/<story>", ...]}
 #
-# The matching app only reads datasource folders that contain <story>/matches/,
-# and this task only reads folders named *-segcausal. The rater's identity and
-# every path are decided on the server; the client cannot name a file.
+# The page numbers events from 1; the files use the 0-based story_segment ids.
+# The rater's identity and every path are decided on the server; the client
+# cannot name a file.
 
 import threading as _threading  # noqa: E402
 
@@ -8589,7 +8588,8 @@ TASK_DIR = Path(
 ).expanduser().resolve()
 TASK_UNRATED_DIR = TASK_DIR / 'unrated'
 TASK_RATED_DIR = TASK_DIR / 'rated'
-TASK_SUFFIX = 'segcausal'
+TASK_PREFIX = 'narraters_rcause'
+TASK_SUFFIX = 'matching'
 TASK_ASSIGNMENTS_FILE = TASK_DIR / 'segcausal_assignments.json'
 _TASK_STORY_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$')
 _TASK_PARTS = ('segment', 'causal')
@@ -8619,24 +8619,15 @@ def _task_username():
 
 
 def _task_datasource_name(ds_dir_name):
-    """`narraters-dfrn-segcausal` -> `dfrn` (same rule as the dev branch's
-    `narraters-<datasource>-matching`)."""
-    name = ds_dir_name
-    if name.startswith('narraters-'):
-        name = name[len('narraters-'):]
-    if name.endswith('-' + TASK_SUFFIX):
-        name = name[:-len('-' + TASK_SUFFIX)]
-    return name or ds_dir_name
+    """`narraters_rcause-pieman-matching` -> `pieman`."""
+    return ds_dir_name[len(TASK_PREFIX + '-'):-len('-' + TASK_SUFFIX)]
 
 
 def _task_story_files(story_dir):
-    """(transcript, original events file) for one unrated story folder."""
-    txts = sorted(p for p in story_dir.glob('*.txt') if p.is_file())
-    events = sorted(
-        p for p in story_dir.glob('*_events*.xlsx')
-        if p.is_file() and not p.name.startswith('~$') and not is_user_edit_file(p.name)
-    )
-    return (txts[0] if txts else None), (events[0] if events else None)
+    """(transcript, original segmentation file) for one unrated story folder."""
+    transcript = story_dir / f"story-{story_dir.name}.txt"
+    events = story_dir / f"story-{story_dir.name}-segmented.csv"
+    return (transcript if transcript.is_file() else None), (events if events.is_file() else None)
 
 
 def _task_load_assignments():
@@ -8652,12 +8643,13 @@ def _task_load_assignments():
 
 
 def _task_scan():
-    """All stories under unrated/narraters-*-segcausal/ that have an events file."""
+    """All stories under unrated/narraters_rcause-*-matching/ that have a segmentation file."""
     stories = []
     if not TASK_UNRATED_DIR.is_dir():
         return stories
     for ds in sorted(p for p in TASK_UNRATED_DIR.iterdir()
-                     if p.is_dir() and p.name.endswith('-' + TASK_SUFFIX)):
+                     if p.is_dir() and p.name.startswith(TASK_PREFIX + '-')
+                     and p.name.endswith('-' + TASK_SUFFIX)):
         if not _TASK_STORY_RE.match(ds.name) or '__' in ds.name:
             print(f"task: skipping folder with unsafe name: {ds.name!r}")
             continue
@@ -8668,7 +8660,7 @@ def _task_scan():
                 continue
             transcript, events = _task_story_files(d)
             if events is None:
-                print(f"task: {ds.name}/{d.name}: no *_events*.xlsx, skipped")
+                print(f"task: {ds.name}/{d.name}: no story-{d.name}-segmented.csv, skipped")
                 continue
             stories.append({'key': f"{ds.name}/{d.name}", 'ds_dir': ds.name, 'datasource': datasource,
                             'story': d.name, 'dir': d, 'transcript': transcript, 'events': events})
@@ -8721,17 +8713,18 @@ def _task_resolve(item_id):
 
 
 def _task_out_dir(username, st):
-    """rated/<user>/<user>-<datasource>-segcausal/<story>/ (dev-branch naming)."""
-    return TASK_RATED_DIR / username / f"{username}-{st['datasource']}-{TASK_SUFFIX}" / st['story']
+    """rated/<user>/<user>_rcause-<datasource>-matching/<story>/ (the unrated
+    folder name with 'narraters' replaced by the rater)."""
+    return TASK_RATED_DIR / username / f"{username}_rcause-{st['datasource']}-{TASK_SUFFIX}" / st['story']
 
 
 def _task_seg_path(username, st):
-    # Same filename as the unrated events file, like the dev branch's rated matches.
+    # Same filename as the unrated segmentation file.
     return _task_out_dir(username, st) / st['events'].name
 
 
 def _task_causal_path(username, st):
-    return _task_out_dir(username, st) / f"{st['story']}_causal-manual.xlsx"
+    return _task_out_dir(username, st) / f"story-{st['story']}-causal.csv"
 
 
 def _task_status_path(username, st):
@@ -8773,20 +8766,19 @@ def _task_part_state(status, part, file_path):
 
 
 def _task_read_events(path):
-    """[{event, text}] from a story-events workbook (event + story_texts columns)."""
-    try:
-        return _read_story_events_dataframe(pd.read_excel(path)) or []
-    except Exception as e:
-        print(f"task: could not read events {path}: {e}")
-        return []
+    """[{event, text}] from a segmentation csv (story_segment, text). The page
+    numbers events from 1, the file's story_segment from 0."""
+    df = pd.read_csv(path)
+    return [{'event': int(seg) + 1, 'text': str(text).strip()}
+            for seg, text in zip(df['story_segment'], df['text'])]
 
 
-def _task_atomic_excel_write(df, path, username, st):
+def _task_atomic_csv_write(df, path, username, st):
     """Write ``df`` to ``path`` atomically; the previous version (if any) is
     copied to history/ first, so no saved state is ever lost."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.stem + '.tmp' + path.suffix)
-    df.to_excel(tmp, index=False, engine='openpyxl')
+    df.to_csv(tmp, index=False)
     if path.exists():
         hist = _task_out_dir(username, st) / 'history'
         hist.mkdir(parents=True, exist_ok=True)
@@ -8824,11 +8816,11 @@ def _task_story_payload(part, st, username):
         events = original_events
         source_name = st['events'].name
         if causal_path.exists():
-            try:
-                df = pd.read_excel(causal_path)
-                causal = {'pairs': _parse_causal_pairs_dataframe(df), 'source_file': causal_path.name}
-            except Exception as e:
-                print(f"task: could not read causal file {causal_path}: {e}")
+            df = pd.read_csv(causal_path, keep_default_na=False)
+            pairs = [{'event_A': int(a) + 1, 'event_B': int(b) + 1, 'rating': int(r), 'reasoning': str(why)}
+                     for a, b, r, why in zip(df['cause_story_segment'], df['effect_story_segment'],
+                                             df['rating'], df['reasoning'])]
+            causal = {'pairs': pairs, 'source_file': causal_path.name}
     status = _task_read_status(username, st)
     item_id = _task_item_id(part, st)
     return {
@@ -8902,21 +8894,13 @@ def _task_save_segmentation(item_id):
         skip, seq = _task_check_seq(str(out_path), data)
         if skip:
             return jsonify({'success': True, 'skipped': 'stale'})
-        rows = [{'event': i + 1, 'story_texts': str(e.get('text', ''))} for i, e in enumerate(events)]
+        # Same columns as the unrated file: story_segment (0-based), text.
+        rows = [{'story_segment': i, 'text': str(e.get('text', ''))} for i, e in enumerate(events)]
         df = pd.DataFrame(rows)
-        # Keep the original file's column layout (same rule as the local app).
-        try:
-            orig_cols = list(pd.read_excel(st['events'], nrows=0).columns)
-            for c in orig_cols:
-                if c not in df.columns:
-                    df[c] = ''
-            df = df.reindex(columns=orig_cols + [c for c in df.columns if c not in orig_cols])
-        except Exception as e:
-            print(f"task: could not read original columns: {e}")
         if any('boundary_strength' in e for e in events):
             df['boundary_strength'] = ['' if e.get('boundary_strength') is None
                                        else str(e.get('boundary_strength')) for e in events]
-        _task_atomic_excel_write(df, out_path, username, st)
+        _task_atomic_csv_write(df, out_path, username, st)
         if seq is not None:
             _TASK_SAVE_SEQ[str(out_path)] = seq
     _task_copy_source(username, st)
@@ -8948,16 +8932,18 @@ def _task_save_causal(item_id):
             return jsonify({'error': f'Rating out of range (cause {a}, effect {b}, rating {r}); '
                                      'nothing was saved. Please reload the page.'}), 400
         if r > 0:
-            rows.append({'event_A_number': a, 'event_B_number': b, 'rating': r,
+            # The page numbers events from 1; the file uses the 0-based
+            # story_segment ids of the unrated segmentation file.
+            rows.append({'cause_story_segment': a - 1, 'effect_story_segment': b - 1, 'rating': r,
                          'reasoning': str(pair.get('reasoning') or '') or 'manual entry'})
-    rows.sort(key=lambda x: (x['event_A_number'], x['event_B_number']))
-    df = pd.DataFrame(rows, columns=['event_A_number', 'event_B_number', 'rating', 'reasoning'])
+    rows.sort(key=lambda x: (x['cause_story_segment'], x['effect_story_segment']))
+    df = pd.DataFrame(rows, columns=['cause_story_segment', 'effect_story_segment', 'rating', 'reasoning'])
     out_path = _task_causal_path(username, st)
     with _task_lock(str(out_path)):
         skip, seq = _task_check_seq(str(out_path), data)
         if skip:
             return jsonify({'success': True, 'skipped': 'stale'})
-        _task_atomic_excel_write(df, out_path, username, st)
+        _task_atomic_csv_write(df, out_path, username, st)
         if seq is not None:
             _TASK_SAVE_SEQ[str(out_path)] = seq
     _task_copy_source(username, st)
@@ -9090,7 +9076,8 @@ def task_admin_page():
         return redirect('/')
     if not _is_admin():
         return redirect('/tasks')
-    return render_template('tasks_admin.html', username=ADMIN_USERNAME, task_dir=str(TASK_DIR))
+    return render_template('tasks_admin.html', username=ADMIN_USERNAME, task_dir=str(TASK_DIR),
+                           installed_commit=installed_commit())
 
 
 @app.route('/api/admin/progress')
@@ -9100,11 +9087,11 @@ def api_admin_progress():
         return err
     users = [u for u in _accounts.list_users() if u != ADMIN_USERNAME]
     if TASK_RATED_DIR.is_dir():
-        # rated/ is shared with the matching task: only count folders that hold
-        # this task's output (<user>-*-segcausal), e.g. raters whose account was removed.
+        # Only count folders that hold this task's output
+        # (<user>_rcause-*-matching), e.g. raters whose account was removed.
         for d in TASK_RATED_DIR.iterdir():
             if (d.is_dir() and d.name not in users and d.name != ADMIN_USERNAME
-                    and any(d.glob(f"{d.name}-*-{TASK_SUFFIX}"))):
+                    and any(d.glob(f"{d.name}_rcause-*-{TASK_SUFFIX}"))):
                 users.append(d.name)
     assignments = _task_load_assignments()
     all_stories = _task_scan()
@@ -9167,6 +9154,65 @@ def api_admin_user_remove(username):
     if not _accounts.remove_user(username):
         return jsonify({'success': False, 'error': 'No such user.'}), 404
     return jsonify({'success': True, 'note': 'Account removed; saved files were kept.'})
+
+
+# --- Admin: update the program from the task branch and restart ---
+
+# Fixed on purpose: nothing from the request reaches the pip command line.
+UPDATE_PIP_SPEC = "narraters @ git+https://github.com/xianNeuro/narRaters.git@segcausal"
+
+
+def installed_commit():
+    """AI-generated.
+
+    Short git commit of the installed program, '' when not installed from git
+    (e.g. a local editable install).
+    """
+    from importlib.metadata import distribution
+    direct_url = distribution("narraters").read_text("direct_url.json")
+    if not direct_url:
+        return ''
+    return json.loads(direct_url).get('vcs_info', {}).get('commit_id', '')[:7]
+
+
+def narraters_version():
+    """AI-generated.
+
+    Version shown in the page headers, e.g. 'v0.3.19+segcausal · 298d56c'. The
+    version string does not change between commits on the branch, so the commit
+    is what tells two installs apart.
+    """
+    from narraters import __version__
+    commit = installed_commit()
+    return f"v{__version__} · {commit}" if commit else f"v{__version__}"
+
+
+@app.route('/api/admin/update', methods=['POST'])
+def api_admin_update():
+    """AI-generated.
+
+    Reinstall the program from the task branch (same command as "Updating" in
+    HOSTING_SEGCAUSAL.md), then exit so systemd starts the new code.
+    """
+    import subprocess
+    err = _task_admin_required()
+    if err:
+        return err
+    # Only the hosted service: it is the one systemd restarts, and a local
+    # editable install must not be replaced by the branch.
+    if not REQUIRE_AUTH:
+        return jsonify({'success': False, 'error': 'Updating is only available on the hosted service.'}), 400
+    result = subprocess.run(
+        [sys.executable, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--no-deps', UPDATE_PIP_SPEC],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        # Nothing was restarted: the old code keeps running.
+        return jsonify({'success': False, 'error': (result.stdout + result.stderr)[-2000:]}), 500
+    print("narraters: updated by admin, exiting so systemd restarts the service", flush=True)
+    # Non-zero exit because the unit has Restart=on-failure; the delay lets
+    # this response reach the browser first.
+    _threading.Timer(1.0, os._exit, args=[1]).start()
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

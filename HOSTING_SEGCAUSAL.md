@@ -193,18 +193,22 @@ skips the password prompt.
 
 ## 8. Put stories in
 
-One datasource folder named `narraters-<datasource>-segcausal`, with one folder per
-story holding the transcript and the events file (columns `event`, `story_texts`):
+One datasource folder named `narraters_rcause-<datasource>-matching`, with one folder
+per story holding the transcript `story-<story>.txt` and the segmentation
+`story-<story>-segmented.csv` (columns `story_segment`, counted from 0, and `text`):
 
 ```
-benchmark/unrated/narraters-dfrn-segcausal/angela/angela.txt
-benchmark/unrated/narraters-dfrn-segcausal/angela/angela_events-api_model-claude-sonnet-4-5-20250929.xlsx
+benchmark/unrated/narraters_rcause-pieman-matching/pieman/story-pieman.txt
+benchmark/unrated/narraters_rcause-pieman-matching/pieman/story-pieman-segmented.csv
 ```
+
+The file names are fixed: a story folder without `story-<story>-segmented.csv` is
+skipped.
 
 Copy them in with rsync (see "Sync data in and out" below). New folders show up for
 raters on their next page load; no restart needed. Optional
 `benchmark/segcausal_assignments.json` limits which stories a rater sees (raters
-not listed see all stories), e.g. `{"alice": ["angela", "dfrn/spider"]}` (story
+not listed see all stories), e.g. `{"alice": ["pieman", "alice/alice_14"]}` (story
 name, or `<datasource>/<story>`).
 
 ## 9. Verify
@@ -224,14 +228,16 @@ those two subdirs.
 So that you can rsync without hassle, run:
 
 ```bash
-# a dedicated shared group for the exchange dir only
-sudo groupadd benchmark-sync
-sudo usermod -aG benchmark-sync narraters_rcause   # the service
-sudo usermod -aG benchmark-sync "$(id -un)"        # you, the admin; re-login after
+# a dedicated group for this task's exchange dir only. Do NOT reuse the matching
+# task's `benchmark-sync` group: this service would then get write access to
+# /srv/narraters/benchmark
+sudo groupadd rcause-sync
+sudo usermod -aG rcause-sync narraters_rcause   # the service
+sudo usermod -aG rcause-sync "$(id -un)"        # you, the admin; re-login after
 
 # group-own the benchmark dir and set setgid so new files inherit the group;
 # 2770 also gives the group write on the directories
-sudo chgrp -R benchmark-sync /srv/narraters_rcause/benchmark
+sudo chgrp -R rcause-sync /srv/narraters_rcause/benchmark
 sudo chmod -R 2770 /srv/narraters_rcause/benchmark
 
 # let your login traverse INTO the dir without reading /srv/narraters_rcause or its .env
@@ -249,22 +255,35 @@ rsync -a you@HOST:/srv/narraters_rcause/benchmark/rated/  ./rated/
 ```
 
 Only `unrated/` (in) and `rated/` (out) need syncing. Each rater's output, in
-`rated/<user>/<user>-<datasource>-segcausal/<story>/`:
+`rated/<user>/<user>_rcause-<datasource>-matching/<story>/`:
 
 | file                                          | contents                                                                               |
 | --------------------------------------------- | -------------------------------------------------------------------------------------- |
-| same filename as the unrated `*_events*.xlsx` | Part 1: the rater's segmentation (`event`, `story_texts`)                              |
-| `<story>_causal-manual.xlsx`                  | Part 2: `event_A_number` (cause), `event_B_number` (effect), `rating` 1-3, `reasoning` |
+| `story-<story>-segmented.csv`                 | Part 1: the rater's segmentation (`story_segment`, `text`), same name as the unrated file |
+| `story-<story>-causal.csv`                    | Part 2: `cause_story_segment`, `effect_story_segment`, `rating` 1-3, `reasoning`       |
 | `status.json`                                 | save counts, last save, submit times                                                   |
 | `userlogs/*_userlog.txt`                      | read-only operation log of each save/submit (time on page, clicks)                     |
 | `history/`                                    | every earlier saved version (saves never destroy data)                                 |
 | `source/`                                     | copy of the original events file that Part 2 was rated on                              |
 
 The rated file keeps the unrated file's name; the folder path says whose it is.
+In `story-<story>-causal.csv` the two segment columns hold the `story_segment` ids
+of the **unrated** file (counted from 0), not of the rater's edited segmentation.
+The page shows events numbered from 1, so event 1 on the page is `story_segment` 0.
 
 ---
 
 ## Updating
+
+**From the browser:** log in as `admin` and press **Update and restart** at the
+bottom of the admin page. The service installs the latest commit of the `segcausal`
+branch into its own virtual environment and then exits, and systemd starts the new
+code (about 5 seconds). Raters lose the connection for that moment. The page shows
+the installed commit. If the install fails, the error is shown and nothing is
+restarted. If the new code does not start, the page stays unreachable: check
+`journalctl -u narraters-segcausal -e` and fix it from the shell as below.
+
+**From the shell:**
 
 The version string does not change between commits on the branch, so force pip to
 rebuild from the latest commit:
@@ -291,7 +310,7 @@ updating keeps them.
 | No certificate / TLS errors                  | DNS A record must resolve to this server, and ports 80/443 must be open in the firewall before Caddy can issue a cert.                                                                                                                                                                                                                                   |
 | Login works but the page loops back to login | The site is being reached over plain `http://`. The login cookie is HTTPS-only; use the `https://` address through Caddy.                                                                                                                                                                                                                                |
 | Rater sees no stories                        | Stories must be in `benchmark/unrated/<folder ending in -segcausal>/<story>/`, with a plain folder name (letters, digits, `_`, `-`, `.`) and a `*_events*.xlsx` (plus the transcript `*.txt`; with several, the first alphabetically is used). `journalctl -u narraters-segcausal` names skipped folders. Check `segcausal_assignments.json` if present. |
-| `Permission denied` on rsync                 | You are not yet in `benchmark-sync` (log out and back in after `usermod`), or `/srv/narraters_rcause` lacks `o+x`.                                                                                                                                                                                                                                       |
+| `Permission denied` on rsync                 | You are not yet in `rcause-sync` (log out and back in after `usermod`), or `/srv/narraters_rcause` lacks `o+x`.                                                                                                                                                                                                                                       |
 
 ## Rules the server enforces
 
@@ -318,16 +337,17 @@ updating keeps them.
 ## Running next to the matching task
 
 The recall-matching task (`dev` branch, its own `HOSTING.md`) can run on the same
-server. Each task has its own system user, workspace and data folder; they share
-only the Caddy server (and, optionally, the `benchmark-sync` group):
+server. Each task has its own system user, workspace, data folder and sync group;
+they share only the Caddy server:
 
 |                               | matching task (`dev` branch)                                     | causal task (this branch)                               |
 | ----------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------- |
 | system user and group         | `narraters`                                                      | `narraters_rcause`                                      |
 | workspace                     | `/srv/narraters`                                                 | `/srv/narraters_rcause`                                 |
+| sync group (rsync access)     | `benchmark-sync`                                                 | `rcause-sync`                                           |
 | data folder                   | `/srv/narraters/benchmark`                                       | `/srv/narraters_rcause/benchmark`                       |
-| stories in                    | `unrated/narraters-<datasource>-matching/<story>/matches/…csv`   | `unrated/narraters-<datasource>-segcausal/<story>/…`    |
-| results out                   | `rated/<user>/<user>-<datasource>-matching/<story>/matches/…csv` | `rated/<user>/<user>-<datasource>-segcausal/<story>/…`  |
+| stories in                    | `unrated/narraters-<datasource>-matching/<story>/matches/…csv`   | `unrated/narraters_rcause-<datasource>-matching/<story>/…csv` |
+| results out                   | `rated/<user>/<user>-<datasource>-matching/<story>/matches/…csv` | `rated/<user>/<user>_rcause-<datasource>-matching/<story>/…csv` |
 | program (virtual environment) | `/srv/narraters/.venv`                                           | `/srv/narraters_rcause/.venv-segcausal`                 |
 | systemd unit                  | `narraters.service`                                              | `narraters-segcausal.service`                           |
 | loopback port                 | 5000                                                             | 5001                                                    |
@@ -340,10 +360,11 @@ Accounts are separate, so a rater who does both tasks needs an account in each.
 Stories and results are synced per task, with the rsync paths of each guide.
 
 Whichever task is set up second skips the Caddy install, and its Caddy block is
-**appended** to `/etc/caddy/Caddyfile` (step 6), never copied over it. If the
-`benchmark-sync` group already exists, skip `groupadd` in "Sync data in and out"
-and run the remaining commands; one group then gives you rsync access to both data
-folders. Updating one task's virtual environment does not affect the other.
+**appended** to `/etc/caddy/Caddyfile` (step 6), never copied over it. The sync
+groups stay separate (`benchmark-sync` for the matching task, `rcause-sync` here),
+so neither service can write into the other's data folder; your own login is in
+both and can rsync both. Updating one task's virtual environment does not affect
+the other.
 
 ---
 
@@ -356,8 +377,7 @@ narraters serve                                 # causal task, no login (rater =
 narraters serve --production                    # with login; open http://localhost:5001 in Chrome
 ```
 
-Stories go in `benchmark/unrated/narraters-<datasource>-segcausal/<story>/` under the
-folder you start it from (or `NARRATERS_TASK_DIR`). The double-click launchers on this
-branch (`narRater.app`, `server/START_HERE.command`, `install.sh`) start the causal
-task without login on the first free port from 5001, and add the example story
-`the_siren` (in `narraters-example-segcausal/`) if there are no causal stories yet.
+Stories go in `benchmark/unrated/narraters_rcause-<datasource>-matching/<story>/` under
+the folder you start it from (or `NARRATERS_TASK_DIR`). The double-click launchers on
+this branch (`narRater.app`, `server/START_HERE.command`, `install.sh`) start the
+causal task without login on the first free port from 5001.

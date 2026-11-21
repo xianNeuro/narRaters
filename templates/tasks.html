@@ -43,7 +43,8 @@
 <header>
     <h1>DFRN story causal rating</h1>
     <div><span class="muted">Signed in as <strong>{{ username }}</strong></span>
-        {% if require_auth %}<a href="/logout">Log out</a>{% endif %}</div>
+        {% if require_auth %}<a href="/logout">Log out</a>{% endif %}
+        <span class="muted" style="margin-left:12px;font-size:.85em">{{ narraters_version }}</span></div>
 </header>
 <main>
     <div class="intro">

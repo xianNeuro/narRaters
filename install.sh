@@ -93,24 +93,14 @@ echo ""
 # (On main, this script opens /pipeline-config. This branch exists only for the
 # hosted story-segmentation + causal-rating task, so the launchers start
 # `narraters serve --task segment-causal`.)
-#   stories   $PROJECT_ROOT/benchmark/unrated/narraters-<datasource>-segcausal/<story>/
-#             (<story>.txt + <story>_events*.xlsx; same layout as the dev branch's benchmark/)
-#   results   $PROJECT_ROOT/benchmark/rated/<rater>/<rater>-<datasource>-segcausal/<story>/
+#   stories   $PROJECT_ROOT/benchmark/unrated/narraters_rcause-<datasource>-matching/<story>/
+#             (story-<story>.txt + story-<story>-segmented.csv)
+#   results   $PROJECT_ROOT/benchmark/rated/<rater>/<rater>_rcause-<datasource>-matching/<story>/
 #   state     ~/.narraters-segcausal  (never ~/.narraters, which the main app uses)
 #   port      first free from 5001    (5000 is the main app's default)
 # ---------------------------------------------------------------------------
 TASK_DIR="$PROJECT_ROOT/benchmark"
 mkdir -p "$TASK_DIR/unrated" "$TASK_DIR/rated"
-if [[ -z "$(find "$TASK_DIR/unrated" -mindepth 3 -path '*-segcausal/*' -name '*_events*.xlsx' -print -quit)" ]]; then
-  # No stories yet: add the bundled example so the task list is not empty.
-  if [[ -f "$PROJECT_ROOT/data/2_story_transcript/the_siren.txt" && -f "$PROJECT_ROOT/data/3_story_events/the_siren_events.xlsx" ]]; then
-    EX="$TASK_DIR/unrated/narraters-example-segcausal/the_siren"
-    mkdir -p "$EX"
-    cp "$PROJECT_ROOT/data/2_story_transcript/the_siren.txt" "$EX/"
-    cp "$PROJECT_ROOT/data/3_story_events/the_siren_events.xlsx" "$EX/"
-    echo "Added the example story 'the_siren' to $EX (put your own stories next to it)."
-  fi
-fi
 
 PORT=5001
 while lsof -Pi :"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; do
@@ -123,7 +113,7 @@ done
 
 URL="http://127.0.0.1:${PORT}/tasks"
 echo "Rater task (story segmentation + causal rating):  $URL"
-echo "Stories: $TASK_DIR/unrated/narraters-<datasource>-segcausal/<story>/    Results: $TASK_DIR/rated/<rater>/"
+echo "Stories: $TASK_DIR/unrated/narraters_rcause-<datasource>-matching/<story>/    Results: $TASK_DIR/rated/<rater>/"
 echo "No login in this local mode (rater = local_rater). For hosting with login see HOSTING_SEGCAUSAL.md."
 echo "(Press Ctrl+C in this Terminal window to stop the server.)"
 echo ""

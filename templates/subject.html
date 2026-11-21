@@ -2467,6 +2467,7 @@
             <button type="button" id="hosted-submit" class="hosted-submit" onclick="hostedSubmit()">Submit Part {{ 1 if hosted_part == 'segment' else 2 }}</button>
             <a href="/tasks" class="back-link">← My tasks</a>
             {% if require_auth %}<a href="/logout" class="back-link">Log out</a>{% endif %}
+            <span style="opacity:.6;font-size:.85em">{{ narraters_version }}</span>
         </div>
     </div>
     <div class="hosted-instructions" id="hosted-instructions">
