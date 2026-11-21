@@ -38,7 +38,7 @@
         #batches-table th:first-child, #batches-table td:first-child { position: sticky; left: 0; z-index: 1;
             background: var(--bg1); box-shadow: inset -1px 0 0 var(--bdr); font-weight: 600; }
         td.batch-cell { vertical-align: top; }
-        td.batch-cell.batch-hidden { opacity: .45; }
+        td.batch-cell.batch-hidden .batch-prog { opacity: .45; }
         .batch-prog { font-size: 12px; color: var(--t1); margin-bottom: 4px; }
         .batch-prog.done { color: var(--grn); }
         form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -59,10 +59,8 @@
     </div>
 </header>
 <main>
-    <p class="muted">Task folder on the server: <code>{{ task_dir }}</code>. Put stories in <code>unrated/narraters_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code> (<code>story-&lt;story&gt;.txt</code> and <code>story-&lt;story&gt;-segmented.csv</code>); raters' files appear in <code>rated/&lt;user&gt;/&lt;user&gt;_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code>.</p>
-
     <div class="card">
-        <div class="card-head">Batches <span class="muted">— per-rater visibility and progress. P1 = segmentation, P2 = causal rating; submitted+in progress / total stories. Only the first batch is visible by default.</span><span id="batchmsg" class="muted"></span></div>
+        <div class="card-head">Batches<span id="batchmsg" class="muted"></span></div>
         <div class="wrap"><table id="batches-table">
             <thead><tr id="batch-head"></tr></thead>
             <tbody id="batch-rows"><tr><td class="muted">Loading…</td></tr></tbody>
@@ -97,6 +95,12 @@
             <pre id="uperr" class="muted" style="white-space:pre-wrap"></pre>
         </div>
     </div>
+    <div class="card">
+        <div class="card-head">Data</div>
+        <div class="card-body">
+            <p class="muted" style="margin:0">Task folder on the server: <code>{{ task_dir }}</code>. Put stories in <code>unrated/narraters_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code> (<code>story-&lt;story&gt;.txt</code> and <code>story-&lt;story&gt;-segmented.csv</code>); raters' files appear in <code>rated/&lt;user&gt;/&lt;user&gt;_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code>.</p>
+        </div>
+    </div>
 </main>
 <script>
     const label = { not_started: 'not started', in_progress: 'in progress', submitted: 'submitted', submitted_edited: 'submitted (edited since)' };
@@ -104,7 +108,7 @@
     function t(s) { return s ? esc(s.replace('T', ' ')) : ''; }
 
     // Batch matrix: one row per rater, one column per batch, each cell shows
-    // P1/P2 progress and a Show/Hide toggle for that rater.
+    // SEG/CAU progress and a Show/Hide toggle for that rater.
     function progLine(name, done, partial, total) {
         const cls = done === total && total > 0 ? 'batch-prog done' : 'batch-prog';
         return `<div class="${cls}" title="${done} submitted, ${partial} in progress, ${total} stories">${name} ${done}${partial ? '+' + partial : ''}/${total}</div>`;
@@ -119,8 +123,8 @@
             batches.map(b => {
                 const c = u.batches[b.name];
                 return `<td class="batch-cell${c.visible ? '' : ' batch-hidden'}">
-                    ${progLine('P1', c.seg_done, c.seg_partial, c.total)}
-                    ${progLine('P2', c.causal_done, c.causal_partial, c.total)}
+                    ${progLine('SEG', c.seg_done, c.seg_partial, c.total)}
+                    ${progLine('CAU', c.causal_done, c.causal_partial, c.total)}
                     <button class="small ${c.visible ? 'ghost' : ''}" data-user="${esc(u.username)}" data-batch="${esc(b.name)}"
                         data-visible="${c.visible ? '1' : ''}" onclick="toggleBatch(this)">${c.visible ? 'Hide' : 'Show'}</button></td>`;
             }).join('') + '</tr>').join('')
@@ -129,9 +133,7 @@
     async function toggleBatch(btn) {
         const user = btn.dataset.user, batch = btn.dataset.batch, visible = !btn.dataset.visible;
         const [ok, d] = await post('/api/admin/users/' + encodeURIComponent(user) + '/batches', { batch: batch, visible: visible });
-        document.getElementById('batchmsg').textContent = ok
-            ? ` Batch "${batch}" is now ${visible ? 'visible' : 'hidden'} for ${user}.`
-            : ' Could not change batch: ' + (d.error || 'failed');
+        document.getElementById('batchmsg').textContent = ok ? '' : ' Could not change batch: ' + (d.error || 'failed');
         loadBatches();
     }
 
