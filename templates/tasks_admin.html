@@ -5,60 +5,149 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — narRaters causal task</title>
     <link rel="shortcut icon" href="/static/favicon/favicon.ico">
+    <script src="/static/zoom-controls.js"></script>
     <style>
-        :root { --bg0:#0b0d14; --bg1:#111527; --t0:#f0f2f5; --t1:#c4c9db; --t2:#8890a8; --bdr:#2a3050;
+        :root { --bg0:#0b0d14; --bg1:#111527; --bg2:#1a1f36; --t0:#f0f2f5; --t1:#c4c9db; --t2:#8890a8; --bdr:#2a3050;
                 --acc:#6c63ff; --grn:#22c55e; --ylw:#f59e0b; --red:#ef4444; --rad:10px; }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--bg0); color: var(--t0); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--bdr); background: var(--bg1); }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--bdr); background: var(--bg1); flex-wrap: wrap; gap: 8px; }
         header h1 { font-size: 1.1em; margin: 0; }
-        header a { color: var(--t2); text-decoration: none; }
-        main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
-        h2 { font-size: 1em; margin: 26px 0 8px; color: var(--t1); }
+        .hdr-actions { display: flex; align-items: center; gap: 8px; }
+        .hdr-btn { color: var(--t1); text-decoration: none; background: var(--bg2); border: 1px solid var(--bdr);
+                   border-radius: 6px; padding: 4px 12px; font: inherit; font-size: .9em; cursor: pointer; }
+        .hdr-btn:hover { border-color: var(--acc); color: var(--t0); }
+        /* the zoom script's floating buttons are replaced by the header's - / + */
+        .page-zoom-controls { display: none !important; }
+        main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
+        .card { background: var(--bg1); border: 1px solid var(--bdr); border-radius: var(--rad); margin-top: 20px; overflow: hidden; }
+        .card-head { padding: 10px 14px; border-bottom: 1px solid var(--bdr); font-weight: 600; color: var(--t1); }
+        .card-head .muted { font-weight: 400; font-size: .9em; }
+        .card-body { padding: 12px 14px; }
         .muted { color: var(--t2); }
         .wrap { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; background: var(--bg1); }
+        table { width: 100%; border-collapse: collapse; }
         th, td { padding: 8px 10px; border-bottom: 1px solid var(--bdr); text-align: left; white-space: nowrap; }
+        tr:last-child td { border-bottom: none; }
         th { color: var(--t2); font-size: .8em; text-transform: uppercase; }
         .s-not_started { color: var(--t2); } .s-in_progress { color: var(--ylw); }
         .s-submitted, .s-submitted_edited { color: var(--grn); font-weight: 600; }
+        tr.batch-header td { background: var(--bg2); color: var(--t0); font-weight: 600; font-size: 12px;
+                             text-transform: uppercase; letter-spacing: .6px; padding: 6px 10px; }
+        /* Batch matrix: one row per rater, one column per batch; the rater column stays pinned. */
+        #batches-table th:first-child, #batches-table td:first-child { position: sticky; left: 0; z-index: 1;
+            background: var(--bg1); box-shadow: inset -1px 0 0 var(--bdr); font-weight: 600; }
+        td.batch-cell { vertical-align: top; }
+        td.batch-cell.batch-hidden { opacity: .45; }
+        .batch-prog { font-size: 12px; color: var(--t1); margin-bottom: 4px; }
+        .batch-prog.done { color: var(--grn); }
         form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        input { background: var(--bg1); color: var(--t0); border: 1px solid var(--bdr); border-radius: 6px; padding: 6px 8px; }
+        input { background: var(--bg0); color: var(--t0); border: 1px solid var(--bdr); border-radius: 6px; padding: 6px 8px; }
         button { background: var(--acc); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
         button.ghost { background: transparent; border: 1px solid var(--bdr); color: var(--t1); }
-        #msg { margin-left: 8px; }
+        button.small { padding: 3px 10px; font-size: 12px; }
+        #msg, #batchmsg { margin-left: 8px; }
     </style>
 </head>
 <body>
-<header><h1>Causal-rating task · admin</h1><div><a href="/logout">Log out</a><span class="muted" style="margin-left:12px;font-size:.85em">{{ narraters_version }}</span></div></header>
+<header><h1>Causal-rating task · admin</h1>
+    <div class="hdr-actions">
+        <button type="button" class="hdr-btn" onclick="if(window.PageZoom)PageZoom.out()" title="Make the page smaller">-</button>
+        <button type="button" class="hdr-btn" onclick="if(window.PageZoom)PageZoom.in()" title="Make the page bigger">+</button>
+        <a class="hdr-btn" href="/logout">Log out</a>
+        <span class="muted" style="font-size:.85em">{{ narraters_version }}</span>
+    </div>
+</header>
 <main>
     <p class="muted">Task folder on the server: <code>{{ task_dir }}</code>. Put stories in <code>unrated/narraters_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code> (<code>story-&lt;story&gt;.txt</code> and <code>story-&lt;story&gt;-segmented.csv</code>); raters' files appear in <code>rated/&lt;user&gt;/&lt;user&gt;_rcause-&lt;datasource&gt;-matching/&lt;story&gt;/</code>.</p>
-    <h2>Progress</h2>
-    <div class="wrap"><table>
-        <thead><tr><th>Rater</th><th>Story</th><th>Part 1</th><th>segments (orig.)</th><th>Part 1 submitted</th><th>Part 2</th><th>pairs</th><th>Part 2 submitted</th><th>last saved</th></tr></thead>
-        <tbody id="progress"><tr><td colspan="9" class="muted">Loading…</td></tr></tbody>
-    </table></div>
-    <h2>Accounts</h2>
-    <form onsubmit="addUser(event)">
-        <input id="nu" placeholder="new username" autocomplete="off">
-        <input id="np" placeholder="password" type="password" autocomplete="new-password">
-        <button>Add rater</button><span id="msg" class="muted"></span>
-    </form>
-    <div class="wrap" style="margin-top:10px"><table><tbody id="users"></tbody></table></div>
-    <h2>Program</h2>
-    <p class="muted">Installed commit: <code>{{ installed_commit or 'not installed from git' }}</code>. Updating installs the latest commit of the <code>segcausal</code> branch and restarts the service.</p>
-    <button onclick="updateProgram(this)">Update and restart</button><span id="upmsg" class="muted" style="margin-left:8px"></span>
-    <pre id="uperr" class="muted" style="white-space:pre-wrap"></pre>
+
+    <div class="card">
+        <div class="card-head">Batches <span class="muted">— per-rater visibility and progress. P1 = segmentation, P2 = causal rating; submitted+in progress / total stories. Only the first batch is visible by default.</span><span id="batchmsg" class="muted"></span></div>
+        <div class="wrap"><table id="batches-table">
+            <thead><tr id="batch-head"></tr></thead>
+            <tbody id="batch-rows"><tr><td class="muted">Loading…</td></tr></tbody>
+        </table></div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">Progress</div>
+        <div class="wrap"><table>
+            <thead><tr><th>Batch</th><th>Story</th><th>Part 1</th><th>segments (orig.)</th><th>Part 1 submitted</th><th>Part 2</th><th>pairs</th><th>Part 2 submitted</th><th>last saved</th></tr></thead>
+            <tbody id="progress"><tr><td colspan="9" class="muted">Loading…</td></tr></tbody>
+        </table></div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">Accounts</div>
+        <div class="card-body">
+            <form onsubmit="addUser(event)">
+                <input id="nu" placeholder="new username" autocomplete="off">
+                <input id="np" placeholder="password" type="password" autocomplete="new-password">
+                <button>Add rater</button><span id="msg" class="muted"></span>
+            </form>
+        </div>
+        <div class="wrap"><table><tbody id="users"></tbody></table></div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">Program</div>
+        <div class="card-body">
+            <p class="muted" style="margin-top:0">Installed commit: <code>{{ installed_commit or 'not installed from git' }}</code>. Updating installs the latest commit of the <code>segcausal</code> branch and restarts the service.</p>
+            <button onclick="updateProgram(this)">Update and restart</button><span id="upmsg" class="muted" style="margin-left:8px"></span>
+            <pre id="uperr" class="muted" style="white-space:pre-wrap"></pre>
+        </div>
+    </div>
 </main>
 <script>
     const label = { not_started: 'not started', in_progress: 'in progress', submitted: 'submitted', submitted_edited: 'submitted (edited since)' };
-    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function t(s) { return s ? esc(s.replace('T', ' ')) : ''; }
+
+    // Batch matrix: one row per rater, one column per batch, each cell shows
+    // P1/P2 progress and a Show/Hide toggle for that rater.
+    function progLine(name, done, partial, total) {
+        const cls = done === total && total > 0 ? 'batch-prog done' : 'batch-prog';
+        return `<div class="${cls}" title="${done} submitted, ${partial} in progress, ${total} stories">${name} ${done}${partial ? '+' + partial : ''}/${total}</div>`;
+    }
+    async function loadBatches() {
+        const d = await (await fetch('/api/admin/batches')).json();
+        const batches = d.batches || [];
+        const users = d.users || [];
+        document.getElementById('batch-head').innerHTML = '<th>Rater</th>' +
+            batches.map(b => `<th>${esc(b.name)} <span class="muted">(${b.total})</span></th>`).join('');
+        document.getElementById('batch-rows').innerHTML = users.length ? users.map(u => '<tr><td>' + esc(u.username) + '</td>' +
+            batches.map(b => {
+                const c = u.batches[b.name];
+                return `<td class="batch-cell${c.visible ? '' : ' batch-hidden'}">
+                    ${progLine('P1', c.seg_done, c.seg_partial, c.total)}
+                    ${progLine('P2', c.causal_done, c.causal_partial, c.total)}
+                    <button class="small ${c.visible ? 'ghost' : ''}" data-user="${esc(u.username)}" data-batch="${esc(b.name)}"
+                        data-visible="${c.visible ? '1' : ''}" onclick="toggleBatch(this)">${c.visible ? 'Hide' : 'Show'}</button></td>`;
+            }).join('') + '</tr>').join('')
+            : `<tr><td colspan="${batches.length + 1}" class="muted">No rater accounts yet.</td></tr>`;
+    }
+    async function toggleBatch(btn) {
+        const user = btn.dataset.user, batch = btn.dataset.batch, visible = !btn.dataset.visible;
+        const [ok, d] = await post('/api/admin/users/' + encodeURIComponent(user) + '/batches', { batch: batch, visible: visible });
+        document.getElementById('batchmsg').textContent = ok
+            ? ` Batch "${batch}" is now ${visible ? 'visible' : 'hidden'} for ${user}.`
+            : ' Could not change batch: ' + (d.error || 'failed');
+        loadBatches();
+    }
+
     async function loadProgress() {
         const d = await (await fetch('/api/admin/progress')).json();
         const rows = d.rows || [];
-        document.getElementById('progress').innerHTML = rows.length ? rows.map(r => `<tr>
-            <td>${esc(r.username)}${r.has_account ? '' : ' <span class="muted">(no account)</span>'}</td>
+        // Rows arrive per rater in batch order; a header row starts each rater.
+        let prevUser = null;
+        document.getElementById('progress').innerHTML = rows.length ? rows.map(r => {
+            let head = '';
+            if (r.username !== prevUser) {
+                prevUser = r.username;
+                head = `<tr class="batch-header"><td colspan="9">${esc(r.username)}${r.has_account ? '' : ' (no account)'}</td></tr>`;
+            }
+            return head + `<tr>
+            <td class="muted">${esc(r.batch)}</td>
             <td>${esc(r.story)}</td>
             <td class="s-${r.segment.state}">${label[r.segment.state]}</td>
             <td>${r.segment.n_events != null ? r.segment.n_events + ' (' + r.segment.n_events_original + ')' : ''}</td>
@@ -66,8 +155,8 @@
             <td class="s-${r.causal.state}">${label[r.causal.state]}</td>
             <td>${r.causal.n_pairs != null ? r.causal.n_pairs : ''}</td>
             <td>${t(r.causal.submitted_at)}</td>
-            <td>${t([r.segment.last_saved, r.causal.last_saved].filter(Boolean).sort().pop())}</td></tr>`).join('')
-            : '<tr><td colspan="9" class="muted">No raters yet.</td></tr>';
+            <td>${t([r.segment.last_saved, r.causal.last_saved].filter(Boolean).sort().pop())}</td></tr>`;
+        }).join('') : '<tr><td colspan="9" class="muted">No raters yet.</td></tr>';
     }
     async function loadUsers() {
         const d = await (await fetch('/api/admin/users')).json();
@@ -83,7 +172,7 @@
         e.preventDefault();
         const [ok, d] = await post('/api/admin/users', { username: document.getElementById('nu').value.trim(), password: document.getElementById('np').value });
         document.getElementById('msg').textContent = ok ? 'Added.' : (d.error || 'Failed');
-        if (ok) { document.getElementById('nu').value = ''; document.getElementById('np').value = ''; loadUsers(); loadProgress(); }
+        if (ok) { document.getElementById('nu').value = ''; document.getElementById('np').value = ''; loadUsers(); loadProgress(); loadBatches(); }
     }
     async function pw(u) {
         const p = prompt('New password for ' + u); if (!p) return;
@@ -93,7 +182,7 @@
     async function rm(u) {
         if (!confirm('Remove account ' + u + '? Their saved files are kept.')) return;
         const [ok, d] = await post('/api/admin/users/' + encodeURIComponent(u) + '/remove');
-        alert(ok ? 'Removed.' : (d.error || 'Failed')); loadUsers(); loadProgress();
+        alert(ok ? 'Removed.' : (d.error || 'Failed')); loadUsers(); loadProgress(); loadBatches();
     }
     async function updateProgram(btn) {
         if (!confirm('Install the latest version and restart? Raters lose the connection for a few seconds; a save made in that moment can fail.')) return;
@@ -108,7 +197,8 @@
             if (r && r.ok) { clearInterval(timer); location.reload(); }
         }, 3000);
     }
-    loadProgress(); loadUsers(); setInterval(loadProgress, 30000);
+    loadBatches(); loadProgress(); loadUsers();
+    setInterval(() => { loadBatches(); loadProgress(); }, 30000);
 </script>
 </body>
 </html>

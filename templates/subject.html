@@ -2382,20 +2382,20 @@
         body.hosted .causal-flags-bar,
         body.hosted .causal-lines-toggle-bar,
         body.hosted #story-events-notification,
-        body.hosted .tabs { display: none !important; }
+        body.hosted .tabs,
+        body.hosted .settings-icon,
+        body.hosted .tutorial-toggle-icon,
+        body.hosted .page-zoom-controls,
+        body.hosted .causal-matrix-instructions,
+        body.hosted .story-panel-hint { display: none !important; }
         .hosted-actions { display: flex; align-items: center; gap: 12px; }
+        .hosted-actions button.back-link { cursor: pointer; font-family: inherit; line-height: inherit; }
         .hosted-submit { background: var(--grn); color: #04210f; border: none; border-radius: 8px;
             padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 0.95em; }
         .hosted-submit:disabled { opacity: 0.5; cursor: wait; }
         .hosted-save-state { color: var(--t2); font-size: 0.88em; }
         .hosted-save-state.unsaved { color: var(--ylw); }
         .hosted-save-state.error { color: var(--red); font-weight: 600; }
-        .hosted-instructions { margin: 0 20px 12px; padding: 12px 16px; border: 1px solid var(--bdr2);
-            border-radius: var(--rad); background: var(--bg1); color: var(--t1); font-size: 0.92em; line-height: 1.5; }
-        .hosted-instructions p { margin: 0 0 8px; }
-        .hosted-instructions.collapsed .hosted-instr-body { display: none; }
-        .hosted-instr-toggle { float: right; background: none; border: 1px solid var(--bdr2); color: var(--t2);
-            border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 0.8em; }
 </style>
     <script>
     (function(){
@@ -2461,28 +2461,15 @@
     
     {% if hosted_part %}
     <div class="header hosted-header">
-        <h1>Story: {{ hosted_story }} &nbsp;·&nbsp; {% if hosted_part == 'segment' %}Part 1 of 2: check the segmentation{% else %}Part 2 of 2: rate causal links{% endif %}</h1>
+        <h1>Story: {{ hosted_story }} &nbsp;·&nbsp; {% if hosted_part == 'segment' %}Part 1 of 2: check the segmentation{% else %}Part 2 of 2: causal rating{% endif %}</h1>
         <div class="header-actions hosted-actions">
             <span id="hosted-save-state" class="hosted-save-state"></span>
             <button type="button" id="hosted-submit" class="hosted-submit" onclick="hostedSubmit()">Submit Part {{ 1 if hosted_part == 'segment' else 2 }}</button>
             <a href="/tasks" class="back-link">← My tasks</a>
+            <button type="button" class="back-link" onclick="if(window.PageZoom)PageZoom.out()" title="Make the page smaller">-</button>
+            <button type="button" class="back-link" onclick="if(window.PageZoom)PageZoom.in()" title="Make the page bigger">+</button>
             {% if require_auth %}<a href="/logout" class="back-link">Log out</a>{% endif %}
             <span style="opacity:.6;font-size:.85em">{{ narraters_version }}</span>
-        </div>
-    </div>
-    <div class="hosted-instructions" id="hosted-instructions">
-        <button type="button" class="hosted-instr-toggle" onclick="document.getElementById('hosted-instructions').classList.toggle('collapsed')">Show / hide instructions</button>
-        <div class="hosted-instr-body">
-        {% if hosted_part == 'segment' %}
-            <p><strong>Read the story</strong> on the left to get a general idea of what happens. Then go through its segmentation on the right and decide whether you agree with each boundary.</p>
-            <p>Event boundaries are breaks in the flow: scene changes, or shifts of topic, location, time, action, emotion or anything else that makes you feel one event has ended and a new one is starting.</p>
-            <p><strong>To remove</strong> a boundary you disagree with, click its red bar. <strong>To add</strong> a boundary, click between two words where a new event starts. Your work is saved to the server automatically every 30 seconds and when you click <em>Save progress</em>. When you are done, click <strong>Submit Part 1</strong> (also if you made no changes).</p>
-        {% else %}
-            <p>Rate the causal relationships between pairs of events. The events on the left are the <strong>original</strong> segmentation of the story (not your edited version) — this is intended.</p>
-            <p>Any earlier event could in a broad sense be partly responsible for a later one, so mark only the pairs that are more strongly related, using your own best judgment. Example: <em>Event 1: Jane orders a crab cake at a restaurant. Event 2: Jane finds a dead fly in her crab cake. Event 3: Jane complains to the manager.</em> There is a causal relationship between Events 2 and 3, but not between Events 1 and 3. Keep your criteria as consistent as you can.</p>
-            <p>Neighbouring events are often causally linked, but distant events can be too, and these long-range links matter for the causal skeleton of the story (e.g. at the end of the day Jane sees a cake at home and feels gross remembering the fly: Event 2 causes that event). An event can cause several events or none, and several events can cause one event or none.</p>
-            <p><strong>How:</strong> click an event on the left to anchor it as the <span style="color:#93c5fd">cause</span>, then click another event to be the <span style="color:#fca5a5">effect</span> and choose a rating: 0 = not at all, 1 = slightly, 2 = causally related, 3 = extremely. While a cause is anchored you can pick as many effects as it causes. You can also click cells in the matrix directly (column = cause, row = effect). Your work is saved automatically every 30 seconds and when you click <em>Save progress</em>. When you have rated across the whole story, click <strong>Submit Part 2</strong>.</p>
-        {% endif %}
         </div>
     </div>
     {% else %}
@@ -2807,7 +2794,7 @@
                             <div class="story-panel">
                                 ${panelVersionBarMarkup('Story text file', 'story-transcript')}
                                 <h2>Story text (reference)</h2>
-                                <p style="color: var(--t3); font-size: 0.85em; margin: 0 0 8px 0;">Full story transcript (e.g. from <code style="color: var(--t2);">data/2_story_transcript</code>). On the right: editable story segments.</p>
+                                <p class="story-panel-hint" style="color: var(--t3); font-size: 0.85em; margin: 0 0 8px 0;">Full story transcript (e.g. from <code style="color: var(--t2);">data/2_story_transcript</code>). On the right: editable story segments.</p>
                                 <div class="story-scrollable">
                                     ${storyFullTextLeft ? `
                                     <div class="text-display" style="white-space: pre-wrap; word-wrap: break-word; padding: 15px; text-align: left; text-indent: 0;">${escapeHtml(storyFullTextLeft)}</div>
@@ -5947,6 +5934,51 @@
             closeCausalPopup();
         }
         
+        function placeCausalHoverLabels(cellRect, causeLabel, effectLabel) {
+            // AI-generated.
+            // Cause label above the hovered cell (below it near the window top), effect
+            // label beside the cell. The effect label then takes the first candidate
+            // position that stays in the window and does not overlap the cause label.
+            // The page is scaled with CSS zoom (base zoom and the -/+ buttons): rects are in
+            // screen px, but style.left/top get multiplied by the zoom, so measure the zoom
+            // once and divide every position we write by it.
+            causeLabel.style.left = '100px';
+            causeLabel.style.top = '0px';
+            var zoom = causeLabel.getBoundingClientRect().left / 100 || 1;
+            var pad = 4, W = window.innerWidth, H = window.innerHeight;
+            var c = causeLabel.getBoundingClientRect(), e = effectLabel.getBoundingClientRect();
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(v, hi)); }
+            var cLeft = clamp(cellRect.left, pad, W - pad - c.width);
+            var cTop = cellRect.top - pad - c.height;
+            var causeAbove = cTop >= pad;
+            if (!causeAbove) cTop = cellRect.bottom + pad;
+            causeLabel.style.left = (cLeft / zoom) + 'px';
+            causeLabel.style.top = (cTop / zoom) + 'px';
+
+            var eLeft = cellRect.left - pad - e.width;
+            if (eLeft < pad) eLeft = cellRect.right + pad;
+            eLeft = clamp(eLeft, pad, W - pad - e.width);
+            var eTopCentered = clamp(cellRect.top + cellRect.height / 2 - e.height / 2, pad, H - pad - e.height);
+            var belowCause = cTop + c.height + pad, aboveCause = cTop - pad - e.height;
+            var candidates = [
+                [eLeft, eTopCentered],
+                [eLeft, causeAbove ? belowCause : aboveCause],
+                [eLeft, causeAbove ? aboveCause : belowCause],
+                [cLeft - pad - e.width, eTopCentered],
+                [cLeft + c.width + pad, eTopCentered],
+            ];
+            var chosen = candidates[0];
+            for (var i = 0; i < candidates.length; i++) {
+                var x = candidates[i][0], y = candidates[i][1];
+                var inWindow = x >= pad && y >= pad && x + e.width <= W - pad && y + e.height <= H - pad;
+                var overlaps = x < cLeft + c.width + pad && x + e.width + pad > cLeft &&
+                               y < cTop + c.height + pad && y + e.height + pad > cTop;
+                if (inWindow && !overlaps) { chosen = candidates[i]; break; }
+            }
+            effectLabel.style.left = (chosen[0] / zoom) + 'px';
+            effectLabel.style.top = (chosen[1] / zoom) + 'px';
+        }
+
         function causalCellEnter(event, colIdx, rowIdx) {
             if (window._causalRatingInProgress) return;
             var storyEvents = window._causalStoryEvents;
@@ -5965,30 +5997,14 @@
             topLabel.id = 'causal-hover-top-el';
             topLabel.textContent = 'Cause ' + causeEv + ': ' + causeText;
             document.body.appendChild(topLabel);
-            var tRect = topLabel.getBoundingClientRect();
-            var tLeft = rect.left;
-            var tTop = rect.top - 4 - tRect.height;
-            if (tLeft + tRect.width > window.innerWidth - 8) tLeft = window.innerWidth - 8 - tRect.width;
-            if (tLeft < 4) tLeft = 4;
-            if (tTop < 4) tTop = rect.bottom + 4;
-            topLabel.style.left = tLeft + 'px';
-            topLabel.style.top = tTop + 'px';
             
             var leftLabel = document.createElement('div');
             leftLabel.className = 'causal-hover-left';
             leftLabel.id = 'causal-hover-left-el';
             leftLabel.textContent = 'Effect ' + effectEv + ': ' + effectText;
             document.body.appendChild(leftLabel);
-            var lRect = leftLabel.getBoundingClientRect();
-            var lLeft = rect.left - 4 - lRect.width;
-            var lTop = rect.top + rect.height / 2 - lRect.height / 2;
-            if (lLeft < 4) lLeft = rect.right + 4;
-            if (lLeft + lRect.width > window.innerWidth - 8) lLeft = window.innerWidth - 8 - lRect.width;
-            if (lLeft < 4) lLeft = 4;
-            if (lTop + lRect.height > window.innerHeight - 8) lTop = window.innerHeight - 8 - lRect.height;
-            if (lTop < 4) lTop = 4;
-            leftLabel.style.left = lLeft + 'px';
-            leftLabel.style.top = lTop + 'px';
+            
+            placeCausalHoverLabels(rect, topLabel, leftLabel);
             
             document.querySelectorAll('.causal-event-item').forEach(function(el) {
                 el.classList.remove('highlight-cause', 'highlight-effect');
@@ -6576,25 +6592,14 @@
             topLabel.id = 'causal-hover-top-el';
             topLabel.textContent = 'Cause C' + causeEv + ': ' + causeText;
             document.body.appendChild(topLabel);
-            var tRect = topLabel.getBoundingClientRect();
-            var tLeft = Math.max(4, Math.min(rect.left, window.innerWidth - 8 - tRect.width));
-            topLabel.style.left = tLeft + 'px';
-            topLabel.style.top = Math.max(4, rect.top - 4 - tRect.height) + 'px';
             
             var leftLabel = document.createElement('div');
             leftLabel.className = 'causal-hover-left';
             leftLabel.id = 'causal-hover-left-el';
             leftLabel.textContent = 'Effect C' + effectEv + ': ' + effectText;
             document.body.appendChild(leftLabel);
-            var lRect = leftLabel.getBoundingClientRect();
-            var lLeft = rect.left - 4 - lRect.width;
-            var lTop = rect.top + rect.height / 2 - lRect.height / 2;
-            if (lLeft < 4) lLeft = rect.right + 4;
-            if (lLeft + lRect.width > window.innerWidth - 8) lLeft = window.innerWidth - 8 - lRect.width;
-            if (lTop < 4) lTop = 4;
-            if (lTop + lRect.height > window.innerHeight - 8) lTop = window.innerHeight - 8 - lRect.height;
-            leftLabel.style.left = lLeft + 'px';
-            leftLabel.style.top = lTop + 'px';
+            
+            placeCausalHoverLabels(rect, topLabel, leftLabel);
             
             document.querySelectorAll('.causal-event-item').forEach(function(el) {
                 el.classList.remove('highlight-cause', 'highlight-effect');
@@ -6717,26 +6722,14 @@
             topLabel.id = 'causal-hover-top-el';
             topLabel.textContent = 'Cause ' + causeEv.event + ': ' + causeEv.text;
             document.body.appendChild(topLabel);
-            var tRect = topLabel.getBoundingClientRect();
-            var tLeft = Math.max(4, Math.min(rect.left, window.innerWidth - 8 - tRect.width));
-            var tTop = Math.max(4, rect.top - 4 - tRect.height);
-            topLabel.style.left = tLeft + 'px';
-            topLabel.style.top = tTop + 'px';
             
             var leftLabel = document.createElement('div');
             leftLabel.className = 'causal-hover-left';
             leftLabel.id = 'causal-hover-left-el';
             leftLabel.textContent = 'Effect ' + effectEv.event + ': ' + effectEv.text;
             document.body.appendChild(leftLabel);
-            var lRect = leftLabel.getBoundingClientRect();
-            var lLeft = rect.left - 4 - lRect.width;
-            var lTop = rect.top + rect.height / 2 - lRect.height / 2;
-            if (lLeft < 4) lLeft = rect.right + 4;
-            if (lLeft + lRect.width > window.innerWidth - 8) lLeft = window.innerWidth - 8 - lRect.width;
-            if (lTop < 4) lTop = 4;
-            if (lTop + lRect.height > window.innerHeight - 8) lTop = window.innerHeight - 8 - lRect.height;
-            leftLabel.style.left = lLeft + 'px';
-            leftLabel.style.top = lTop + 'px';
+            
+            placeCausalHoverLabels(rect, topLabel, leftLabel);
             
             document.querySelectorAll('.causal-event-item').forEach(function(el) {
                 el.classList.remove('highlight-cause', 'highlight-effect');

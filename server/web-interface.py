@@ -8662,9 +8662,78 @@ def _task_scan():
             if events is None:
                 print(f"task: {ds.name}/{d.name}: no story-{d.name}-segmented.csv, skipped")
                 continue
-            stories.append({'key': f"{ds.name}/{d.name}", 'ds_dir': ds.name, 'datasource': datasource,
-                            'story': d.name, 'dir': d, 'transcript': transcript, 'events': events})
+            st = {'key': f"{ds.name}/{d.name}", 'ds_dir': ds.name, 'datasource': datasource,
+                  'story': d.name, 'dir': d, 'transcript': transcript, 'events': events}
+            st['batch'], st['batch_index'], st['batch_rank'] = _task_batch_for(st)
+            stories.append(st)
+    # Batches set the display order.
+    stories.sort(key=lambda st: (st['batch_index'], st['batch_rank'], st['datasource'], st['story']))
     return stories
+
+
+# Stories are grouped into hardcoded batches (same groups as the rBench
+# benchmark on the dev branch), released to raters one batch at a time: the
+# admin shows/hides batches per rater on /admin, only the FIRST batch is
+# visible by default. A story belongs to the first batch whose 'match' list
+# names its datasource (or story folder); within a batch, stories follow the
+# order of that list. Stories matching no batch go to a trailing 'other' batch.
+TASK_BATCHES = [
+    {'name': '0 - training',                    'match': ['training']},
+    {'name': '1 - short & medium reading',      'match': ['georgiou', 'alice']},
+    {'name': '2 - long movie',                  'match': ['sherlock']},
+    {'name': '3 - medium listening',            'match': ['flashfiction', 'pieman']},
+    {'name': '4 - long reading & short movies', 'match': ['monthiversary', 'memsearch']},
+    {'name': '5 - long movie 2',                'match': ['eternal_sunshine']},
+    {'name': '6 - long listening',              'match': ['emomem']},
+    {'name': '7 - short listening',             'match': ['short_librivox']},
+    {'name': '8 - medium movie',                'match': ['filmfest']},
+]
+TASK_OTHER_BATCH = 'other'
+TASK_BATCHES_FILE = TASK_DIR / 'segcausal_batches.json'
+
+
+def _task_batch_for(st):
+    """AI-generated.
+
+    (batch name, batch index, rank within the batch) of one scanned story.
+    """
+    for i, batch in enumerate(TASK_BATCHES):
+        for rank, name in enumerate(batch['match']):
+            if name in (st['datasource'], st['story']):
+                return batch['name'], i, rank
+    return TASK_OTHER_BATCH, len(TASK_BATCHES), 0
+
+
+def task_batch_names(stories):
+    """AI-generated.
+
+    Batch names in display order; 'other' only when some story falls into it.
+    """
+    names = [b['name'] for b in TASK_BATCHES]
+    if any(st['batch'] == TASK_OTHER_BATCH for st in stories):
+        names.append(TASK_OTHER_BATCH)
+    return names
+
+
+def load_task_batch_visibility():
+    """AI-generated.
+
+    Admin overrides {username: {batch: bool}}; batches without an entry use
+    the default (only the first batch visible).
+    """
+    if not TASK_BATCHES_FILE.exists():
+        return {}
+    return json.loads(TASK_BATCHES_FILE.read_text(encoding='utf-8'))
+
+
+def task_visible_batches(username, stories):
+    """AI-generated.
+
+    Set of batch names ``username`` may see.
+    """
+    overrides = load_task_batch_visibility().get(username, {})
+    first_batch = TASK_BATCHES[0]['name']
+    return {name for name in task_batch_names(stories) if overrides.get(name, name == first_batch)}
 
 
 def _task_assigned(stories, assigned):
@@ -8683,13 +8752,17 @@ def _task_assigned(stories, assigned):
 
 
 def _task_visible_stories(username):
-    stories = _task_scan()
+    all_stories = _task_scan()
+    stories = all_stories
     if _is_admin():
         return stories
     assigned = _task_load_assignments().get(username)
     if isinstance(assigned, list):
+        # Assignment order within a batch; batches stay in their fixed order.
         stories = _task_assigned(stories, assigned)
-    return stories
+        stories.sort(key=lambda st: st['batch_index'])
+    visible = task_visible_batches(username, all_stories)
+    return [st for st in stories if st['batch'] in visible]
 
 
 def _task_item_id(part, st):
@@ -8980,6 +9053,7 @@ def _task_story_row(username, st):
     return {
         'story': st['story'],
         'datasource': st['datasource'],
+        'batch': st['batch'],
         'url_segment': f"/task/{st['ds_dir']}/{st['story']}/segment",
         'url_causal': f"/task/{st['ds_dir']}/{st['story']}/causal",
         'segment': {'state': _task_part_state(status, 'segment', _task_seg_path(username, st)),
@@ -9108,6 +9182,70 @@ def api_admin_progress():
     return jsonify({'success': True, 'rows': rows,
                     'stories': [f"{s['datasource']}/{s['story']}" for s in all_stories],
                     'task_dir': str(TASK_DIR)})
+
+
+@app.route('/api/admin/batches')
+def api_admin_batches():
+    """AI-generated.
+
+    Batch matrix for the admin page: the batches in order (with story counts)
+    and, per rater account, each batch's visibility and how many of its
+    stories have Part 1 / Part 2 submitted or in progress.
+    """
+    err = _task_admin_required()
+    if err:
+        return err
+    stories = _task_scan()
+    batch_names = task_batch_names(stories)
+    totals = {name: 0 for name in batch_names}
+    for st in stories:
+        totals[st['batch']] += 1
+    visibility = load_task_batch_visibility()
+    users = []
+    for username in sorted(u for u in _accounts.list_users() if u != ADMIN_USERNAME):
+        overrides = visibility.get(username, {})
+        cells = {name: {'visible': overrides.get(name, name == TASK_BATCHES[0]['name']), 'total': totals[name],
+                        'seg_done': 0, 'seg_partial': 0, 'causal_done': 0, 'causal_partial': 0}
+                 for name in batch_names}
+        for st in stories:
+            row = _task_story_row(username, st)
+            cell = cells[st['batch']]
+            for part in ('segment', 'causal'):
+                prefix = 'seg' if part == 'segment' else 'causal'
+                if row[part]['state'].startswith('submitted'):
+                    cell[prefix + '_done'] += 1
+                elif row[part]['state'] == 'in_progress':
+                    cell[prefix + '_partial'] += 1
+        users.append({'username': username, 'batches': cells})
+    return jsonify({'success': True,
+                    'batches': [{'name': name, 'total': totals[name]} for name in batch_names],
+                    'users': users})
+
+
+@app.route('/api/admin/users/<username>/batches', methods=['POST'])
+def api_admin_set_batch(username):
+    """AI-generated.
+
+    Show or hide one batch for a rater: {batch, visible}.
+    """
+    err = _task_admin_required()
+    if err:
+        return err
+    if not _accounts.user_exists(username):
+        return jsonify({'success': False, 'error': 'No such user.'}), 404
+    data = request.get_json(silent=True) or {}
+    batch = data.get('batch')
+    visible = data.get('visible')
+    if batch not in task_batch_names(_task_scan()) or not isinstance(visible, bool):
+        return jsonify({'success': False, 'error': 'Unknown batch, or visible is not true/false.'}), 400
+    with _task_lock(str(TASK_BATCHES_FILE)):
+        visibility = load_task_batch_visibility()
+        visibility.setdefault(username, {})[batch] = visible
+        TASK_BATCHES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = TASK_BATCHES_FILE.with_name(TASK_BATCHES_FILE.name + '.tmp')
+        tmp.write_text(json.dumps(visibility, indent=2), encoding='utf-8')
+        os.replace(tmp, TASK_BATCHES_FILE)
+    return jsonify({'success': True, 'batch': batch, 'visible': visible})
 
 
 @app.route('/api/admin/users', methods=['GET', 'POST'])

@@ -6,6 +6,7 @@
     <title>My stories — narRaters</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
     <link rel="shortcut icon" href="/static/favicon/favicon.ico">
+    <script src="/static/zoom-controls.js"></script>
     <style>
         :root { --bg0:#0b0d14; --bg1:#111527; --bg2:#1a1f36; --t0:#f0f2f5; --t1:#c4c9db; --t2:#8890a8;
                 --bdr:#2a3050; --acc:#6c63ff; --grn:#22c55e; --ylw:#f59e0b; --red:#ef4444; --rad:10px; }
@@ -15,11 +16,13 @@
         header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px;
                  border-bottom: 1px solid var(--bdr); background: var(--bg1); flex-wrap: wrap; gap: 8px; }
         header h1 { font-size: 1.15em; margin: 0; }
-        header a { color: var(--t2); text-decoration: none; margin-left: 16px; }
+        .hdr-actions { display: flex; align-items: center; gap: 8px; }
+        .hdr-btn { color: var(--t1); text-decoration: none; background: var(--bg2); border: 1px solid var(--bdr);
+                   border-radius: 6px; padding: 4px 12px; font: inherit; font-size: .9em; cursor: pointer; }
+        .hdr-btn:hover { border-color: var(--acc); color: var(--t0); }
+        /* the zoom script's floating buttons are replaced by the header's - / + */
+        .page-zoom-controls { display: none !important; }
         main { max-width: 940px; margin: 0 auto; padding: 24px 16px 60px; }
-        .intro { background: var(--bg1); border: 1px solid var(--bdr); border-radius: var(--rad);
-                 padding: 14px 18px; color: var(--t1); margin-bottom: 20px; }
-        .intro p { margin: 0 0 6px; }
         table { width: 100%; border-collapse: collapse; background: var(--bg1); border-radius: var(--rad); overflow: hidden; }
         th, td { padding: 12px 14px; border-bottom: 1px solid var(--bdr); text-align: left; vertical-align: middle; }
         th { color: var(--t2); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: .04em; }
@@ -36,21 +39,20 @@
         .s-submitted_edited { background: rgba(34,197,94,.18); color: var(--grn); }
         .s-locked { background: transparent; color: var(--t2); border: 1px dashed var(--bdr); }
         .empty { padding: 30px; text-align: center; color: var(--t2); }
-        @media (max-width: 640px) { th:nth-child(2), td:nth-child(2) { display: none; } }
+        tr.batch-header td { background: var(--bg2); color: var(--t0); font-weight: 600; font-size: 12px;
+                             text-transform: uppercase; letter-spacing: .6px; padding: 6px 14px; }
     </style>
 </head>
 <body>
 <header>
     <h1>DFRN story causal rating</h1>
-    <div><span class="muted">Signed in as <strong>{{ username }}</strong></span>
-        {% if require_auth %}<a href="/logout">Log out</a>{% endif %}
-        <span class="muted" style="margin-left:12px;font-size:.85em">{{ narraters_version }}</span></div>
+    <div class="hdr-actions"><span class="muted">Signed in as <strong>{{ username }}</strong></span>
+        <button type="button" class="hdr-btn" onclick="if(window.PageZoom)PageZoom.out()" title="Make the page smaller">-</button>
+        <button type="button" class="hdr-btn" onclick="if(window.PageZoom)PageZoom.in()" title="Make the page bigger">+</button>
+        {% if require_auth %}<a class="hdr-btn" href="/logout">Log out</a>{% endif %}
+        <span class="muted" style="font-size:.85em">{{ narraters_version }}</span></div>
 </header>
 <main>
-    <div class="intro">
-        <p>For each story, do <strong>Part 1</strong> first: read the story and check where its events begin and end. Then do <strong>Part 2</strong>: rate how strongly events cause each other.</p>
-        <p class="muted">Your work is saved on the server as you go, so you can stop and come back later. There is nothing to download, upload or email. A part counts as done when you click its Submit button.</p>
-    </div>
     <table>
         <thead><tr><th>Story</th><th>Events</th><th>Part 1 · Segmentation</th><th>Part 2 · Causal rating</th></tr></thead>
         <tbody id="rows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
@@ -76,10 +78,19 @@
             return;
         }
         const manySources = new Set(data.stories.map(s => s.datasource)).size > 1;
-        rows.innerHTML = data.stories.map(s => `
-            <tr><td class="story">${esc(s.story)}${manySources ? ` <span class="muted">(${esc(s.datasource)})</span>` : ''}</td><td>${s.n_events}</td>
+        // Stories arrive ordered by batch; a header row starts each batch.
+        let html = '';
+        let prevBatch = null;
+        for (const s of data.stories) {
+            if (s.batch !== prevBatch) {
+                prevBatch = s.batch;
+                html += `<tr class="batch-header"><td colspan="4">Batch: ${esc(s.batch)}</td></tr>`;
+            }
+            html += `<tr><td class="story">${esc(s.story)}${manySources ? ` <span class="muted">(${esc(s.datasource)})</span>` : ''}</td><td>${s.n_events}</td>
                 <td>${cell(s.url_segment, 'segment', s.segment)}</td>
-                <td>${cell(s.url_causal, 'causal', s.causal)}</td></tr>`).join('');
+                <td>${cell(s.url_causal, 'causal', s.causal)}</td></tr>`;
+        }
+        rows.innerHTML = html;
     }).catch(() => {
         document.getElementById('rows').innerHTML = '<tr><td colspan="4" class="empty">Could not load your stories. Please reload.</td></tr>';
     });
