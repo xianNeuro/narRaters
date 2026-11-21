@@ -17,7 +17,7 @@ without touching it; see "Running next to the matching task" at the end.
 
 On this branch `narraters serve` and `narraters users` work on the causal task by
 default (`narraters serve --pipeline` starts the plain pipeline app instead).
-`narraters --version` prints `0.3.19+segcausal`.
+`narraters --version` prints the version from `pyproject.toml` (e.g. `0.3.20+segcausal`).
 
 ---
 
@@ -69,7 +69,7 @@ sudo -u narraters_rcause /srv/narraters_rcause/.venv-segcausal/bin/pip install -
 # 'deploy' adds Waitress
 sudo -u narraters_rcause /srv/narraters_rcause/.venv-segcausal/bin/pip install \
     "narraters[deploy] @ git+https://github.com/xianNeuro/narRaters.git@segcausal"
-sudo -u narraters_rcause /srv/narraters_rcause/.venv-segcausal/bin/narraters --version   # narRaters 0.3.19+segcausal
+sudo -u narraters_rcause /srv/narraters_rcause/.venv-segcausal/bin/narraters --version   # e.g. narRaters 0.3.20+segcausal
 ```
 
 Install from the branch, not from PyPI: the PyPI release is built from `main` and

@@ -22,9 +22,20 @@ Library use
     run_serve(port=5000)
 """
 
-__version__ = "0.3.20+segcausal"
+import re
+from importlib.metadata import version
+from pathlib import Path
 
 from narraters.paths import project_root, repo_root  # noqa: F401
+
+# Single source of truth is ``version`` in pyproject.toml. In a source checkout
+# read it directly (editable-install metadata goes stale until reinstall);
+# a wheel / git install has no pyproject.toml, so use the package metadata.
+_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+if Path(__file__).resolve().parents[1].name == "src" and _PYPROJECT.is_file():
+    __version__ = re.search(r'^version = "([^"]+)"', _PYPROJECT.read_text(), re.MULTILINE).group(1)
+else:
+    __version__ = version("narraters")
 
 __all__ = [
     "__version__",
